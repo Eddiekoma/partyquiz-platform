@@ -1,0 +1,158 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+
+interface SessionControlProps {
+  session: any;
+}
+
+export default function SessionControl({ session }: SessionControlProps) {
+  const router = useRouter();
+  const [updating, setUpdating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function updateSessionStatus(newStatus: string) {
+    setUpdating(true);
+    setError(null);
+
+    try {
+      const res = await fetch(`/api/workspaces/${session.workspaceId}/sessions/${session.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to update session");
+      }
+
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update session");
+    } finally {
+      setUpdating(false);
+    }
+  }
+
+  async function deleteSession() {
+    if (!confirm("Are you sure you want to delete this session? This action cannot be undone.")) {
+      return;
+    }
+
+    setDeleting(true);
+    setError(null);
+
+    try {
+      const res = await fetch(`/api/workspaces/${session.workspaceId}/sessions/${session.id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete session");
+      }
+
+      router.push(`/workspaces/${session.workspaceId}/sessions`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete session");
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg p-6">
+      <h3 className="font-semibold text-gray-900 mb-4">Host Controls</h3>
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+          <p className="text-red-800 text-sm">{error}</p>
+        </div>
+      )}
+
+      <div className="space-y-4">
+        {/* Status Controls */}
+        <div>
+          <p className="text-sm text-gray-600 mb-2">Session Status</p>
+          <div className="flex gap-2">
+            {session.status === "LOBBY" && (
+              <button
+                onClick={() => updateSessionStatus("ACTIVE")}
+                disabled={updating}
+                className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:bg-gray-300 transition-colors"
+              >
+                {updating ? "Starting..." : "▶️ Start Session"}
+              </button>
+            )}
+
+            {session.status === "ACTIVE" && (
+              <>
+                <button
+                  onClick={() => updateSessionStatus("PAUSED")}
+                  disabled={updating}
+                  className="px-4 py-2 bg-yellow-600 text-white font-medium rounded-lg hover:bg-yellow-700 disabled:bg-gray-300 transition-colors"
+                >
+                  {updating ? "Pausing..." : "⏸️ Pause"}
+                </button>
+                <button
+                  onClick={() => updateSessionStatus("ENDED")}
+                  disabled={updating}
+                  className="px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 disabled:bg-gray-300 transition-colors"
+                >
+                  {updating ? "Ending..." : "⏹️ End Session"}
+                </button>
+              </>
+            )}
+
+            {session.status === "PAUSED" && (
+              <>
+                <button
+                  onClick={() => updateSessionStatus("ACTIVE")}
+                  disabled={updating}
+                  className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:bg-gray-300 transition-colors"
+                >
+                  {updating ? "Resuming..." : "▶️ Resume"}
+                </button>
+                <button
+                  onClick={() => updateSessionStatus("ENDED")}
+                  disabled={updating}
+                  className="px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 disabled:bg-gray-300 transition-colors"
+                >
+                  {updating ? "Ending..." : "⏹️ End Session"}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* WebSocket Info */}
+        <div className="pt-4 border-t border-gray-200">
+          <p className="text-sm text-gray-600 mb-2">WebSocket Connection</p>
+          <p className="text-xs text-gray-500 bg-gray-50 p-3 rounded font-mono">
+            ws://localhost:8080/ws
+          </p>
+          <p className="text-xs text-gray-500 mt-2">
+            💡 To control the session in real-time, connect to the WebSocket server and use the host control events.
+          </p>
+        </div>
+
+        {/* Delete Session */}
+        <div className="pt-4 border-t border-gray-200">
+          <p className="text-sm text-gray-600 mb-2">Danger Zone</p>
+          <button
+            onClick={deleteSession}
+            disabled={deleting}
+            className="px-4 py-2 bg-red-50 text-red-700 font-medium rounded-lg border border-red-200 hover:bg-red-100 disabled:bg-gray-100 disabled:text-gray-400 transition-colors"
+          >
+            {deleting ? "Deleting..." : "🗑️ Delete Session"}
+          </button>
+          <p className="text-xs text-gray-500 mt-2">
+            This will permanently delete the session, all players, and all answers.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
