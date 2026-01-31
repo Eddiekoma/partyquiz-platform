@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui";
 import Link from "next/link";
+import { SpotifyConnectCard } from "@/components/SpotifyConnectCard";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -68,6 +69,9 @@ export default async function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Spotify Integration */}
+      <SpotifyConnectCard />
 
       <Card>
         <CardHeader>
