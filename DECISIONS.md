@@ -316,85 +316,131 @@ enum WSMessageType {
 
 ## Spotify Integration
 
-### Decision: OAuth Authorization Code Flow with PKCE
+### Decision: OAuth Authorization Code Flow with PKCE (✅ IMPLEMENTED)
+
+**Status:** Backend completed (2026-01-31), Frontend UI pending
 
 **Choice:** Use Spotify's modern Authorization Code Flow with PKCE for secure OAuth.
 
 **Background:**
-Spotify deprecated the Implicit Grant flow (client-side) and now requires:
-- Authorization Code Flow
-- PKCE (Proof Key for Code Exchange)
-- HTTPS redirect URIs
+Spotify deprecated the Implicit Grant flow (client-side) and now **REQUIRES** (as of Nov 27, 2025):
+- Authorization Code Flow with PKCE
+- No client secret needed for public apps
+- HTTPS redirect URIs mandatory
 
 **Implementation:**
 
-**1. OAuth Flow:**
+**1. OAuth Flow (COMPLETED):**
 ```
-User clicks "Connect Spotify"
+User clicks "Connect Spotify" → GET /api/spotify/auth
+    ↓
+Generate code_verifier + code_challenge (SHA-256)
+    ↓
+Store verifier in secure cookie (10min expiry)
     ↓
 Redirect to Spotify with PKCE challenge
     ↓
-User authorizes app
+User authorizes app on accounts.spotify.com
     ↓
-Spotify redirects to: /api/auth/spotify/callback?code=...
+Spotify redirects to: /api/spotify/callback?code=...&state=...
     ↓
-Exchange code for tokens (with PKCE verifier)
+Verify state (CSRF protection)
     ↓
-Store refresh_token (encrypted) in database
+Exchange code for tokens using code_verifier (NO SECRET!)
+    ↓
+Store access_token + refresh_token in User table
 ```
 
-**2. Token Storage:**
+**2. Token Storage (COMPLETED):**
 ```prisma
-model SpotifyIntegration {
-  id                    String @id
-  workspaceId           String @unique
-  encryptedRefreshToken String @db.Text
-  scopesJson            Json
-  createdAt             DateTime
-  updatedAt             DateTime
+model User {
+  // ... existing fields
+  spotifyAccessToken  String? @db.Text
+  spotifyRefreshToken String? @db.Text
+  spotifyTokenExpiry  DateTime?
 }
 ```
+
+**Note:** Tokens stored per-user (not per-workspace) because:
+- Each editor authenticates their own Spotify account
+- Allows personal track search/library access
+- Simplified permission model
 
 **3. Required Scopes:**
 ```typescript
 const SPOTIFY_SCOPES = [
-  "user-read-email",
-  "playlist-read-private",
-  "user-library-read",
-  // Optional: "streaming" (for Web Playback SDK)
+  "user-read-email",     // Get user email
+  "user-read-private",   // Get user profile
+  "user-library-read",   // Access saved tracks (optional)
 ];
 ```
 
-**4. Playback Strategy:**
+**4. API Routes (COMPLETED):**
 
-**MVP (Simple):**
-- Store track ID + start/duration
-- Host opens Spotify manually
-- Host controls playback
+| Route | Purpose | Status |
+|-------|---------|--------|
+| `GET /api/spotify/auth` | Start PKCE flow | ✅ |
+| `GET /api/spotify/callback` | Handle OAuth callback | ✅ |
+| `GET /api/spotify/search?q=...` | Search tracks/artists/albums | ✅ |
+| `GET /api/spotify/track/[id]` | Get track details + release year | ✅ |
 
-**Future (Advanced):**
+**5. Auto-Refresh Logic:**
+```typescript
+// Before each API call, check token expiry
+if (user.spotifyTokenExpiry && new Date() >= user.spotifyTokenExpiry) {
+  // Refresh access token using refresh_token
+  const newToken = await refreshAccessToken({
+    clientId: SPOTIFY_CLIENT_ID,
+    refreshToken: user.spotifyRefreshToken,
+  });
+  // Update stored tokens
+  await prisma.user.update({ ... });
+}
+```
+
+**6. Playback Strategy:**
+
+**MVP (Simple - IMPLEMENTED):**
+- Store track ID + 30s preview URL
+- Player shows "Open in Spotify" button
+- Host controls playback manually
+- Works without Premium account
+
+**Future (Advanced - TODO):**
 - Spotify Web Playback SDK
-- Browser-based playback
+- Browser-based auto-play
 - Requires Premium account
-- More complex but better UX
+- Better UX but more complex
 
 **Rationale for MVP approach:**
 1. **Simpler** - No Premium account required
 2. **Faster to build** - Less complexity
 3. **Works for most use cases** - Host has Spotify open anyway
 4. **Can upgrade later** - PKCE tokens support SDK
+5. **30s preview** - Sufficient for MUSIC_GUESS_YEAR questions
 
-**Track Search & Caching:**
-```typescript
-// Server-side API proxy (avoids exposing client secret)
-GET /api/spotify/search?q=artist:the%20killers
-```
+**Security Measures:**
+- ✅ Client secret NOT needed (PKCE flow)
+- ✅ All Spotify API calls server-side
+- ✅ State parameter for CSRF protection
+- ✅ Code verifier stored in httpOnly cookie (10min expiry)
+- ✅ Rate limiting on search endpoint (via Redis)
+- ⚠️ TODO: Encrypt tokens before storing (use crypto.encrypt)
 
-**Security:**
-- Client secret NEVER sent to browser
-- All Spotify API calls server-side
-- Refresh token encrypted with workspace-level key
-- Rate limiting on search endpoint
+**Frontend Integration (TODO):**
+- [ ] Spotify connect button in dashboard
+- [ ] Track search component in quiz builder
+- [ ] Track preview player
+- [ ] Album art display
+- [ ] Release year extraction for MUSIC_GUESS_YEAR
+
+**Testing Checklist:**
+- [ ] PKCE flow end-to-end (auth → callback → tokens stored)
+- [ ] Token refresh after expiry
+- [ ] Search API with various queries
+- [ ] Track details API
+- [ ] Preview URL playback
+- [ ] MUSIC_GUESS_YEAR question type with Spotify tracks
 
 **Alternatives Considered:**
 - **Spotify Embed Player** (iframe)
