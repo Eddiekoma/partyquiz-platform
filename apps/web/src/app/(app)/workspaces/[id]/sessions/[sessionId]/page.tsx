@@ -6,6 +6,7 @@ import { hasPermission, Permission } from "@/lib/permissions";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import SessionControl from "./SessionControl";
+import HostControlPanel from "./HostControlPanel";
 
 interface PageProps {
   params: { id: string; sessionId: string };
@@ -214,13 +215,23 @@ async function SessionDetails({ workspaceId, sessionId, userId }: { workspaceId:
     <div className="space-y-6">
       <SessionInfo session={session} />
 
-      {isHost && session.status !== "ENDED" && (
-        <SessionControl session={session} />
-      )}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 space-y-6">
+          <PlayersList players={session.players} />
+          <QuizContent quiz={session.quiz} />
+        </div>
+        
+        {isHost && session.status !== "ENDED" && (
+          <div className="lg:col-span-1">
+            <HostControlPanel session={session} quiz={session.quiz} />
+          </div>
+        )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <PlayersList players={session.players} />
-        <QuizContent quiz={session.quiz} />
+        {isHost && session.status === "ENDED" && (
+          <div className="lg:col-span-1">
+            <SessionControl session={session} />
+          </div>
+        )}
       </div>
     </div>
   );
