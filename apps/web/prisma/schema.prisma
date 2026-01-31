@@ -23,6 +23,11 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  // Spotify OAuth tokens (PKCE flow)
+  spotifyAccessToken  String? @db.Text
+  spotifyRefreshToken String? @db.Text
+  spotifyTokenExpiry  DateTime?
+
   accounts      Account[]
   sessions      Session[]
   ownedWorkspaces Workspace[] @relation("WorkspaceOwner")
