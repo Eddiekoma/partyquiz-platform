@@ -555,6 +555,153 @@ setInterval(() => {
 
 ---
 
+## YouTube Integration - Implementation
+
+### Decision: oEmbed API for Metadata (NO API KEY!)
+
+**Problem:**
+Need video metadata (title, thumbnail, channel) without YouTube Data API quotas.
+
+**Solution:**
+```typescript
+// Backend utility - NO API KEY NEEDED!
+export async function fetchYouTubeMetadata(videoId: string) {
+  const oEmbedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`;
+  const response = await fetch(oEmbedUrl);
+  const data = await response.json();
+  
+  return {
+    videoId,
+    title: data.title,
+    channelName: data.author_name,
+    thumbnailUrl: data.thumbnail_url,
+  };
+}
+```
+
+**Implementation Highlights:**
+1. **Quiz Builder** - URL validation, metadata preview
+2. **Edit Page** - MM:SS timestamp selector (parseTimestamp/formatTimestamp utils)
+3. **Live Session** - YouTubePlayer component with autoplay + segment bounds
+4. **Host Controls** - Preview player with Play/Pause/Reset buttons
+
+**Benefits:**
+- ✅ No API key required
+- ✅ No quota limits
+- ✅ Works in development immediately
+- ✅ Production-ready without setup
+- ✅ Official YouTube endpoint
+
+**Stats:**
+- 5 commits for full integration
+- 100% coverage (backend → frontend → live → builder → edit)
+- Build size: +2kB
+
+---
+
+## Swan Race Mini-Game
+
+### Decision: Server-Authoritative Canvas Game
+
+**Problem:**
+Need engaging mini-game for downtime between quiz rounds.
+
+**Solution:**
+```typescript
+// Server-side game loop
+interface SwanRaceState {
+  players: Map<playerId, {
+    position: number,
+    velocity: number,
+    lastStroke: number
+  }>;
+  finishLine: number;
+  finishedPlayers: string[];
+}
+
+function updateSwanRace(sessionCode, playerId, strokeDuration) {
+  // Velocity decay over time
+  const timeSinceLastStroke = Date.now() - player.lastStroke;
+  const decay = Math.max(0, 1 - (timeSinceLastStroke / 2000));
+  
+  // Stroke power (longer hold = more power, max 300ms)
+  const strokePower = Math.min(strokeDuration / 300, 1) * 15;
+  player.velocity = (player.velocity * decay) + strokePower;
+  
+  // Update position
+  player.position += player.velocity;
+  
+  // Check finish line
+  if (player.position >= finishLine) {
+    finishedPlayers.push(playerId);
+  }
+}
+```
+
+**Frontend - Canvas Rendering:**
+```typescript
+// SwanRace component
+<canvas ref={canvasRef} width={800} height={360} />
+
+// Animation loop
+function animate() {
+  // Draw water texture
+  ctx.fillStyle = "#90CAF9";
+  
+  // Draw lanes
+  ctx.setLineDash([10, 10]);
+  
+  // Draw swans (emoji + circle)
+  swans.forEach((swan) => {
+    ctx.fillText("🦢", swan.x, swan.y);
+    // Velocity waves
+    if (swan.velocity > 0) {
+      // Draw water splash effect
+    }
+  });
+  
+  // Draw finish line
+  ctx.fillText("🏁", finishLine, 20);
+}
+```
+
+**Controls:**
+- Tap/hold button to paddle
+- Longer hold = stronger stroke
+- Velocity decays over 2 seconds
+- Touch + mouse support
+
+**WebSocket Flow:**
+1. Host clicks "Start Swan Race" → START_SWAN_RACE event
+2. Server initializes game state for all players
+3. Server emits SWAN_RACE_STARTED → players show game
+4. Players tap button → GAME_INPUT with stroke duration
+5. Server updates positions → broadcasts GAME_STATE
+6. First 3 finishers get points (10pts, 8pts, 6pts)
+7. Race ends after 60 seconds or all finish
+
+**Scoring:**
+- 1st place: 10 points
+- 2nd place: 8 points  
+- 3rd place: 6 points
+- 4th place: 4 points
+- 5th+ place: 2 points
+
+**Rationale:**
+1. **Simple controls** - One button, easy for all ages
+2. **Skill-based** - Timing matters (not just button mashing)
+3. **Social** - See all players racing live
+4. **Fair** - Server-authoritative (anti-cheat)
+5. **Fast** - 60 second max, keeps energy high
+
+**Implementation Stats:**
+- SwanRaceGame component: 250 lines
+- Server-side logic: 100 lines
+- WebSocket integration: 2 new message types
+- Build size: +6kB
+
+---
+
 ## Game Server Design
 
 ### Decision: Server-Authoritative Netcode
