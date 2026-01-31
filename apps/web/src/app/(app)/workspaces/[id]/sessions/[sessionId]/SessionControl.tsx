@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useWebSocket } from "@/hooks/useWebSocket";
+import { WSMessage, WSMessageType } from "@partyquiz/shared";
 
 interface SessionControlProps {
   session: any;
@@ -12,6 +14,29 @@ export default function SessionControl({ session }: SessionControlProps) {
   const [updating, setUpdating] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // WebSocket connection
+  const { isConnected, error: wsError, send } = useWebSocket({
+    sessionCode: session.code,
+    onMessage: (message: WSMessage) => {
+      console.log("Received WS message:", message);
+      // Refresh page data when session updates
+      if (
+        message.type === WSMessageType.SESSION_STATE ||
+        message.type === WSMessageType.PLAYER_JOINED ||
+        message.type === WSMessageType.PLAYER_LEFT ||
+        message.type === WSMessageType.ANSWER_COUNT_UPDATED
+      ) {
+        router.refresh();
+      }
+    },
+    onConnect: () => {
+      console.log("WebSocket connected for session:", session.code);
+    },
+    onDisconnect: () => {
+      console.log("WebSocket disconnected");
+    },
+  });
 
   async function updateSessionStatus(newStatus: string) {
     setUpdating(true);
@@ -130,11 +155,20 @@ export default function SessionControl({ session }: SessionControlProps) {
         {/* WebSocket Info */}
         <div className="pt-4 border-t border-gray-200">
           <p className="text-sm text-gray-600 mb-2">WebSocket Connection</p>
+          <div className="flex items-center gap-2 mb-2">
+            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+            <span className="text-sm font-medium">
+              {isConnected ? '✅ Connected' : '❌ Disconnected'}
+            </span>
+          </div>
+          {wsError && (
+            <p className="text-xs text-red-600 mb-2">Error: {wsError.message}</p>
+          )}
           <p className="text-xs text-gray-500 bg-gray-50 p-3 rounded font-mono">
-            ws://localhost:8080/ws
+            {process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080'}/ws
           </p>
           <p className="text-xs text-gray-500 mt-2">
-            💡 To control the session in real-time, connect to the WebSocket server and use the host control events.
+            💡 Real-time updates are {isConnected ? 'active' : 'paused'}. Player joins and answers will be reflected automatically.
           </p>
         </div>
 
