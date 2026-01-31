@@ -2,6 +2,19 @@ import { Server, Socket } from "socket.io";
 import { createServer } from "http";
 import { pino } from "pino";
 import { WSMessageType, validateAndScore, QuestionType } from "@partyquiz/shared";
+import {
+  redis,
+  cacheSessionState,
+  getSessionState,
+  updateLeaderboard,
+  getLeaderboard,
+  addActivePlayer,
+  removeActivePlayer,
+  getActivePlayerCount,
+  cachePlayer,
+  getPlayer,
+  checkRateLimit,
+} from "@partyquiz/shared/src/redis";
 import { prisma } from "./lib/prisma";
 import "dotenv/config";
 
@@ -83,6 +96,20 @@ io.on("connection", (socket: Socket) => {
         });
 
         logger.info({ playerId: player.id, sessionCode }, "Player joined session");
+
+        // Cache player data in Redis
+        await cachePlayer(sessionCode, player.id, {
+          id: player.id,
+          name: player.name,
+          avatar: player.avatar,
+          score: 0,
+        });
+
+        // Add to active players set
+        await addActivePlayer(sessionCode, player.id);
+
+        // Initialize leaderboard score
+        await updateLeaderboard(sessionCode, player.id, 0);
 
         // Join socket room
         socket.join(sessionCode);
@@ -274,6 +301,19 @@ io.on("connection", (socket: Socket) => {
           return;
         }
 
+        // Rate limiting: max 10 answers per minute per player
+        const rateLimitKey = `answer:${playerId}`;
+        const rateLimit = await checkRateLimit(rateLimitKey, 10, 60);
+        
+        if (!rateLimit.allowed) {
+          socket.emit(WSMessageType.ERROR, {
+            message: "Too many answers. Please slow down.",
+            code: "RATE_LIMIT_EXCEEDED",
+          });
+          logger.warn({ playerId, remaining: rateLimit.remaining }, "Rate limit exceeded");
+          return;
+        }
+
         // Check if already answered this item
         const existingAnswer = await prisma.liveAnswer.findFirst({
           where: {
@@ -390,6 +430,43 @@ io.on("connection", (socket: Socket) => {
           streak: validation.isCorrect ? currentStreak + 1 : 0,
         });
 
+        // Update leaderboard in Redis if answer was correct
+        if (validation.isCorrect) {
+          // Get player's cached data
+          const cachedPlayer = await getPlayer(sessionCode, playerId);
+          const newScore = (cachedPlayer?.score || 0) + validation.score;
+
+          // Update Redis leaderboard
+          await updateLeaderboard(sessionCode, playerId, newScore);
+
+          // Update cached player data
+          await cachePlayer(sessionCode, playerId, {
+            ...cachedPlayer,
+            score: newScore,
+          });
+
+          // Get top 10 from Redis (super fast!)
+          const leaderboard = await getLeaderboard(sessionCode, 10);
+
+          // Enrich with player details from cache
+          const enrichedLeaderboard = await Promise.all(
+            leaderboard.map(async (entry) => {
+              const player = await getPlayer(sessionCode, entry.playerId);
+              return {
+                playerId: entry.playerId,
+                playerName: player?.name || "Unknown",
+                avatar: player?.avatar || "👤",
+                totalScore: entry.score,
+              };
+            })
+          );
+
+          // Broadcast updated leaderboard
+          io.to(sessionCode).emit(WSMessageType.LEADERBOARD_UPDATE, {
+            leaderboard: enrichedLeaderboard,
+          });
+        }
+
         // Get total answer count for this item
         const answerCount = await prisma.liveAnswer.count({
           where: {
@@ -398,13 +475,8 @@ io.on("connection", (socket: Socket) => {
           },
         });
 
-        // Get total player count
-        const totalPlayers = await prisma.livePlayer.count({
-          where: {
-            sessionId: session.id,
-            leftAt: null,
-          },
-        });
+        // Get total player count from Redis (cached)
+        const totalPlayers = await getActivePlayerCount(sessionCode);
 
         // Notify host of answer count
         io.to(sessionCode).emit(WSMessageType.ANSWER_COUNT_UPDATED, {
@@ -412,38 +484,6 @@ io.on("connection", (socket: Socket) => {
           count: answerCount,
           total: totalPlayers,
         });
-
-        // Update leaderboard if needed
-        if (validation.isCorrect) {
-          // Get updated leaderboard
-          const players = await prisma.livePlayer.findMany({
-            where: {
-              sessionId: session.id,
-              leftAt: null,
-            },
-            include: {
-              answers: {
-                select: {
-                  score: true,
-                },
-              },
-            },
-          });
-
-          const leaderboard = players
-            .map((p) => ({
-              playerId: p.id,
-              name: p.name,
-              avatar: p.avatar,
-              score: p.answers.reduce((sum, a) => sum + a.score, 0),
-            }))
-            .sort((a, b) => b.score - a.score)
-            .slice(0, 10); // Top 10
-
-          io.to(sessionCode).emit(WSMessageType.LEADERBOARD_UPDATE, {
-            leaderboard,
-          });
-        }
 
         logger.info(
           {
@@ -554,6 +594,9 @@ io.on("connection", (socket: Socket) => {
         where: { id: playerId },
         data: { leftAt: new Date() },
       });
+
+      // Remove from Redis active players
+      await removeActivePlayer(sessionCode, playerId);
 
       // Notify others in the session
       socket.to(sessionCode).emit(WSMessageType.PLAYER_LEFT, {
