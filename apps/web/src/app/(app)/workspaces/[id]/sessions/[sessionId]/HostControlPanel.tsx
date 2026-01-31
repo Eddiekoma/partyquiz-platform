@@ -151,6 +151,19 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
     setError(null);
   }
 
+  function startSwanRace() {
+    const message: WSMessage = {
+      type: WSMessageType.START_SWAN_RACE,
+      timestamp: Date.now(),
+      payload: {
+        sessionCode: session.code,
+      },
+    };
+
+    send(message);
+    setError(null);
+  }
+
   // Navigation
   function goToNextItem() {
     if (currentItemIndex < totalItems - 1) {
@@ -339,6 +352,14 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
               👁️ Reveal Answers
             </button>
           )}
+
+          <button
+            onClick={startSwanRace}
+            disabled={!isConnected}
+            className="w-full px-4 py-3 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 disabled:bg-gray-300 transition-colors"
+          >
+            🦢 Start Swan Race
+          </button>
 
           <button
             onClick={endSession}

@@ -161,6 +161,7 @@ export enum WSMessageType {
   LOCK_ITEM = "LOCK_ITEM",
   REVEAL_ANSWERS = "REVEAL_ANSWERS",
   END_SESSION = "END_SESSION",
+  START_SWAN_RACE = "START_SWAN_RACE",
 
   // Server -> Client (State updates)
   SESSION_STATE = "SESSION_STATE",
@@ -171,6 +172,7 @@ export enum WSMessageType {
   REVEAL = "REVEAL",
   LEADERBOARD_UPDATE = "LEADERBOARD_UPDATE",
   GAME_STATE = "GAME_STATE",
+  SWAN_RACE_STARTED = "SWAN_RACE_STARTED",
   
   // Server -> Client (Acknowledgements)
   ANSWER_RECEIVED = "ANSWER_RECEIVED",

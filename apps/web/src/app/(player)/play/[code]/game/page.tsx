@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import type { QuestionType } from "@partyquiz/shared";
+import type { QuestionType, WSMessageType } from "@partyquiz/shared";
 import { QuestionDisplay } from "@/components/player/QuestionDisplay";
 import { AnswerInput } from "@/components/player/AnswerInput";
 import { Timer } from "@/components/player/Timer";
 import { ScoreDisplay } from "@/components/player/ScoreDisplay";
+import { SwanRace } from "@/components/SwanRace";
 
 interface CurrentItem {
   id: string;
@@ -33,15 +34,34 @@ export default function GamePage() {
     score: number;
   } | null>(null);
   const [currentScore, setCurrentScore] = useState(0);
+  const [showSwanRace, setShowSwanRace] = useState(false);
+  const [playerId, setPlayerId] = useState<string>("");
+  const [playerName, setPlayerName] = useState<string>("");
 
   const { socket, isConnected } = useWebSocket();
 
   useEffect(() => {
     if (!socket || !isConnected) return;
 
+    // Get player info from localStorage
+    const storedPlayer = localStorage.getItem(`player-${code}`);
+    if (storedPlayer) {
+      const player = JSON.parse(storedPlayer);
+      setPlayerId(player.id);
+      setPlayerName(player.name);
+    }
+
+    // Listen for Swan Race started
+    socket.on("SWAN_RACE_STARTED", (data: any) => {
+      console.log("[Player] Swan Race started:", data);
+      setShowSwanRace(true);
+      setCurrentItem(null); // Hide current question
+    });
+
     // Listen for item started (new question)
     socket.on("ITEM_STARTED", (data: any) => {
       console.log("[Player] Item started:", data);
+      setShowSwanRace(false); // Hide Swan Race
       setCurrentItem({
         id: data.itemId,
         questionType: data.questionType,
@@ -93,6 +113,7 @@ export default function GamePage() {
     });
 
     return () => {
+      socket.off("SWAN_RACE_STARTED");
       socket.off("ITEM_STARTED");
       socket.off("ITEM_LOCKED");
       socket.off("ANSWER_RECEIVED");
@@ -134,6 +155,24 @@ export default function GamePage() {
           <div className="text-6xl mb-4 animate-bounce">🔌</div>
           <p className="text-xl font-bold text-white">Reconnecting...</p>
         </div>
+      </div>
+    );
+  }
+
+  // Show Swan Race if active
+  if (showSwanRace) {
+    return (
+      <div className="flex-1 flex flex-col p-4">
+        <SwanRace
+          sessionCode={code.toUpperCase()}
+          playerId={playerId}
+          playerName={playerName}
+          isActive={true}
+          onFinish={(position) => {
+            console.log(`[Player] Finished Swan Race in position ${position}`);
+            // Keep showing race for celebration
+          }}
+        />
       </div>
     );
   }

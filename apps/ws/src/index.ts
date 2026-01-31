@@ -18,6 +18,97 @@ import {
 import { prisma } from "./lib/prisma";
 import "dotenv/config";
 
+// Swan Race Game State
+interface SwanRaceState {
+  sessionCode: string;
+  players: Map<string, {
+    id: string;
+    name: string;
+    position: number;
+    velocity: number;
+    lastStroke: number;
+  }>;
+  startTime: number;
+  finishLine: number;
+  finishedPlayers: string[];
+  isActive: boolean;
+}
+
+const swanRaceGames = new Map<string, SwanRaceState>();
+
+function startSwanRace(sessionCode: string, playerIds: string[], playerNames: string[]) {
+  const players = new Map();
+  playerIds.forEach((id, idx) => {
+    players.set(id, {
+      id,
+      name: playerNames[idx] || `Player ${idx + 1}`,
+      position: 0,
+      velocity: 0,
+      lastStroke: Date.now(),
+    });
+  });
+
+  swanRaceGames.set(sessionCode, {
+    sessionCode,
+    players,
+    startTime: Date.now(),
+    finishLine: 800,
+    finishedPlayers: [],
+    isActive: true,
+  });
+
+  logger.info({ sessionCode, playerCount: players.size }, "Swan Race started");
+}
+
+function updateSwanRace(sessionCode: string, playerId: string, strokeDuration: number) {
+  const game = swanRaceGames.get(sessionCode);
+  if (!game || !game.isActive) return null;
+
+  const player = game.players.get(playerId);
+  if (!player) return null;
+
+  // Update velocity based on stroke duration
+  const timeSinceLastStroke = Date.now() - player.lastStroke;
+  const decay = Math.max(0, 1 - (timeSinceLastStroke / 2000)); // Decay over 2 seconds
+  
+  // Stroke power: longer hold = more power (max 300ms)
+  const strokePower = Math.min(strokeDuration / 300, 1) * 15;
+  player.velocity = (player.velocity * decay) + strokePower;
+  player.lastStroke = Date.now();
+
+  // Update position
+  player.position += player.velocity;
+
+  // Check if finished
+  if (player.position >= game.finishLine && !game.finishedPlayers.includes(playerId)) {
+    game.finishedPlayers.push(playerId);
+    logger.info({ sessionCode, playerId, position: game.finishedPlayers.length }, "Player finished Swan Race");
+  }
+
+  // Check if race is finished (all players crossed or 60 seconds elapsed)
+  const raceTime = Date.now() - game.startTime;
+  if (game.finishedPlayers.length === game.players.size || raceTime > 60000) {
+    game.isActive = false;
+    logger.info({ sessionCode, finishedCount: game.finishedPlayers.length }, "Swan Race ended");
+  }
+
+  return {
+    players: Array.from(game.players.values()).map(p => ({
+      id: p.id,
+      name: p.name,
+      position: { x: p.position, y: 0 },
+      velocity: p.velocity,
+    })),
+    raceFinished: !game.isActive,
+    finalPositions: game.finishedPlayers,
+  };
+}
+
+function stopSwanRace(sessionCode: string) {
+  swanRaceGames.delete(sessionCode);
+  logger.info({ sessionCode }, "Swan Race stopped");
+}
+
 const logger = pino({
   level: process.env.NODE_ENV === "production" ? "info" : "debug",
   transport:
@@ -503,19 +594,82 @@ io.on("connection", (socket: Socket) => {
   );
 
   // Game input for mini-games (Swan Race, etc.)
-  socket.on(WSMessageType.GAME_INPUT, (data: { sessionCode: string; input: any }) => {
+  socket.on(WSMessageType.GAME_INPUT, (data: { sessionCode: string; playerId: string; input: any }) => {
     try {
-      const { sessionCode, input } = data;
-      const playerId = socket.data.playerId;
+      const { sessionCode, playerId, input } = data;
       logger.debug({ playerId, sessionCode, input }, "Game input received");
 
-      // Broadcast input to all players in session
-      socket.to(sessionCode).emit(WSMessageType.GAME_INPUT, {
-        playerId,
-        input,
-      });
+      // Handle Swan Race input
+      if (input.action === "STROKE") {
+        const gameState = updateSwanRace(sessionCode, playerId, input.duration || 0);
+        if (gameState) {
+          // Broadcast updated game state to all players
+          io.to(sessionCode).emit("GAME_STATE", gameState);
+
+          // Award points if race finished
+          if (gameState.raceFinished && gameState.finalPositions) {
+            gameState.finalPositions.forEach(async (pid, index) => {
+              const points = Math.max(10 - index * 2, 1); // 1st: 10pts, 2nd: 8pts, 3rd: 6pts, etc.
+              try {
+                await updateLeaderboard(sessionCode, pid, points);
+                logger.info({ sessionCode, playerId: pid, position: index + 1, points }, "Swan Race points awarded");
+              } catch (error) {
+                logger.error({ error, playerId: pid }, "Failed to award Swan Race points");
+              }
+            });
+
+            // Stop the race
+            setTimeout(() => stopSwanRace(sessionCode), 3000); // 3 second delay for celebration
+          }
+        }
+      } else {
+        // Fallback: broadcast input to all players in session
+        socket.to(sessionCode).emit(WSMessageType.GAME_INPUT, {
+          playerId,
+          input,
+        });
+      }
     } catch (error) {
       logger.error({ error }, "Error processing game input");
+    }
+  });
+
+  // Start Swan Race (Host action)
+  socket.on(WSMessageType.START_SWAN_RACE, async (data: { sessionCode: string }) => {
+    try {
+      const { sessionCode } = data;
+      logger.info({ sessionCode }, "Host starting Swan Race");
+
+      // Get active players from Redis
+      const playerKeys = await redis.keys(`session:${sessionCode}:player:*`);
+      const players = await Promise.all(
+        playerKeys.map(async (key) => {
+          const playerData = await redis.get(key);
+          return playerData ? JSON.parse(playerData) : null;
+        })
+      );
+
+      const validPlayers = players.filter((p) => p !== null);
+      const playerIds = validPlayers.map((p) => p.id);
+      const playerNames = validPlayers.map((p) => p.name);
+
+      if (playerIds.length === 0) {
+        socket.emit("error", { message: "No players in session" });
+        return;
+      }
+
+      // Start the race
+      startSwanRace(sessionCode, playerIds, playerNames);
+
+      // Notify all players
+      io.to(sessionCode).emit(WSMessageType.SWAN_RACE_STARTED, {
+        playerCount: playerIds.length,
+      });
+
+      logger.info({ sessionCode, playerCount: playerIds.length }, "Swan Race started successfully");
+    } catch (error) {
+      logger.error({ error }, "Error starting Swan Race");
+      socket.emit("error", { message: "Failed to start Swan Race" });
     }
   });
 
