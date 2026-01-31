@@ -36,6 +36,80 @@ interface SwanRaceState {
 
 const swanRaceGames = new Map<string, SwanRaceState>();
 
+// Connection Status Tracking
+interface PlayerConnection {
+  playerId: string;
+  playerName: string;
+  socketId: string;
+  connectedAt: number;
+  lastHeartbeat: number;
+  isOnline: boolean;
+}
+
+const sessionConnections = new Map<string, Map<string, PlayerConnection>>();
+
+function trackPlayerConnection(sessionCode: string, playerId: string, playerName: string, socketId: string) {
+  if (!sessionConnections.has(sessionCode)) {
+    sessionConnections.set(sessionCode, new Map());
+  }
+  
+  const connections = sessionConnections.get(sessionCode)!;
+  connections.set(playerId, {
+    playerId,
+    playerName,
+    socketId,
+    connectedAt: Date.now(),
+    lastHeartbeat: Date.now(),
+    isOnline: true,
+  });
+  
+  logger.info({ sessionCode, playerId, playerName }, "Player connection tracked");
+}
+
+function updatePlayerHeartbeat(sessionCode: string, playerId: string) {
+  const connections = sessionConnections.get(sessionCode);
+  if (!connections) return;
+  
+  const player = connections.get(playerId);
+  if (player) {
+    player.lastHeartbeat = Date.now();
+  }
+}
+
+function markPlayerOffline(sessionCode: string, playerId: string) {
+  const connections = sessionConnections.get(sessionCode);
+  if (!connections) return;
+  
+  const player = connections.get(playerId);
+  if (player) {
+    player.isOnline = false;
+    logger.info({ sessionCode, playerId }, "Player marked offline");
+  }
+}
+
+function getSessionConnections(sessionCode: string) {
+  const connections = sessionConnections.get(sessionCode);
+  if (!connections) return [];
+  
+  return Array.from(connections.values()).map(conn => ({
+    playerId: conn.playerId,
+    playerName: conn.playerName,
+    isOnline: conn.isOnline,
+    connectedAt: conn.connectedAt,
+    lastHeartbeat: conn.lastHeartbeat,
+    connectionQuality: getConnectionQuality(conn),
+  }));
+}
+
+function getConnectionQuality(conn: PlayerConnection): 'good' | 'poor' | 'offline' {
+  if (!conn.isOnline) return 'offline';
+  
+  const timeSinceHeartbeat = Date.now() - conn.lastHeartbeat;
+  if (timeSinceHeartbeat > 10000) return 'offline';
+  if (timeSinceHeartbeat > 5000) return 'poor';
+  return 'good';
+}
+
 function startSwanRace(sessionCode: string, playerIds: string[], playerNames: string[]) {
   const players = new Map();
   playerIds.forEach((id, idx) => {
@@ -210,6 +284,9 @@ io.on("connection", (socket: Socket) => {
         socket.data.sessionCode = sessionCode;
         socket.data.sessionId = session.id;
 
+        // Track connection status
+        trackPlayerConnection(sessionCode, player.id, playerName, socket.id);
+
         // Send session state to player
         socket.emit(WSMessageType.SESSION_STATE, {
           sessionId: session.id,
@@ -230,6 +307,12 @@ io.on("connection", (socket: Socket) => {
           name: playerName,
           avatar,
           score: 0,
+        });
+
+        // Send connection status update to host
+        const connections = getSessionConnections(sessionCode);
+        io.to(sessionCode).emit("CONNECTION_STATUS_UPDATE", {
+          connections,
         });
 
         logger.info({ playerId: player.id, sessionCode }, "Player joined successfully");
@@ -370,6 +453,15 @@ io.on("connection", (socket: Socket) => {
 
         if (!playerId) {
           socket.emit("error", { message: "Player not authenticated" });
+          return;
+        }
+
+        // Check if session is paused
+        const isPaused = await redis.get(`session:${sessionCode}:paused`);
+        if (isPaused === "true") {
+          socket.emit(WSMessageType.ERROR, {
+            message: "Session is paused. Please wait for the host to resume.",
+          });
           return;
         }
 
@@ -731,6 +823,64 @@ io.on("connection", (socket: Socket) => {
     }
   });
 
+  // Pause session
+  socket.on(WSMessageType.PAUSE_SESSION, async (data: { sessionCode: string }) => {
+    try {
+      const { sessionCode } = data;
+
+      logger.info({ sessionCode }, "Pausing session");
+
+      // Store pause state in Redis
+      await redis.set(`session:${sessionCode}:paused`, "true");
+      await redis.set(`session:${sessionCode}:pausedAt`, Date.now().toString());
+
+      // Notify all clients
+      io.to(sessionCode).emit(WSMessageType.SESSION_PAUSED, {
+        sessionCode,
+        pausedAt: Date.now(),
+      });
+
+      logger.info({ sessionCode }, "Session paused");
+    } catch (error) {
+      logger.error({ error }, "Error pausing session");
+      socket.emit("error", { message: "Failed to pause session" });
+    }
+  });
+
+  // Resume session
+  socket.on(WSMessageType.RESUME_SESSION, async (data: { sessionCode: string }) => {
+    try {
+      const { sessionCode } = data;
+
+      logger.info({ sessionCode }, "Resuming session");
+
+      // Remove pause state from Redis
+      await redis.del(`session:${sessionCode}:paused`);
+      await redis.del(`session:${sessionCode}:pausedAt`);
+
+      // Notify all clients
+      io.to(sessionCode).emit(WSMessageType.SESSION_RESUMED, {
+        sessionCode,
+        resumedAt: Date.now(),
+      });
+
+      logger.info({ sessionCode }, "Session resumed");
+    } catch (error) {
+      logger.error({ error }, "Error resuming session");
+      socket.emit("error", { message: "Failed to resume session" });
+    }
+  });
+
+  // Handle heartbeat for connection tracking
+  socket.on("HEARTBEAT", () => {
+    const playerId = socket.data.playerId;
+    const sessionCode = socket.data.sessionCode;
+
+    if (playerId && sessionCode) {
+      updatePlayerHeartbeat(sessionCode, playerId);
+    }
+  });
+
   // Handle disconnect
   socket.on("disconnect", async () => {
     try {
@@ -742,6 +892,15 @@ io.on("connection", (socket: Socket) => {
       if (!playerId || !sessionCode) {
         return;
       }
+
+      // Mark player as offline in connection tracking
+      markPlayerOffline(sessionCode, playerId);
+
+      // Send connection status update to host
+      const connections = getSessionConnections(sessionCode);
+      io.to(sessionCode).emit("CONNECTION_STATUS_UPDATE", {
+        connections,
+      });
 
       // Update player's leftAt timestamp
       const player = await prisma.livePlayer.update({

@@ -68,9 +68,17 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       onMessage?.(message);
     });
 
+    // Heartbeat mechanism - send heartbeat every 3 seconds
+    const heartbeatInterval = setInterval(() => {
+      if (socket.connected) {
+        socket.emit("HEARTBEAT");
+      }
+    }, 3000);
+
     // Cleanup on unmount
     return () => {
       console.log("[WS] Cleaning up socket connection");
+      clearInterval(heartbeatInterval);
       socket.disconnect();
       socketRef.current = null;
     };

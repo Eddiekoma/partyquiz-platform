@@ -6,6 +6,7 @@ import { useWebSocket } from "@/hooks/useWebSocket";
 import { WSMessage, WSMessageType } from "@partyquiz/shared";
 import { YouTubePlayer, YouTubePlayerControls } from "@/components/YouTubePlayer";
 import { extractYouTubeVideoId } from "@partyquiz/shared";
+import { PlayerConnectionStatus } from "@/components/live/PlayerConnectionStatus";
 
 interface HostControlPanelProps {
   session: any;
@@ -20,6 +21,7 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
   const [isItemLocked, setIsItemLocked] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isPaused, setIsPaused] = useState(false);
   const youtubePlayerRef = useRef<HTMLDivElement>(null);
 
   // Flatten all items for easy navigation
@@ -35,7 +37,7 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
   const totalItems = allItems.length;
 
   // WebSocket connection
-  const { isConnected, error: wsError, send } = useWebSocket({
+  const { socket, isConnected, error: wsError, send } = useWebSocket({
     sessionCode: session.code,
     onMessage: (message: WSMessage) => {
       console.log("Host received WS message:", message);
@@ -62,6 +64,14 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
 
         case WSMessageType.ANSWER_COUNT_UPDATED:
           router.refresh();
+          break;
+
+        case WSMessageType.SESSION_PAUSED:
+          setIsPaused(true);
+          break;
+
+        case WSMessageType.SESSION_RESUMED:
+          setIsPaused(false);
           break;
 
         default:
@@ -151,6 +161,32 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
     setError(null);
   }
 
+  function pauseSession() {
+    const message: WSMessage = {
+      type: WSMessageType.PAUSE_SESSION,
+      timestamp: Date.now(),
+      payload: {
+        sessionCode: session.code,
+      },
+    };
+
+    send(message);
+    setError(null);
+  }
+
+  function resumeSession() {
+    const message: WSMessage = {
+      type: WSMessageType.RESUME_SESSION,
+      timestamp: Date.now(),
+      payload: {
+        sessionCode: session.code,
+      },
+    };
+
+    send(message);
+    setError(null);
+  }
+
   function startSwanRace() {
     const message: WSMessage = {
       type: WSMessageType.START_SWAN_RACE,
@@ -203,6 +239,9 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
 
   return (
     <div className="space-y-4">
+      {/* Player Connection Status */}
+      <PlayerConnectionStatus socket={socket} sessionCode={session.code} />
+
       {/* WebSocket Status */}
       <div className="bg-white border border-gray-200 rounded-lg p-4">
         <div className="flex items-center gap-2">
@@ -323,10 +362,29 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
 
         {/* Control Buttons */}
         <div className="space-y-2">
+          {/* Pause/Resume Button */}
+          {!isPaused ? (
+            <button
+              onClick={pauseSession}
+              disabled={!isConnected}
+              className="w-full px-4 py-3 bg-orange-600 text-white font-medium rounded-lg hover:bg-orange-700 disabled:bg-gray-300 transition-colors"
+            >
+              ⏸️ Pause Session
+            </button>
+          ) : (
+            <button
+              onClick={resumeSession}
+              disabled={!isConnected}
+              className="w-full px-4 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:bg-gray-300 transition-colors"
+            >
+              ▶️ Resume Session
+            </button>
+          )}
+
           {!isItemActive && (
             <button
               onClick={startItem}
-              disabled={!isConnected}
+              disabled={!isConnected || isPaused}
               className="w-full px-4 py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:bg-gray-300 transition-colors"
             >
               ▶️ Start Question
@@ -336,7 +394,7 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
           {isItemActive && !isItemLocked && (
             <button
               onClick={lockItem}
-              disabled={!isConnected}
+              disabled={!isConnected || isPaused}
               className="w-full px-4 py-3 bg-yellow-600 text-white font-medium rounded-lg hover:bg-yellow-700 disabled:bg-gray-300 transition-colors"
             >
               🔒 Lock Answers
@@ -346,7 +404,7 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
           {isItemLocked && (
             <button
               onClick={revealAnswers}
-              disabled={!isConnected}
+              disabled={!isConnected || isPaused}
               className="w-full px-4 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:bg-gray-300 transition-colors"
             >
               👁️ Reveal Answers
@@ -355,7 +413,7 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
 
           <button
             onClick={startSwanRace}
-            disabled={!isConnected}
+            disabled={!isConnected || isPaused}
             className="w-full px-4 py-3 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 disabled:bg-gray-300 transition-colors"
           >
             🦢 Start Swan Race
@@ -369,6 +427,12 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
             ⏹️ End Session
           </button>
         </div>
+
+        {isPaused && (
+          <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-yellow-800 text-sm font-medium">⏸️ Session is paused. Players cannot submit answers.</p>
+          </div>
+        )}
 
         {error && (
           <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
