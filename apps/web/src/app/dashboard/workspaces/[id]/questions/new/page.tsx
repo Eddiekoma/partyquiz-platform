@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
+import { SpotifyTrackSelector } from "@/components/SpotifyTrackSelector";
 
 type QuestionType =
   | "MC_SINGLE"
@@ -16,8 +17,9 @@ type QuestionType =
   | "PHOTO_QUESTION"
   | "AUDIO_QUESTION"
   | "VIDEO_QUESTION"
-  | "MUSIC_INTRO"
-  | "MUSIC_SNIPPET"
+  | "MUSIC_GUESS_TITLE"
+  | "MUSIC_GUESS_ARTIST"
+  | "MUSIC_GUESS_YEAR"
   | "POLL"
   | "PHOTO_OPEN"
   | "AUDIO_OPEN"
@@ -36,8 +38,9 @@ const QUESTION_TYPES: { value: QuestionType; label: string; description: string 
   { value: "PHOTO_QUESTION", label: "Photo Question", description: "Question with image" },
   { value: "AUDIO_QUESTION", label: "Audio Question", description: "Question with audio" },
   { value: "VIDEO_QUESTION", label: "Video Question", description: "Question with video" },
-  { value: "MUSIC_INTRO", label: "Music Intro", description: "Guess song from intro" },
-  { value: "MUSIC_SNIPPET", label: "Music Snippet", description: "Guess song from snippet" },
+  { value: "MUSIC_GUESS_TITLE", label: "Music: Guess Title", description: "Guess song title from Spotify preview" },
+  { value: "MUSIC_GUESS_ARTIST", label: "Music: Guess Artist", description: "Guess artist from Spotify preview" },
+  { value: "MUSIC_GUESS_YEAR", label: "Music: Guess Year", description: "Guess release year from Spotify preview" },
   { value: "YOUTUBE_SCENE_QUESTION", label: "YouTube Scene Question", description: "Question about a YouTube video scene" },
   { value: "YOUTUBE_NEXT_LINE", label: "YouTube Next Line", description: "Guess the next line in a YouTube video" },
   { value: "YOUTUBE_WHO_SAID_IT", label: "YouTube Who Said It", description: "Identify who said what in a YouTube video" },
@@ -90,6 +93,7 @@ export default function NewQuestionPage() {
 
   // Spotify/YouTube
   const [spotifyTrackId, setSpotifyTrackId] = useState<string>("");
+  const [spotifyTrack, setSpotifyTrack] = useState<any>(null);
   const [youtubeUrl, setYoutubeUrl] = useState<string>("");
   const [youtubeVideoId, setYoutubeVideoId] = useState<string>("");
   const [youtubeValidating, setYoutubeValidating] = useState(false);
@@ -552,30 +556,18 @@ export default function NewQuestionPage() {
         )}
 
         {/* Spotify Integration for MUSIC types */}
-        {(selectedType === "MUSIC_INTRO" || selectedType === "MUSIC_SNIPPET") && (
+        {(selectedType === "MUSIC_GUESS_TITLE" || 
+          selectedType === "MUSIC_GUESS_ARTIST" || 
+          selectedType === "MUSIC_GUESS_YEAR") && (
           <Card className="p-6">
-            <label className="block text-sm font-semibold mb-4">Spotify Track</label>
-            <div className="space-y-3">
-              <Input
-                value={spotifyTrackId}
-                onChange={(e) => setSpotifyTrackId(e.target.value)}
-                placeholder="Enter Spotify Track ID (e.g., 3n3Ppam7vgaVa1iaRUc9Lp)"
-              />
-              <p className="text-sm text-gray-500">
-                You can find the Track ID in the Spotify share URL. Full Spotify integration coming soon!
-              </p>
-              {selectedType === "MUSIC_SNIPPET" && (
-                <div>
-                  <label className="block text-sm text-gray-600 mb-2">
-                    Snippet Start Time (seconds)
-                  </label>
-                  <Input
-                    type="number"
-                    placeholder="e.g., 30"
-                  />
-                </div>
-              )}
-            </div>
+            <label className="block text-sm font-semibold mb-4">🎵 Spotify Track Selection</label>
+            <SpotifyTrackSelector
+              selectedTrack={spotifyTrack}
+              onSelect={(track) => {
+                setSpotifyTrack(track);
+                setSpotifyTrackId(track.id);
+              }}
+            />
           </Card>
         )}
 
