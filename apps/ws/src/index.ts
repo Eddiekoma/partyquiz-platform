@@ -1,7 +1,7 @@
 import { Server, Socket } from "socket.io";
 import { createServer } from "http";
 import { pino } from "pino";
-import { WSMessageType } from "@partyquiz/shared";
+import { WSMessageType, validateAndScore, QuestionType } from "@partyquiz/shared";
 import { prisma } from "./lib/prisma";
 import "dotenv/config";
 
@@ -243,9 +243,9 @@ io.on("connection", (socket: Socket) => {
   // Player submits answer
   socket.on(
     WSMessageType.SUBMIT_ANSWER,
-    async (data: { sessionCode: string; itemId: string; answer: any }) => {
+    async (data: { sessionCode: string; itemId: string; answer: any; submittedAtMs?: number }) => {
       try {
-        const { sessionCode, itemId, answer } = data;
+        const { sessionCode, itemId, answer, submittedAtMs } = data;
         const playerId = socket.data.playerId;
 
         logger.info({ playerId, sessionCode, itemId }, "Answer submitted");
@@ -288,6 +288,87 @@ io.on("connection", (socket: Socket) => {
           return;
         }
 
+        // Get quiz item with question details for validation
+        const quizItem = await prisma.quizItem.findUnique({
+          where: { id: itemId },
+          include: {
+            question: {
+              include: {
+                options: true,
+              },
+            },
+          },
+        });
+
+        if (!quizItem || !quizItem.question) {
+          socket.emit("error", { message: "Question not found" });
+          return;
+        }
+
+        const question = quizItem.question;
+        const questionType = question.type as QuestionType;
+
+        // Get correct answer based on question type
+        let correctAnswer: any;
+        const correctOptions = question.options.filter((opt) => opt.isCorrect);
+
+        if (correctOptions.length > 0) {
+          // MCQ, TRUE_FALSE, etc. - use option IDs
+          if (correctOptions.length === 1) {
+            correctAnswer = correctOptions[0].id;
+          } else {
+            correctAnswer = correctOptions.map((opt) => opt.id);
+          }
+        } else {
+          // OPEN, MUSIC_GUESS_TITLE, etc. - use first option text as correct answer
+          // Or could be stored in settingsJson
+          const settingsJson = quizItem.settingsJson as any;
+          correctAnswer = settingsJson?.correctAnswer || question.options[0]?.text || "";
+        }
+
+        // Get scoring settings from quizItem.settingsJson
+        const settingsJson = quizItem.settingsJson as any;
+        const basePoints = settingsJson?.points || 1000;
+        const timeLimitMs = settingsJson?.timeLimit ? settingsJson.timeLimit * 1000 : undefined;
+
+        // Calculate time spent (if item was started with timestamp tracking)
+        let timeSpentMs: number | undefined;
+        if (submittedAtMs && settingsJson?.itemStartedAtMs) {
+          timeSpentMs = submittedAtMs - settingsJson.itemStartedAtMs;
+        }
+
+        // Get current streak for this player
+        const previousAnswers = await prisma.liveAnswer.findMany({
+          where: {
+            sessionId: session.id,
+            playerId,
+          },
+          orderBy: {
+            answeredAt: "desc",
+          },
+          take: 10, // Check last 10 answers for streak
+        });
+
+        let currentStreak = 0;
+        for (const prevAnswer of previousAnswers) {
+          if (prevAnswer.isCorrect) {
+            currentStreak++;
+          } else {
+            break;
+          }
+        }
+
+        // Validate and score the answer
+        const validation = validateAndScore(
+          questionType,
+          answer,
+          correctAnswer,
+          basePoints,
+          timeSpentMs,
+          timeLimitMs,
+          currentStreak
+        );
+
         // Store answer in database
         const liveAnswer = await prisma.liveAnswer.create({
           data: {
@@ -295,15 +376,18 @@ io.on("connection", (socket: Socket) => {
             playerId,
             quizItemId: itemId,
             payloadJson: answer,
-            isCorrect: null, // Will be calculated later
-            score: 0, // Will be calculated later
+            isCorrect: validation.isCorrect,
+            score: validation.score,
           },
         });
 
-        // Acknowledge to player
+        // Acknowledge to player with validation result
         socket.emit(WSMessageType.ANSWER_RECEIVED, {
           itemId,
           timestamp: Date.now(),
+          isCorrect: validation.isCorrect,
+          score: validation.score,
+          streak: validation.isCorrect ? currentStreak + 1 : 0,
         });
 
         // Get total answer count for this item
@@ -329,7 +413,48 @@ io.on("connection", (socket: Socket) => {
           total: totalPlayers,
         });
 
-        logger.info({ playerId, itemId, answerId: liveAnswer.id }, "Answer stored");
+        // Update leaderboard if needed
+        if (validation.isCorrect) {
+          // Get updated leaderboard
+          const players = await prisma.livePlayer.findMany({
+            where: {
+              sessionId: session.id,
+              leftAt: null,
+            },
+            include: {
+              answers: {
+                select: {
+                  score: true,
+                },
+              },
+            },
+          });
+
+          const leaderboard = players
+            .map((p) => ({
+              playerId: p.id,
+              name: p.name,
+              avatar: p.avatar,
+              score: p.answers.reduce((sum, a) => sum + a.score, 0),
+            }))
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 10); // Top 10
+
+          io.to(sessionCode).emit(WSMessageType.LEADERBOARD_UPDATE, {
+            leaderboard,
+          });
+        }
+
+        logger.info(
+          {
+            playerId,
+            itemId,
+            answerId: liveAnswer.id,
+            isCorrect: validation.isCorrect,
+            score: validation.score,
+          },
+          "Answer stored and validated"
+        );
       } catch (error) {
         logger.error({ error }, "Error submitting answer");
         socket.emit("error", { message: "Failed to submit answer" });
