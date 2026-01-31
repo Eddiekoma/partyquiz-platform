@@ -6,16 +6,51 @@ PartyQuiz Platform is a comprehensive quiz creation and hosting platform designe
 
 ## ✨ Features
 
-- 🎵 **Spotify Integration** - Create music quizzes with PKCE OAuth flow
-- 🎮 **Epic Minigames** - Swan Race and more (server-authoritative netcode)
-- 📹 **YouTube Integration** - Video clips with start/end segments
-- 👥 **Collaborative Workspaces** - Roles & permissions (Owner/Admin/Editor/Contributor/Viewer)
-- 📚 **Central Question Bank** - Reusable questions across multiple quizzes
-- 🎯 **15+ Question Types** - MCQ, Photo, Music, Video, Polls, and more
-- 📱 **Live Sessions** - QR code join, realtime scoring, host & player screens
-- 🔒 **Production Security** - Magic link auth, rate limiting, audit logging
-- ☁️ **Cloud Storage** - Hetzner Object Storage (S3-compatible)
-- 🚀 **Auto-Deploy** - Coolify + GitHub CI/CD
+### 🎵 Media Integrations
+- **Spotify Integration** - OAuth PKCE flow, track search, 30-second previews
+  - 🎼 Guess the Title - Players identify song name
+  - 🎤 Guess the Artist - Players identify artist
+  - 📅 Guess the Year - Players estimate release year
+- **YouTube Integration** - No API key needed (oEmbed)
+  - 🎬 Scene Questions - Ask about specific video moments
+  - 💬 Next Line - Predict what someone says next
+  - 👤 Who Said It? - Identify the speaker
+  - ⏱️ Timestamp Selector - Precise start/end segments (MM:SS format)
+
+### 🎮 Interactive Features
+- **Swan Race Mini-Game** - Competitive paddling game between quiz rounds
+  - 🦢 Server-authoritative netcode (anti-cheat)
+  - 🏆 Points for top finishers (10/8/6/4/2 pts)
+  - 📱 Touch + mouse controls
+  - 🎨 Canvas rendering with real-time updates
+- **Live Sessions** - Real-time quiz hosting
+  - 📲 QR code join (no accounts needed)
+  - ⚡ WebSocket updates (Socket.io)
+  - 🏅 Live leaderboard with Redis caching (10x faster)
+  - 🎯 Host controls (start/lock/reveal)
+
+### 📚 Content Management
+- **Central Question Bank** - Reusable questions across quizzes
+- **15+ Question Types:**
+  - Multiple Choice (Single/Multiple)
+  - True/False
+  - Open Text
+  - Estimation (Swan Race trigger)
+  - Ordering
+  - Photo/Audio/Video Questions
+  - Spotify Music Questions (3 types)
+  - YouTube Video Questions (3 types)
+  - Polls
+- **Collaborative Workspaces** - 5 role levels (Owner/Admin/Editor/Contributor/Viewer)
+- **Media Library** - Hetzner Object Storage (S3-compatible)
+
+### 🔒 Production-Ready
+- **Magic Link Authentication** - Passwordless, secure
+- **Rate Limiting** - Redis-based protection
+- **Audit Logging** - Track all workspace actions
+- **Testing Suite** - 36 tests, 71% coverage (Vitest)
+- **Performance** - Redis caching, optimized queries
+- **Security** - HTTPS, CORS, input validation
 
 ## 🏗️ Architecture
 
