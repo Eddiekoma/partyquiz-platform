@@ -30,11 +30,6 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
-    // Don't connect if no session code provided
-    if (!sessionCode) {
-      return;
-    }
-
     // Create socket connection
     const socket = io(WS_URL, {
       path: "/ws",
@@ -79,7 +74,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [sessionCode, onMessage, onConnect, onDisconnect, onError]);
+  }, [onMessage, onConnect, onDisconnect, onError]);
 
   // Send message function
   const send = useCallback((message: WSMessage) => {

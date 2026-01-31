@@ -1,0 +1,199 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useWebSocket } from "@/hooks/useWebSocket";
+
+interface Player {
+  id: string;
+  name: string;
+  avatar: string;
+}
+
+export default function LobbyPage() {
+  const router = useRouter();
+  const params = useParams();
+  const code = params.code as string;
+
+  const [players, setPlayers] = useState<Player[]>([]);
+  const [sessionState, setSessionState] = useState<"waiting" | "starting" | "playing">("waiting");
+  const [error, setError] = useState("");
+
+  const { socket, isConnected } = useWebSocket();
+
+  useEffect(() => {
+    // Get player info from sessionStorage
+    const playerName = sessionStorage.getItem("playerName");
+    const playerAvatar = sessionStorage.getItem("playerAvatar");
+
+    if (!playerName || !playerAvatar) {
+      router.push(`/play/${code}`);
+      return;
+    }
+
+    // Join session when socket connects
+    if (socket && isConnected) {
+      socket.emit("JOIN_SESSION", {
+        sessionCode: code.toUpperCase(),
+        playerName,
+        avatar: playerAvatar,
+        deviceIdHash: getDeviceIdHash(),
+      });
+
+      // Listen for session state updates
+      socket.on("SESSION_STATE", (data: any) => {
+        if (data.players) {
+          setPlayers(data.players);
+        }
+        if (data.status === "in_progress") {
+          setSessionState("starting");
+        }
+      });
+
+      // Listen for item started (question begins)
+      socket.on("ITEM_STARTED", (data: any) => {
+        setSessionState("playing");
+        router.push(`/play/${code}/game`);
+      });
+
+      // Listen for errors
+      socket.on("ERROR", (data: any) => {
+        setError(data.message || "Failed to join session");
+      });
+
+      // Listen for player joined
+      socket.on("PLAYER_JOINED", (data: any) => {
+        if (data.player) {
+          setPlayers((prev) => [...prev, data.player]);
+        }
+      });
+    }
+
+    return () => {
+      if (socket) {
+        socket.off("SESSION_STATE");
+        socket.off("ITEM_STARTED");
+        socket.off("ERROR");
+        socket.off("PLAYER_JOINED");
+      }
+    };
+  }, [socket, isConnected, code, router]);
+
+  if (error) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-4">
+        <div className="text-center">
+          <div className="text-6xl mb-4">❌</div>
+          <h1 className="text-3xl font-black text-white mb-2">Oops!</h1>
+          <p className="text-lg text-white/90 mb-6">{error}</p>
+          <button
+            onClick={() => router.push("/join")}
+            className="px-6 py-3 text-lg font-bold text-white bg-white/20 backdrop-blur-sm rounded-xl hover:bg-white/30 transition-all"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isConnected) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-6xl mb-4 animate-bounce">🔌</div>
+          <p className="text-xl font-bold text-white">Connecting...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center p-4">
+      <div className="w-full max-w-2xl">
+        {/* Session Code */}
+        <div className="text-center mb-8">
+          <p className="text-lg text-white/80 mb-2">Game Code</p>
+          <div className="inline-block bg-white/20 backdrop-blur-sm px-8 py-4 rounded-2xl">
+            <span className="text-white font-black text-4xl tracking-widest">{code}</span>
+          </div>
+        </div>
+
+        {/* Status */}
+        <div className="text-center mb-8">
+          {sessionState === "waiting" && (
+            <>
+              <div className="text-5xl mb-3 animate-pulse">⏳</div>
+              <h1 className="text-3xl font-black text-white mb-2">Waiting for host...</h1>
+              <p className="text-lg text-white/90">The game will start soon!</p>
+            </>
+          )}
+          {sessionState === "starting" && (
+            <>
+              <div className="text-5xl mb-3 animate-bounce">🎮</div>
+              <h1 className="text-3xl font-black text-white mb-2">Get ready!</h1>
+              <p className="text-lg text-white/90">The game is starting...</p>
+            </>
+          )}
+        </div>
+
+        {/* Players List */}
+        <div className="bg-white/10 backdrop-blur-sm rounded-3xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-white">Players</h2>
+            <div className="bg-white/20 px-3 py-1 rounded-full">
+              <span className="text-sm font-bold text-white">{players.length}</span>
+            </div>
+          </div>
+          
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {players.length === 0 ? (
+              <p className="text-center text-white/60 py-4">No players yet...</p>
+            ) : (
+              players.map((player, index) => (
+                <div
+                  key={player.id}
+                  className="flex items-center gap-4 bg-white/10 backdrop-blur-sm rounded-xl p-4 transform transition-all hover:scale-105"
+                  style={{
+                    animation: `slideIn 0.3s ease-out ${index * 0.1}s both`,
+                  }}
+                >
+                  <div className="text-3xl">{player.avatar}</div>
+                  <div className="flex-1">
+                    <p className="font-bold text-white text-lg">{player.name}</p>
+                  </div>
+                  <div className="text-2xl">
+                    {index === 0 && "👑"}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      <style jsx>{`
+        @keyframes slideIn {
+          from {
+            opacity: 0;
+            transform: translateX(-20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+function getDeviceIdHash(): string {
+  // Generate or retrieve device ID hash
+  let deviceId = localStorage.getItem("deviceId");
+  if (!deviceId) {
+    deviceId = Math.random().toString(36).substring(2) + Date.now().toString(36);
+    localStorage.setItem("deviceId", deviceId);
+  }
+  return deviceId;
+}
