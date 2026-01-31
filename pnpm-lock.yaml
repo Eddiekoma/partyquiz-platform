@@ -153,6 +153,9 @@ importers:
       '@partyquiz/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@prisma/client':
+        specifier: ^5.8.0
+        version: 5.22.0(prisma@5.22.0)
       dotenv:
         specifier: ^16.3.1
         version: 16.6.1
@@ -178,6 +181,9 @@ importers:
       eslint:
         specifier: ^8.56.0
         version: 8.57.1
+      prisma:
+        specifier: ^5.8.0
+        version: 5.22.0
       tsup:
         specifier: ^8.0.1
         version: 8.5.1(tsx@4.21.0)(typescript@5.9.3)

@@ -2,6 +2,7 @@ import { Server, Socket } from "socket.io";
 import { createServer } from "http";
 import { pino } from "pino";
 import { WSMessageType } from "@partyquiz/shared";
+import { prisma } from "./lib/prisma";
 import "dotenv/config";
 
 const logger = pino({
@@ -31,103 +32,89 @@ const io = new Server(httpServer, {
   path: "/ws",
 });
 
-// Session state store (in-memory for now, move to Redis for multi-instance)
-interface PlayerState {
-  id: string;
-  socketId: string;
-  name: string;
-  avatar?: string;
-  score: number;
-  joinedAt: number;
-}
-
-interface SessionState {
-  sessionId: string;
-  sessionCode: string;
-  status: string;
-  currentRoundIndex: number;
-  currentItemIndex: number;
-  currentItemId: string | null;
-  itemStartedAt: number | null;
-  timerDuration: number | null;
-  players: Map<string, PlayerState>;
-  answers: Map<string, any>; // key: `${itemId}:${playerId}`
-  hostSocketId: string | null;
-}
-
-const sessions = new Map<string, SessionState>();
-
 io.on("connection", (socket: Socket) => {
   logger.info({ socketId: socket.id }, "Client connected");
 
   // Player joins session with code
   socket.on(
     WSMessageType.JOIN_SESSION,
-    async (data: { sessionCode: string; playerName: string; avatar?: string }) => {
+    async (data: { sessionCode: string; playerName: string; avatar?: string; deviceIdHash?: string }) => {
       try {
-        const { sessionCode, playerName, avatar } = data;
+        const { sessionCode, playerName, avatar, deviceIdHash } = data;
         logger.info({ sessionCode, playerName }, "Player attempting to join session");
 
-        // Find or create session state
-        let sessionState = Array.from(sessions.values()).find((s) => s.sessionCode === sessionCode);
+        // Validate session exists in database
+        const session = await prisma.liveSession.findUnique({
+          where: { code: sessionCode },
+          include: {
+            players: {
+              where: { leftAt: null },
+            },
+          },
+        });
 
-        if (!sessionState) {
-          // Session not in memory - lazy load from DB later
-          logger.info({ sessionCode }, "Session not in memory, creating state");
-
-          sessionState = {
-            sessionId: sessionCode, // Will be replaced with actual ID from DB
-            sessionCode,
-            status: "LOBBY",
-            currentRoundIndex: 0,
-            currentItemIndex: 0,
-            currentItemId: null,
-            itemStartedAt: null,
-            timerDuration: null,
-            players: new Map(),
-            answers: new Map(),
-            hostSocketId: null,
-          };
-          sessions.set(sessionCode, sessionState);
+        if (!session) {
+          logger.warn({ sessionCode }, "Session not found");
+          socket.emit(WSMessageType.ERROR, {
+            message: "Session not found",
+            code: "SESSION_NOT_FOUND",
+          });
+          return;
         }
 
-        const playerId = socket.id;
+        if (session.status === "ENDED") {
+          logger.warn({ sessionCode }, "Session already ended");
+          socket.emit(WSMessageType.ERROR, {
+            message: "Session has ended",
+            code: "SESSION_ENDED",
+          });
+          return;
+        }
+
+        // Create or update player in database
+        const player = await prisma.livePlayer.create({
+          data: {
+            sessionId: session.id,
+            name: playerName,
+            avatar: avatar || null,
+            deviceIdHash: deviceIdHash || `socket-${socket.id}`,
+            joinedAt: new Date(),
+          },
+        });
+
+        logger.info({ playerId: player.id, sessionCode }, "Player joined session");
+
+        // Join socket room
         socket.join(sessionCode);
 
-        // Add player to session state
-        sessionState.players.set(playerId, {
-          id: playerId,
-          socketId: socket.id,
-          name: playerName,
-          avatar,
-          score: 0,
-          joinedAt: Date.now(),
-        });
+        // Store player info in socket data
+        socket.data.playerId = player.id;
+        socket.data.sessionCode = sessionCode;
+        socket.data.sessionId = session.id;
 
         // Send session state to player
         socket.emit(WSMessageType.SESSION_STATE, {
-          sessionId: sessionState.sessionId,
-          sessionCode: sessionState.sessionCode,
-          status: sessionState.status,
-          currentItemId: sessionState.currentItemId,
-          currentItemIndex: sessionState.currentItemIndex,
-          players: Array.from(sessionState.players.values()).map((p) => ({
+          sessionId: session.id,
+          sessionCode: session.code,
+          status: session.status,
+          playerId: player.id,
+          players: session.players.map((p) => ({
             id: p.id,
             name: p.name,
             avatar: p.avatar,
-            score: p.score,
+            score: 0, // Score calculated from answers later
           })),
         });
 
         // Notify others in the session
         socket.to(sessionCode).emit(WSMessageType.PLAYER_JOINED, {
-          playerId,
+          playerId: player.id,
           name: playerName,
           avatar,
           score: 0,
         });
 
-        logger.info({ sessionCode, playerId, playerName, totalPlayers: sessionState.players.size }, "Player joined");
+        logger.info({ playerId: player.id, sessionCode }, "Player joined successfully");
       } catch (error) {
         logger.error({ error }, "Error joining session");
         socket.emit("error", { message: "Failed to join session" });
@@ -138,42 +125,31 @@ io.on("connection", (socket: Socket) => {
   // Host starts a quiz item (question)
   socket.on(
     WSMessageType.START_ITEM,
-    (data: { sessionCode: string; itemId: string; timerDuration?: number }) => {
+    async (data: { sessionCode: string; itemId: string; timerDuration?: number }) => {
       try {
         const { sessionCode, itemId, timerDuration } = data;
         logger.info({ sessionCode, itemId, timerDuration }, "Host starting item");
 
-        const sessionState = sessions.get(sessionCode);
-        if (!sessionState) {
+        // Verify session exists
+        const session = await prisma.liveSession.findUnique({
+          where: { code: sessionCode },
+        });
+
+        if (!session) {
           socket.emit("error", { message: "Session not found" });
           return;
         }
 
-        // Verify socket is host
-        if (sessionState.hostSocketId && sessionState.hostSocketId !== socket.id) {
-          socket.emit("error", { message: "Only host can start items" });
-          return;
-        }
-
-        // Set host if not set
-        if (!sessionState.hostSocketId) {
-          sessionState.hostSocketId = socket.id;
-        }
-
-        // Update session state
-        sessionState.status = "ITEM_ACTIVE";
-        sessionState.currentItemId = itemId;
-        sessionState.itemStartedAt = Date.now();
-        sessionState.timerDuration = timerDuration || null;
+        const startedAt = Date.now();
 
         // Broadcast to all players
         io.to(sessionCode).emit(WSMessageType.ITEM_STARTED, {
           itemId,
-          startedAt: sessionState.itemStartedAt,
-          timerDuration: sessionState.timerDuration,
+          startedAt,
+          timerDuration: timerDuration || null,
         });
 
-        logger.info({ sessionCode, itemId }, "Item started");
+        logger.info({ sessionCode, itemId, timerDuration }, "Item started");
       } catch (error) {
         logger.error({ error }, "Error starting item");
         socket.emit("error", { message: "Failed to start item" });
@@ -182,30 +158,29 @@ io.on("connection", (socket: Socket) => {
   );
 
   // Host locks item (no more answers)
-  socket.on(WSMessageType.LOCK_ITEM, (data: { sessionCode: string }) => {
+  socket.on(WSMessageType.LOCK_ITEM, async (data: { sessionCode: string; itemId: string }) => {
     try {
-      const { sessionCode } = data;
-      logger.info({ sessionCode }, "Host locking item");
+      const { sessionCode, itemId } = data;
+      logger.info({ sessionCode, itemId }, "Host locking item");
 
-      const sessionState = sessions.get(sessionCode);
-      if (!sessionState) {
+      // Verify session exists
+      const session = await prisma.liveSession.findUnique({
+        where: { code: sessionCode },
+      });
+
+      if (!session) {
         socket.emit("error", { message: "Session not found" });
         return;
       }
 
-      if (sessionState.hostSocketId !== socket.id) {
-        socket.emit("error", { message: "Only host can lock items" });
-        return;
-      }
-
-      sessionState.status = "ITEM_LOCKED";
+      const lockedAt = Date.now();
 
       io.to(sessionCode).emit(WSMessageType.ITEM_LOCKED, {
-        itemId: sessionState.currentItemId,
-        lockedAt: Date.now(),
+        itemId,
+        lockedAt,
       });
 
-      logger.info({ sessionCode, itemId: sessionState.currentItemId }, "Item locked");
+      logger.info({ sessionCode, itemId }, "Item locked");
     } catch (error) {
       logger.error({ error }, "Error locking item");
       socket.emit("error", { message: "Failed to lock item" });
@@ -213,33 +188,49 @@ io.on("connection", (socket: Socket) => {
   });
 
   // Host reveals answers
-  socket.on(WSMessageType.REVEAL_ANSWERS, (data: { sessionCode: string }) => {
+  socket.on(WSMessageType.REVEAL_ANSWERS, async (data: { sessionCode: string; itemId: string }) => {
     try {
-      const { sessionCode } = data;
-      logger.info({ sessionCode }, "Host revealing answers");
+      const { sessionCode, itemId } = data;
+      logger.info({ sessionCode, itemId }, "Host revealing answers");
 
-      const sessionState = sessions.get(sessionCode);
-      if (!sessionState) {
+      // Verify session exists
+      const session = await prisma.liveSession.findUnique({
+        where: { code: sessionCode },
+      });
+
+      if (!session) {
         socket.emit("error", { message: "Session not found" });
         return;
       }
 
-      if (sessionState.hostSocketId !== socket.id) {
-        socket.emit("error", { message: "Only host can reveal answers" });
-        return;
-      }
-
-      sessionState.status = "REVEAL";
-
-      // Get answers for current item
-      const itemId = sessionState.currentItemId;
-      const answers = Array.from(sessionState.answers.entries())
-        .filter(([key]) => key.startsWith(`${itemId}:`))
-        .map(([, value]) => value);
+      // Get answers for current item from database
+      const answers = await prisma.liveAnswer.findMany({
+        where: {
+          sessionId: session.id,
+          quizItemId: itemId,
+        },
+        include: {
+          player: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+        orderBy: {
+          answeredAt: "asc",
+        },
+      });
 
       io.to(sessionCode).emit(WSMessageType.REVEAL_ANSWERS, {
         itemId,
-        answers,
+        answers: answers.map((a) => ({
+          playerId: a.playerId,
+          playerName: a.player.name,
+          answer: a.payloadJson,
+          isCorrect: a.isCorrect,
+          points: a.score,
+        })),
       });
 
       logger.info({ sessionCode, itemId, answerCount: answers.length }, "Answers revealed");
@@ -252,43 +243,61 @@ io.on("connection", (socket: Socket) => {
   // Player submits answer
   socket.on(
     WSMessageType.SUBMIT_ANSWER,
-    (data: { sessionCode: string; itemId: string; answer: any }) => {
+    async (data: { sessionCode: string; itemId: string; answer: any }) => {
       try {
         const { sessionCode, itemId, answer } = data;
-        logger.info({ socketId: socket.id, sessionCode, itemId }, "Answer submitted");
+        const playerId = socket.data.playerId;
 
-        const sessionState = sessions.get(sessionCode);
-        if (!sessionState) {
+        logger.info({ playerId, sessionCode, itemId }, "Answer submitted");
+
+        if (!playerId) {
+          socket.emit("error", { message: "Player not authenticated" });
+          return;
+        }
+
+        // Verify session and player exist
+        const session = await prisma.liveSession.findUnique({
+          where: { code: sessionCode },
+        });
+
+        if (!session) {
           socket.emit("error", { message: "Session not found" });
           return;
         }
 
-        const player = sessionState.players.get(socket.id);
-        if (!player) {
+        const player = await prisma.livePlayer.findUnique({
+          where: { id: playerId },
+        });
+
+        if (!player || player.sessionId !== session.id) {
           socket.emit("error", { message: "Player not in session" });
           return;
         }
 
-        // Check if item is still active
-        if (sessionState.status !== "ITEM_ACTIVE") {
-          socket.emit("error", { message: "Item is not active" });
+        // Check if already answered this item
+        const existingAnswer = await prisma.liveAnswer.findFirst({
+          where: {
+            sessionId: session.id,
+            playerId,
+            quizItemId: itemId,
+          },
+        });
+
+        if (existingAnswer) {
+          socket.emit("error", { message: "Already answered this question" });
           return;
         }
 
-        // Check if answering correct item
-        if (sessionState.currentItemId !== itemId) {
-          socket.emit("error", { message: "Wrong item" });
-          return;
-        }
-
-        // Store answer (key format: itemId:playerId)
-        const answerKey = `${itemId}:${socket.id}`;
-        sessionState.answers.set(answerKey, {
-          playerId: socket.id,
-          playerName: player.name,
-          itemId,
-          answer,
-          timestamp: Date.now(),
+        // Store answer in database
+        const liveAnswer = await prisma.liveAnswer.create({
+          data: {
+            sessionId: session.id,
+            playerId,
+            quizItemId: itemId,
+            payloadJson: answer,
+            isCorrect: null, // Will be calculated later
+            score: 0, // Will be calculated later
+          },
         });
 
         // Acknowledge to player
@@ -297,22 +306,30 @@ io.on("connection", (socket: Socket) => {
           timestamp: Date.now(),
         });
 
+        // Get total answer count for this item
+        const answerCount = await prisma.liveAnswer.count({
+          where: {
+            sessionId: session.id,
+            quizItemId: itemId,
+          },
+        });
+
+        // Get total player count
+        const totalPlayers = await prisma.livePlayer.count({
+          where: {
+            sessionId: session.id,
+            leftAt: null,
+          },
+        });
+
         // Notify host of answer count
-        if (sessionState.hostSocketId) {
-          const answerCount = Array.from(sessionState.answers.keys()).filter((key) => key.startsWith(`${itemId}:`))
-            .length;
+        io.to(sessionCode).emit(WSMessageType.ANSWER_COUNT_UPDATED, {
+          itemId,
+          count: answerCount,
+          total: totalPlayers,
+        });
 
-          io.to(sessionState.hostSocketId).emit(WSMessageType.ANSWER_COUNT_UPDATED, {
-            itemId,
-            count: answerCount,
-            total: sessionState.players.size,
-          });
-        }
-
-        logger.info(
-          { playerId: socket.id, itemId, answerKey, totalAnswers: sessionState.answers.size },
-          "Answer stored"
-        );
+        logger.info({ playerId, itemId, answerId: liveAnswer.id }, "Answer stored");
       } catch (error) {
         logger.error({ error }, "Error submitting answer");
         socket.emit("error", { message: "Failed to submit answer" });
@@ -324,14 +341,12 @@ io.on("connection", (socket: Socket) => {
   socket.on(WSMessageType.GAME_INPUT, (data: { sessionCode: string; input: any }) => {
     try {
       const { sessionCode, input } = data;
-      logger.debug({ socketId: socket.id, sessionCode, input }, "Game input received");
+      const playerId = socket.data.playerId;
+      logger.debug({ playerId, sessionCode, input }, "Game input received");
 
-      const sessionState = sessions.get(sessionCode);
-      if (!sessionState) return;
-
-      // Broadcast input to all players
+      // Broadcast input to all players in session
       socket.to(sessionCode).emit(WSMessageType.GAME_INPUT, {
-        playerId: socket.id,
+        playerId,
         input,
       });
     } catch (error) {
@@ -340,40 +355,57 @@ io.on("connection", (socket: Socket) => {
   });
 
   // Host ends session
-  socket.on(WSMessageType.END_SESSION, (data: { sessionCode: string }) => {
+  socket.on(WSMessageType.END_SESSION, async (data: { sessionCode: string }) => {
     try {
       const { sessionCode } = data;
       logger.info({ sessionCode }, "Host ending session");
 
-      const sessionState = sessions.get(sessionCode);
-      if (!sessionState) {
+      // Verify session exists
+      const session = await prisma.liveSession.findUnique({
+        where: { code: sessionCode },
+      });
+
+      if (!session) {
         socket.emit("error", { message: "Session not found" });
         return;
       }
 
-      if (sessionState.hostSocketId !== socket.id) {
-        socket.emit("error", { message: "Only host can end session" });
-        return;
-      }
+      // Update session to ENDED
+      await prisma.liveSession.update({
+        where: { id: session.id },
+        data: {
+          status: "ENDED",
+          endedAt: new Date(),
+        },
+      });
 
-      sessionState.status = "ENDED";
+      // Calculate final scores from answers
+      const players = await prisma.livePlayer.findMany({
+        where: { sessionId: session.id },
+        include: {
+          answers: {
+            select: {
+              score: true,
+            },
+          },
+        },
+      });
 
-      // Calculate final scores
-      const finalScores = Array.from(sessionState.players.values())
+      const finalScores = players
         .map((p) => ({
           id: p.id,
           name: p.name,
-          score: p.score,
+          score: p.answers.reduce((sum, a) => sum + a.score, 0),
         }))
         .sort((a, b) => b.score - a.score);
 
       io.to(sessionCode).emit(WSMessageType.SESSION_ENDED, {
-        sessionId: sessionState.sessionId,
+        sessionId: session.id,
         endedAt: Date.now(),
         finalScores,
       });
 
-      logger.info({ sessionCode, playerCount: sessionState.players.size }, "Session ended");
+      logger.info({ sessionCode, playerCount: players.length }, "Session ended");
     } catch (error) {
       logger.error({ error }, "Error ending session");
       socket.emit("error", { message: "Failed to end session" });
@@ -381,55 +413,69 @@ io.on("connection", (socket: Socket) => {
   });
 
   // Handle disconnect
-  socket.on("disconnect", () => {
-    logger.info({ socketId: socket.id }, "Client disconnected");
+  socket.on("disconnect", async () => {
+    try {
+      const playerId = socket.data.playerId;
+      const sessionCode = socket.data.sessionCode;
 
-    // Remove player from all sessions
-    sessions.forEach((sessionState, sessionCode) => {
-      if (sessionState.players.has(socket.id)) {
-        const player = sessionState.players.get(socket.id)!;
-        sessionState.players.delete(socket.id);
+      logger.info({ socketId: socket.id, playerId, sessionCode }, "Client disconnected");
 
-        // Notify others
-        socket.to(sessionCode).emit(WSMessageType.PLAYER_LEFT, {
-          playerId: socket.id,
-          name: player.name,
-        });
-
-        logger.info({ sessionCode, playerId: socket.id, remainingPlayers: sessionState.players.size }, "Player left");
-
-        // If host left, clear host
-        if (sessionState.hostSocketId === socket.id) {
-          sessionState.hostSocketId = null;
-          logger.info({ sessionCode }, "Host disconnected");
-        }
-
-        // Clean up empty sessions after 5 minutes
-        if (sessionState.players.size === 0) {
-          setTimeout(() => {
-            if (sessionState.players.size === 0) {
-              sessions.delete(sessionCode);
-              logger.info({ sessionCode }, "Empty session cleaned up");
-            }
-          }, 5 * 60 * 1000);
-        }
+      if (!playerId || !sessionCode) {
+        return;
       }
-    });
+
+      // Update player's leftAt timestamp
+      const player = await prisma.livePlayer.update({
+        where: { id: playerId },
+        data: { leftAt: new Date() },
+      });
+
+      // Notify others in the session
+      socket.to(sessionCode).emit(WSMessageType.PLAYER_LEFT, {
+        playerId: player.id,
+        name: player.name,
+      });
+
+      logger.info({ playerId, sessionCode }, "Player left session");
+    } catch (error) {
+      logger.error({ error }, "Error handling disconnect");
+    }
   });
 });
 
 // Health check endpoint
-httpServer.on("request", (req, res) => {
+httpServer.on("request", async (req, res) => {
   if (req.url === "/healthz" || req.url === "/health") {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({
-        status: "ok",
-        timestamp: new Date().toISOString(),
-        activeSessions: sessions.size,
-        totalPlayers: Array.from(sessions.values()).reduce((sum, s) => sum + s.players.size, 0),
-      })
-    );
+    try {
+      // Get statistics from database
+      const activeSessions = await prisma.liveSession.count({
+        where: {
+          status: {
+            in: ["WAITING", "ACTIVE"],
+          },
+        },
+      });
+
+      const totalPlayers = await prisma.livePlayer.count({
+        where: {
+          leftAt: null,
+        },
+      });
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          status: "ok",
+          timestamp: new Date().toISOString(),
+          activeSessions,
+          totalPlayers,
+        })
+      );
+    } catch (error) {
+      logger.error({ error }, "Health check failed");
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: "error", message: "Database connection failed" }));
+    }
   } else {
     res.writeHead(404);
     res.end();
