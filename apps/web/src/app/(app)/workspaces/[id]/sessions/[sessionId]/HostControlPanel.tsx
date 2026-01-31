@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { WSMessage, WSMessageType } from "@partyquiz/shared";
+import { YouTubePlayer, YouTubePlayerControls } from "@/components/YouTubePlayer";
+import { extractYouTubeVideoId } from "@partyquiz/shared";
 
 interface HostControlPanelProps {
   session: any;
@@ -18,6 +20,7 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
   const [isItemLocked, setIsItemLocked] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const youtubePlayerRef = useRef<HTMLDivElement>(null);
 
   // Flatten all items for easy navigation
   const allItems = quiz.rounds.flatMap((round: any) =>
@@ -221,6 +224,71 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
           <p className="text-sm text-gray-600">Points: {currentItem.points}</p>
           <p className="text-sm text-gray-600">Time Limit: {currentItem.timeLimit}s</p>
         </div>
+
+        {/* YouTube Preview & Controls (for YouTube questions) */}
+        {currentItem.question.media?.[0]?.url && (
+          currentItem.question.type === "YOUTUBE_SCENE_QUESTION" ||
+          currentItem.question.type === "YOUTUBE_NEXT_LINE" ||
+          currentItem.question.type === "YOUTUBE_WHO_SAID_IT"
+        ) && (() => {
+          const videoId = extractYouTubeVideoId(currentItem.question.media[0].url);
+          if (!videoId) return null;
+
+          const settingsJson = currentItem.question.settingsJson || {};
+          const startSeconds = settingsJson.startSeconds || 0;
+          const endSeconds = settingsJson.endSeconds;
+
+          return (
+            <div className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
+              <div className="bg-gray-100 px-4 py-2 border-b border-gray-200">
+                <p className="text-sm font-medium text-gray-700">🎬 YouTube Preview (Host Only)</p>
+              </div>
+              <div className="p-4 bg-white">
+                <div ref={youtubePlayerRef}>
+                  <YouTubePlayer
+                    videoId={videoId}
+                    autoplay={false}
+                    startSeconds={startSeconds}
+                    endSeconds={endSeconds}
+                    onReady={() => console.log("[Host] YouTube player ready")}
+                  />
+                </div>
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => {
+                      if (youtubePlayerRef.current) {
+                        YouTubePlayerControls.play(youtubePlayerRef.current);
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded hover:bg-green-700 transition-colors"
+                  >
+                    ▶️ Play
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (youtubePlayerRef.current) {
+                        YouTubePlayerControls.pause(youtubePlayerRef.current);
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-gray-600 text-white text-sm font-medium rounded hover:bg-gray-700 transition-colors"
+                  >
+                    ⏸️ Pause
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (youtubePlayerRef.current) {
+                        YouTubePlayerControls.seekTo(youtubePlayerRef.current, startSeconds);
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors"
+                  >
+                    ⏮️ Reset to Start
+                  </button>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Question Navigation */}
         <div className="flex gap-2 mb-4">

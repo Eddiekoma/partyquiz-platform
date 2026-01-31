@@ -1,4 +1,5 @@
 import type { QuestionType } from "@partyquiz/shared";
+import { YouTubePlayer } from "../YouTubePlayer";
 
 interface QuestionDisplayProps {
   questionType: QuestionType;
@@ -93,15 +94,18 @@ function renderMedia(
       );
     }
 
-    const startTime = settingsJson?.startTime || 0;
+    const startTime = settingsJson?.startSeconds || settingsJson?.startTime || 0;
+    const endTime = settingsJson?.endSeconds;
 
     return (
-      <div className="relative w-full max-w-3xl mx-auto aspect-video rounded-2xl overflow-hidden">
-        <iframe
-          src={`https://www.youtube.com/embed/${videoId}?start=${startTime}&autoplay=1`}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-          className="w-full h-full"
+      <div className="w-full max-w-3xl mx-auto">
+        <YouTubePlayer
+          videoId={videoId}
+          autoplay={true}
+          startSeconds={startTime}
+          endSeconds={endTime}
+          onReady={() => console.log("[Player] YouTube player ready")}
+          onEnd={() => console.log("[Player] YouTube video ended")}
         />
       </div>
     );
