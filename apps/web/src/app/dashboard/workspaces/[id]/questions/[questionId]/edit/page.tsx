@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { UploadZone } from "@/components/ui/Upload";
+import { parseTimestamp, formatTimestamp } from "@partyquiz/shared";
 
 type QuestionType =
   | "MC_SINGLE"
@@ -22,7 +23,10 @@ type QuestionType =
   | "POLL"
   | "PHOTO_OPEN"
   | "AUDIO_OPEN"
-  | "VIDEO_OPEN";
+  | "VIDEO_OPEN"
+  | "YOUTUBE_SCENE_QUESTION"
+  | "YOUTUBE_NEXT_LINE"
+  | "YOUTUBE_WHO_SAID_IT";
 
 interface QuestionOption {
   id?: string;
@@ -91,6 +95,8 @@ export default function EditQuestionPage() {
   // Spotify/YouTube
   const [spotifyTrackId, setSpotifyTrackId] = useState<string | null>(null);
   const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>(null);
+  const [youtubeStartTime, setYoutubeStartTime] = useState<string>("0:00");
+  const [youtubeEndTime, setYoutubeEndTime] = useState<string>("");
 
   useEffect(() => {
     loadQuestion();
@@ -137,6 +143,20 @@ export default function EditQuestionPage() {
 
       setSpotifyTrackId(question.spotifyTrackId);
       setYoutubeVideoId(question.youtubeVideoId);
+      
+      // Load YouTube timestamps from settingsJson
+      if (question.settingsJson) {
+        const settings = typeof question.settingsJson === "string" 
+          ? JSON.parse(question.settingsJson) 
+          : question.settingsJson;
+        
+        if (settings.startSeconds !== undefined) {
+          setYoutubeStartTime(formatTimestamp(settings.startSeconds));
+        }
+        if (settings.endSeconds !== undefined) {
+          setYoutubeEndTime(formatTimestamp(settings.endSeconds));
+        }
+      }
     } catch (error) {
       console.error("Failed to load question:", error);
       alert("Failed to load question");
@@ -344,6 +364,15 @@ export default function EditQuestionPage() {
           options: questionOptions,
           spotifyTrackId: spotifyTrackId || undefined,
           youtubeVideoId: youtubeVideoId || undefined,
+          settingsJson: 
+            selectedType === "YOUTUBE_SCENE_QUESTION" ||
+            selectedType === "YOUTUBE_NEXT_LINE" ||
+            selectedType === "YOUTUBE_WHO_SAID_IT"
+              ? {
+                  startSeconds: parseTimestamp(youtubeStartTime),
+                  endSeconds: youtubeEndTime ? parseTimestamp(youtubeEndTime) : undefined,
+                }
+              : undefined,
         }),
       });
 
@@ -390,6 +419,9 @@ export default function EditQuestionPage() {
     VIDEO_QUESTION: "Video Question",
     MUSIC_INTRO: "Music Intro",
     MUSIC_SNIPPET: "Music Snippet",
+    YOUTUBE_SCENE_QUESTION: "YouTube Scene Question",
+    YOUTUBE_NEXT_LINE: "YouTube Next Line",
+    YOUTUBE_WHO_SAID_IT: "YouTube Who Said It",
     POLL: "Poll",
     PHOTO_OPEN: "Photo Open",
     AUDIO_OPEN: "Audio Open",
@@ -744,6 +776,85 @@ export default function EditQuestionPage() {
               <p className="text-sm text-gray-500">
                 You can find the Track ID in the Spotify share URL. Full Spotify integration coming soon!
               </p>
+            </div>
+          </Card>
+        )}
+
+        {/* YouTube Integration for YOUTUBE types */}
+        {(selectedType === "YOUTUBE_SCENE_QUESTION" ||
+          selectedType === "YOUTUBE_NEXT_LINE" ||
+          selectedType === "YOUTUBE_WHO_SAID_IT") && (
+          <Card className="p-6">
+            <label className="block text-sm font-semibold mb-4">
+              🎬 YouTube Video Segment
+            </label>
+            
+            <div className="space-y-4">
+              {/* Video ID Display */}
+              <div>
+                <label className="block text-sm text-gray-600 mb-2">Video ID</label>
+                <Input
+                  value={youtubeVideoId || ""}
+                  disabled
+                  className="bg-gray-50"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Video ID is set when creating the question. To change the video, create a new question.
+                </p>
+              </div>
+
+              {/* Timestamp Controls */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-600 mb-2">
+                    Start Time (MM:SS)
+                  </label>
+                  <Input
+                    value={youtubeStartTime}
+                    onChange={(e) => setYoutubeStartTime(e.target.value)}
+                    placeholder="0:00"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    When to start playing (e.g., 1:30)
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-600 mb-2">
+                    End Time (MM:SS) - Optional
+                  </label>
+                  <Input
+                    value={youtubeEndTime}
+                    onChange={(e) => setYoutubeEndTime(e.target.value)}
+                    placeholder="Leave empty for no limit"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    When to stop playing (e.g., 1:45)
+                  </p>
+                </div>
+              </div>
+
+              {/* Preview Info */}
+              {youtubeVideoId && (
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800 mb-2">
+                    💡 <strong>Preview:</strong> Players will see the video segment from{" "}
+                    <strong>{youtubeStartTime || "0:00"}</strong>
+                    {youtubeEndTime && (
+                      <>
+                        {" "}to <strong>{youtubeEndTime}</strong>
+                      </>
+                    )}
+                  </p>
+                  <a
+                    href={`https://www.youtube.com/watch?v=${youtubeVideoId}&t=${parseTimestamp(youtubeStartTime)}s`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline text-sm"
+                  >
+                    🎥 Preview on YouTube →
+                  </a>
+                </div>
+              )}
             </div>
           </Card>
         )}
