@@ -21,7 +21,10 @@ type QuestionType =
   | "POLL"
   | "PHOTO_OPEN"
   | "AUDIO_OPEN"
-  | "VIDEO_OPEN";
+  | "VIDEO_OPEN"
+  | "YOUTUBE_SCENE_QUESTION"
+  | "YOUTUBE_NEXT_LINE"
+  | "YOUTUBE_WHO_SAID_IT";
 
 const QUESTION_TYPES: { value: QuestionType; label: string; description: string }[] = [
   { value: "MC_SINGLE", label: "Multiple Choice (Single)", description: "Choose one correct answer" },
@@ -35,6 +38,9 @@ const QUESTION_TYPES: { value: QuestionType; label: string; description: string 
   { value: "VIDEO_QUESTION", label: "Video Question", description: "Question with video" },
   { value: "MUSIC_INTRO", label: "Music Intro", description: "Guess song from intro" },
   { value: "MUSIC_SNIPPET", label: "Music Snippet", description: "Guess song from snippet" },
+  { value: "YOUTUBE_SCENE_QUESTION", label: "YouTube Scene Question", description: "Question about a YouTube video scene" },
+  { value: "YOUTUBE_NEXT_LINE", label: "YouTube Next Line", description: "Guess the next line in a YouTube video" },
+  { value: "YOUTUBE_WHO_SAID_IT", label: "YouTube Who Said It", description: "Identify who said what in a YouTube video" },
   { value: "POLL", label: "Poll", description: "No correct answer, just opinions" },
   { value: "PHOTO_OPEN", label: "Photo Open", description: "Open answer with photo" },
   { value: "AUDIO_OPEN", label: "Audio Open", description: "Open answer with audio" },
@@ -84,7 +90,11 @@ export default function NewQuestionPage() {
 
   // Spotify/YouTube
   const [spotifyTrackId, setSpotifyTrackId] = useState<string>("");
+  const [youtubeUrl, setYoutubeUrl] = useState<string>("");
   const [youtubeVideoId, setYoutubeVideoId] = useState<string>("");
+  const [youtubeValidating, setYoutubeValidating] = useState(false);
+  const [youtubeError, setYoutubeError] = useState<string | null>(null);
+  const [youtubeMetadata, setYoutubeMetadata] = useState<any>(null);
 
   const handleAddTag = () => {
     if (tagInput.trim() && !tags.includes(tagInput.trim())) {
@@ -97,9 +107,58 @@ export default function NewQuestionPage() {
     setTags(tags.filter((t) => t !== tag));
   };
 
+  const handleValidateYouTubeUrl = async () => {
+    if (!youtubeUrl.trim()) {
+      setYoutubeError("Please enter a YouTube URL");
+      return;
+    }
+
+    setYoutubeValidating(true);
+    setYoutubeError(null);
+    setYoutubeMetadata(null);
+    setYoutubeVideoId("");
+
+    try {
+      const response = await fetch("/api/youtube/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: youtubeUrl }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to validate YouTube URL");
+      }
+
+      const data = await response.json();
+      setYoutubeVideoId(data.videoId);
+      setYoutubeMetadata({
+        title: data.title,
+        channelName: data.channelName,
+        thumbnail: data.thumbnail,
+      });
+    } catch (error) {
+      console.error("YouTube validation error:", error);
+      setYoutubeError(error instanceof Error ? error.message : "Invalid YouTube URL");
+    } finally {
+      setYoutubeValidating(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!selectedType || !title.trim()) {
       alert("Please select a question type and enter a title");
+      return;
+    }
+
+    // Validate YouTube URL for YouTube question types
+    if (
+      (selectedType === "YOUTUBE_SCENE_QUESTION" ||
+        selectedType === "YOUTUBE_NEXT_LINE" ||
+        selectedType === "YOUTUBE_WHO_SAID_IT") &&
+      !youtubeVideoId
+    ) {
+      alert("Please validate a YouTube URL before creating the question");
       return;
     }
 
@@ -516,6 +575,81 @@ export default function NewQuestionPage() {
                   />
                 </div>
               )}
+            </div>
+          </Card>
+        )}
+
+        {/* YouTube Integration for YOUTUBE types */}
+        {(selectedType === "YOUTUBE_SCENE_QUESTION" ||
+          selectedType === "YOUTUBE_NEXT_LINE" ||
+          selectedType === "YOUTUBE_WHO_SAID_IT") && (
+          <Card className="p-6">
+            <label className="block text-sm font-semibold mb-4">
+              🎬 YouTube Video
+            </label>
+            <p className="text-sm text-gray-600 mb-4">
+              Enter a YouTube URL to attach a video clip to this question.
+              You can specify which segment of the video to show.
+            </p>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-600 mb-2">
+                  YouTube URL *
+                </label>
+                <div className="flex gap-2">
+                  <Input
+                    value={youtubeUrl}
+                    onChange={(e) => {
+                      setYoutubeUrl(e.target.value);
+                      setYoutubeError(null);
+                    }}
+                    placeholder="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+                    disabled={youtubeValidating}
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleValidateYouTubeUrl}
+                    disabled={!youtubeUrl.trim() || youtubeValidating}
+                  >
+                    {youtubeValidating ? "Validating..." : youtubeMetadata ? "✓ Valid" : "Validate"}
+                  </Button>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Paste any YouTube URL (watch, youtu.be, embed format)
+                </p>
+                {youtubeError && (
+                  <p className="text-sm text-red-600 mt-2">
+                    ❌ {youtubeError}
+                  </p>
+                )}
+              </div>
+
+              {/* YouTube Preview */}
+              {youtubeMetadata && (
+                <div className="border border-green-200 bg-green-50 rounded-lg p-4">
+                  <div className="flex gap-4">
+                    {youtubeMetadata.thumbnail && (
+                      <img
+                        src={youtubeMetadata.thumbnail}
+                        alt={youtubeMetadata.title}
+                        className="w-32 h-24 object-cover rounded"
+                      />
+                    )}
+                    <div className="flex-1">
+                      <p className="font-semibold text-gray-900">{youtubeMetadata.title}</p>
+                      <p className="text-sm text-gray-600 mt-1">{youtubeMetadata.channelName}</p>
+                      <p className="text-xs text-green-700 mt-2">✓ Video validated successfully</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800">
+                💡 <strong>Tip:</strong> After creating the question, you can edit it to set
+                the exact start/end timestamps for the video segment.
+              </p>
             </div>
           </Card>
         )}
