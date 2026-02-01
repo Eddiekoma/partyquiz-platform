@@ -10,6 +10,11 @@ interface Player {
   avatar: string;
 }
 
+interface WorkspaceBranding {
+  logo: string | null;
+  themeColor: string | null;
+}
+
 export default function LobbyPage() {
   const router = useRouter();
   const params = useParams();
@@ -18,8 +23,44 @@ export default function LobbyPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [sessionState, setSessionState] = useState<"waiting" | "starting" | "playing">("waiting");
   const [error, setError] = useState("");
+  const [branding, setBranding] = useState<WorkspaceBranding>({ logo: null, themeColor: null });
 
   const { socket, isConnected } = useWebSocket();
+
+  // Fetch workspace branding
+  useEffect(() => {
+    const fetchBranding = async () => {
+      try {
+        // Get session info to find workspace
+        const sessionRes = await fetch(`/api/sessions/join`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: code.toUpperCase() }),
+        });
+
+        if (sessionRes.ok) {
+          const sessionData = await sessionRes.json();
+          const workspaceId = sessionData.session?.workspaceId;
+
+          if (workspaceId) {
+            // Fetch workspace branding (public endpoint for player view)
+            const brandingRes = await fetch(`/api/workspaces/${workspaceId}/branding/public`);
+            if (brandingRes.ok) {
+              const brandingData = await brandingRes.json();
+              setBranding({
+                logo: brandingData.workspace?.logo || null,
+                themeColor: brandingData.workspace?.themeColor || null,
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.log("Could not fetch branding, using defaults");
+      }
+    };
+
+    fetchBranding();
+  }, [code]);
 
   useEffect(() => {
     // Get player info from sessionStorage
@@ -80,8 +121,14 @@ export default function LobbyPage() {
   }, [socket, isConnected, code, router]);
 
   if (error) {
+    const themeColor = branding.themeColor || "#3B82F6";
     return (
-      <div className="flex-1 flex items-center justify-center p-4">
+      <div 
+        className="flex-1 flex items-center justify-center p-4"
+        style={{
+          background: `linear-gradient(135deg, ${themeColor} 0%, ${themeColor}dd 100%)`,
+        }}
+      >
         <div className="text-center">
           <div className="text-6xl mb-4">❌</div>
           <h1 className="text-3xl font-black text-white mb-2">Oops!</h1>
@@ -98,8 +145,14 @@ export default function LobbyPage() {
   }
 
   if (!isConnected) {
+    const themeColor = branding.themeColor || "#3B82F6";
     return (
-      <div className="flex-1 flex items-center justify-center">
+      <div 
+        className="flex-1 flex items-center justify-center"
+        style={{
+          background: `linear-gradient(135deg, ${themeColor} 0%, ${themeColor}dd 100%)`,
+        }}
+      >
         <div className="text-center">
           <div className="text-6xl mb-4 animate-bounce">🔌</div>
           <p className="text-xl font-bold text-white">Connecting...</p>
@@ -108,9 +161,27 @@ export default function LobbyPage() {
     );
   }
 
+  const themeColor = branding.themeColor || "#3B82F6";
+
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-4">
+    <div 
+      className="flex-1 flex flex-col items-center justify-center p-4"
+      style={{
+        background: `linear-gradient(135deg, ${themeColor} 0%, ${themeColor}dd 100%)`,
+      }}
+    >
       <div className="w-full max-w-2xl">
+        {/* Workspace Logo */}
+        {branding.logo && (
+          <div className="flex justify-center mb-6">
+            <img
+              src={branding.logo}
+              alt="Workspace logo"
+              className="h-20 object-contain bg-white/10 p-3 rounded-xl backdrop-blur-sm"
+            />
+          </div>
+        )}
+
         {/* Session Code */}
         <div className="text-center mb-8">
           <p className="text-lg text-white/80 mb-2">Game Code</p>

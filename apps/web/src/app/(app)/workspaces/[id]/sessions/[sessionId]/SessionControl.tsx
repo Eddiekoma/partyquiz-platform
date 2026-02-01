@@ -13,6 +13,7 @@ export default function SessionControl({ session }: SessionControlProps) {
   const router = useRouter();
   const [updating, setUpdating] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // WebSocket connection
@@ -87,6 +88,43 @@ export default function SessionControl({ session }: SessionControlProps) {
     }
   }
 
+  async function exportResults() {
+    setExporting(true);
+    setError(null);
+
+    try {
+      const res = await fetch(`/api/sessions/${session.id}/export?format=csv`);
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to export results");
+      }
+
+      // Download the CSV file
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      
+      // Extract filename from Content-Disposition header or use default
+      const contentDisposition = res.headers.get("Content-Disposition");
+      const filenameMatch = contentDisposition?.match(/filename="?(.+?)"?$/);
+      a.download = filenameMatch ? filenameMatch[1] : `session-results-${session.code}.csv`;
+      
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      // Show success (could add a success state/message if desired)
+      console.log("Results exported successfully");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to export results");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-6">
       <h3 className="font-semibold text-gray-900 mb-4">Host Controls</h3>
@@ -98,6 +136,23 @@ export default function SessionControl({ session }: SessionControlProps) {
       )}
 
       <div className="space-y-4">
+        {/* Export Results (for ended sessions) */}
+        {session.status === "ENDED" && (
+          <div>
+            <p className="text-sm text-gray-600 mb-2">Export Results</p>
+            <button
+              onClick={exportResults}
+              disabled={exporting}
+              className="w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:bg-gray-300 transition-colors"
+            >
+              {exporting ? "Exporting..." : "📥 Download CSV"}
+            </button>
+            <p className="text-xs text-gray-500 mt-2">
+              Export all player results with answers, scores, and correctness
+            </p>
+          </div>
+        )}
+
         {/* Status Controls */}
         <div>
           <p className="text-sm text-gray-600 mb-2">Session Status</p>

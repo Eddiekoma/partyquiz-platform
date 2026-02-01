@@ -98,6 +98,9 @@ export default function QuestionsPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [availableTags, setAvailableTags] = useState<string[]>([]);
+  const [selectedQuestions, setSelectedQuestions] = useState<string[]>([]);
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   // Filters
   const [typeFilter, setTypeFilter] = useState<QuestionType | "ALL">("ALL");
@@ -155,6 +158,88 @@ export default function QuestionsPage() {
     }
   };
 
+  const handleExport = async () => {
+    try {
+      setExporting(true);
+      
+      const response = await fetch(`/api/workspaces/${workspaceId}/questions/export`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          questionIds: selectedQuestions.length > 0 ? selectedQuestions : undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to export questions");
+      }
+
+      // Download file
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = response.headers.get("content-disposition")?.split("filename=")[1]?.replace(/"/g, "") || "questions-export.json";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      alert(`Successfully exported ${selectedQuestions.length > 0 ? selectedQuestions.length : questions.length} question(s)!`);
+      setSelectedQuestions([]);
+    } catch (error) {
+      console.error("Export error:", error);
+      alert(error instanceof Error ? error.message : "Failed to export questions");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setImporting(true);
+
+      // Read file
+      const text = await file.text();
+      const data = JSON.parse(text);
+
+      // Import questions
+      const response = await fetch(`/api/workspaces/${workspaceId}/questions/import`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          data,
+          options: {
+            skipDuplicates: true,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to import questions");
+      }
+
+      const result = await response.json();
+      alert(result.message || `Imported ${result.imported} question(s)`);
+      
+      // Reload questions
+      loadQuestions();
+      
+      // Reset file input
+      event.target.value = "";
+    } catch (error) {
+      console.error("Import error:", error);
+      alert(error instanceof Error ? error.message : "Failed to import questions");
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const getDifficultyLabel = (difficulty: Difficulty): string => {
     const labels: Record<Difficulty, string> = {
       1: "Very Easy",
@@ -186,9 +271,39 @@ export default function QuestionsPage() {
           <h1 className="text-3xl font-bold mb-2">Question Bank</h1>
           <p className="text-gray-600">Create and manage quiz questions</p>
         </div>
-        <Link href={`/dashboard/workspaces/${workspaceId}/questions/new`}>
-          <Button>+ Create Question</Button>
-        </Link>
+        <div className="flex gap-2">
+          {/* Import Button */}
+          <label htmlFor="import-file">
+            <Button
+              variant="secondary"
+              disabled={importing}
+              onClick={() => document.getElementById("import-file")?.click()}
+            >
+              {importing ? "Importing..." : "📥 Import"}
+            </Button>
+          </label>
+          <input
+            id="import-file"
+            type="file"
+            accept=".json"
+            onChange={handleImport}
+            className="hidden"
+          />
+
+          {/* Export Button */}
+          <Button
+            variant="secondary"
+            onClick={handleExport}
+            disabled={exporting}
+          >
+            {exporting ? "Exporting..." : `📤 Export${selectedQuestions.length > 0 ? ` (${selectedQuestions.length})` : ""}`}
+          </Button>
+
+          {/* Create Button */}
+          <Link href={`/dashboard/workspaces/${workspaceId}/questions/new`}>
+            <Button>+ Create Question</Button>
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}

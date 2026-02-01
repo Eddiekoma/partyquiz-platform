@@ -86,8 +86,8 @@ partyquiz-platform/
 - Socket.io 4.8.1 (WebSocket server)
 
 **Storage & Media**
-- PostgreSQL 16
-- Redis 7
+- PostgreSQL 16 (Coolify managed resource)
+- Redis 7 (Coolify managed resource)
 - Hetzner Object Storage (S3-compatible)
 
 **Auth & Security**
@@ -118,6 +118,8 @@ partyquiz-platform/
 
 ### Local Development Setup
 
+**Note:** For local development, the platform uses Docker Compose to run PostgreSQL and Redis. In production, these are managed as separate resources in Coolify.
+
 1. **Clone the repository**
 
 \`\`\`bash
@@ -131,11 +133,13 @@ cd partyquiz-platform
 pnpm install
 \`\`\`
 
-3. **Start database services**
+3. **Start local database services (development only)**
 
 \`\`\`bash
 docker-compose up -d
 \`\`\`
+
+**Note:** This starts PostgreSQL and Redis containers for local development. Production uses Coolify-managed resources (see COOLIFY_DEPLOY.md).
 
 4. **Configure environment variables**
 

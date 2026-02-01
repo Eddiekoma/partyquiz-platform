@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { SpotifyTrackSelector } from "@/components/SpotifyTrackSelector";
+import { FileUploader } from "@/components/media/FileUploader";
 
 type QuestionType =
   | "MC_SINGLE"
@@ -90,6 +91,15 @@ export default function NewQuestionPage() {
 
   // OPEN_TEXT fields
   const [openTextAnswer, setOpenTextAnswer] = useState("");
+
+  // Media upload
+  const [uploadedAsset, setUploadedAsset] = useState<{
+    id: string;
+    filename: string;
+    storageKey: string;
+    url: string;
+    type: string;
+  } | null>(null);
 
   // Spotify/YouTube
   const [spotifyTrackId, setSpotifyTrackId] = useState<string>("");
@@ -222,6 +232,7 @@ export default function NewQuestionPage() {
           options: questionOptions,
           spotifyTrackId: spotifyTrackId || undefined,
           youtubeVideoId: youtubeVideoId || undefined,
+          mediaUrl: uploadedAsset?.storageKey || undefined,
         }),
       });
 
@@ -533,7 +544,7 @@ export default function NewQuestionPage() {
           </Card>
         )}
 
-        {/* Media placeholder for PHOTO/AUDIO/VIDEO types */}
+        {/* Media upload for PHOTO/AUDIO/VIDEO types */}
         {(selectedType === "PHOTO_QUESTION" ||
           selectedType === "AUDIO_QUESTION" ||
           selectedType === "VIDEO_QUESTION" ||
@@ -544,14 +555,52 @@ export default function NewQuestionPage() {
             <label className="block text-sm font-semibold mb-4">
               Media Attachment
             </label>
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-              <p className="text-gray-500 mb-2">
-                📎 Media upload will be available after question is created
-              </p>
-              <p className="text-sm text-gray-400">
-                You can attach {selectedType.startsWith("PHOTO") ? "images" : selectedType.startsWith("AUDIO") ? "audio" : "video"} files in the edit view
-              </p>
-            </div>
+            
+            {!uploadedAsset ? (
+              <FileUploader
+                workspaceId={workspaceId}
+                category={
+                  selectedType.startsWith("PHOTO") ? "images" :
+                  selectedType.startsWith("AUDIO") ? "audio" : "video"
+                }
+                accept={
+                  selectedType.startsWith("PHOTO") ? "image/*" :
+                  selectedType.startsWith("AUDIO") ? "audio/*" : "video/*"
+                }
+                maxSize={selectedType.startsWith("VIDEO") ? 50 : 10}
+                onUploadComplete={(asset) => {
+                  setUploadedAsset(asset);
+                }}
+                onError={(error) => {
+                  alert(`Upload failed: ${error}`);
+                }}
+              />
+            ) : (
+              <div className="border border-gray-200 rounded-lg p-4">
+                <div className="flex items-start gap-4">
+                  {selectedType.startsWith("PHOTO") && (
+                    <img 
+                      src={uploadedAsset.url} 
+                      alt={uploadedAsset.filename}
+                      className="w-32 h-32 object-cover rounded"
+                    />
+                  )}
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-900">{uploadedAsset.filename}</p>
+                    <p className="text-sm text-gray-600 mt-1">
+                      {selectedType.startsWith("PHOTO") ? "Image" :
+                       selectedType.startsWith("AUDIO") ? "Audio" : "Video"} uploaded successfully
+                    </p>
+                    <button
+                      onClick={() => setUploadedAsset(null)}
+                      className="text-sm text-red-600 hover:text-red-700 mt-2"
+                    >
+                      Remove and upload different file
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </Card>
         )}
 

@@ -90,6 +90,8 @@ model Workspace {
   description  String?
   slug         String   @unique
   ownerId      String
+  logo         String?  // URL to uploaded logo image in S3
+  themeColor   String?  // Hex color code for brand theme (e.g., "#3B82F6")
   brandingJson Json?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
@@ -249,6 +251,7 @@ model Quiz {
   workspaceId String
   title       String
   description String?  @db.Text
+  isTemplate  Boolean  @default(false)
   createdBy   String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -258,6 +261,7 @@ model Quiz {
   sessions  LiveSession[]
 
   @@index([workspaceId])
+  @@index([isTemplate])
 }
 
 model QuizRound {

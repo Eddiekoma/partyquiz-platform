@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { generatePresignedDownloadUrl, getPublicUrl } from "@/lib/storage";
 
 export async function GET(
   request: NextRequest,
@@ -13,14 +14,14 @@ export async function GET(
     }
 
     const workspaceId = params.id;
+    const { searchParams } = new URL(request.url);
+    const type = searchParams.get("type") || undefined;
 
     // Check membership
-    const member = await prisma.workspaceMember.findUnique({
+    const member = await prisma.workspaceMember.findFirst({
       where: {
-        workspaceId_userId: {
-          workspaceId,
-          userId: session.user.id,
-        },
+        workspaceId,
+        userId: session.user.id,
       },
     });
 
@@ -30,7 +31,10 @@ export async function GET(
 
     // Get assets
     const assets = await prisma.asset.findMany({
-      where: { workspaceId },
+      where: { 
+        workspaceId,
+        ...(type && { type }),
+      },
       include: {
         creator: {
           select: {
@@ -43,7 +47,21 @@ export async function GET(
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json({ assets });
+    // Generate URLs for each asset
+    const assetsWithUrls = await Promise.all(
+      assets.map(async (asset) => {
+        try {
+          // Try presigned URL first (for private buckets)
+          const url = await generatePresignedDownloadUrl(asset.storageKey, 3600);
+          return { ...asset, url };
+        } catch {
+          // Fallback to public URL
+          return { ...asset, url: getPublicUrl(asset.storageKey) };
+        }
+      })
+    );
+
+    return NextResponse.json({ assets: assetsWithUrls });
   } catch (error) {
     console.error("Failed to list assets:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

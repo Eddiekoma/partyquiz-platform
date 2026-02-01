@@ -1,0 +1,141 @@
+# WebSocket Load Test for Live Sessions
+# 
+# Tests concurrent WebSocket connections for real-time quiz gameplay.
+# Simulates 30+ players joining and playing simultaneously.
+# 
+# Requirements:
+# - npm install -g artillery-plugin-socketio
+# - WebSocket server running on ws://localhost:8080
+
+config:
+  target: 'ws://localhost:8080'
+  phases:
+    # Warm up
+    - duration: 20
+      arrivalRate: 1
+      name: "Warm up - 1 connection/sec"
+    
+    # Ramp up to 30+ concurrent connections
+    - duration: 60
+      arrivalRate: 2
+      rampTo: 10
+      name: "Ramp up to peak"
+    
+    # Sustained 30+ concurrent players
+    - duration: 120
+      arrivalRate: 5
+      name: "Peak load - 30+ concurrent players"
+    
+    # Cool down
+    - duration: 30
+      arrivalRate: 1
+      name: "Cool down"
+  
+  plugins:
+    socketio:
+      transports: ["websocket"]
+  
+  # Performance thresholds
+  ensure:
+    maxErrorRate: 2  # Max 2% error rate for WebSocket
+    p95: 150  # 95th percentile latency < 150ms
+    p99: 300  # 99th percentile latency < 300ms
+
+scenarios:
+  - name: "Player WebSocket Session"
+    engine: socketio
+    flow:
+      # Connect to WebSocket
+      - emit:
+          channel: "connection"
+      
+      # Join session
+      - emit:
+          channel: "join_session"
+          data:
+            sessionCode: "DEMO123"
+            playerName: "WSPlayer_{{ $randomString() }}"
+            deviceId: "device_{{ $randomString() }}"
+        acknowledge:
+          match:
+            json: "$.success"
+            value: true
+      
+      # Wait for host to start question
+      - think: 5
+      
+      # Listen for question_started event
+      - on:
+          channel: "question_started"
+          response:
+            - emit:
+                channel: "submit_answer"
+                data:
+                  questionId: "{{ questionId }}"
+                  answer: "A"
+                  timeMs: "{{ $randomNumber(2000, 8000) }}"
+              acknowledge:
+                match:
+                  json: "$.success"
+                  value: true
+      
+      # Wait through multiple questions
+      - think: 30
+      
+      # Leave session
+      - emit:
+          channel: "leave_session"
+          data:
+            playerId: "{{ playerId }}"
+      
+      # Disconnect
+      - emit:
+          channel: "disconnect"
+
+  # Scenario: Reconnection after disconnect
+  - name: "Connection Resilience Test"
+    engine: socketio
+    weight: 20
+    flow:
+      # Connect
+      - emit:
+          channel: "connection"
+      
+      # Join session
+      - emit:
+          channel: "join_session"
+          data:
+            sessionCode: "DEMO123"
+            playerName: "Resilience_{{ $randomString() }}"
+            deviceId: "device_{{ $randomString() }}"
+      
+      - think: 5
+      
+      # Simulate disconnect
+      - emit:
+          channel: "disconnect"
+      
+      # Wait
+      - think: 2
+      
+      # Reconnect
+      - emit:
+          channel: "connection"
+      
+      # Rejoin session (should restore state)
+      - emit:
+          channel: "join_session"
+          data:
+            sessionCode: "DEMO123"
+            playerName: "Resilience_{{ $randomString() }}"
+            deviceId: "device_{{ $randomString() }}"
+        acknowledge:
+          match:
+            json: "$.success"
+            value: true
+      
+      - think: 10
+      
+      # Leave
+      - emit:
+          channel: "leave_session"

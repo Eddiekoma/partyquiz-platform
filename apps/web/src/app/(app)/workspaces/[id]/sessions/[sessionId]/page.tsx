@@ -19,6 +19,14 @@ async function getSession(workspaceId: string, sessionId: string) {
       workspaceId,
     },
     include: {
+      workspace: {
+        select: {
+          id: true,
+          name: true,
+          logo: true,
+          themeColor: true,
+        },
+      },
       quiz: {
         include: {
           rounds: {
@@ -78,15 +86,32 @@ function SessionInfo({ session }: { session: any }) {
   };
 
   const statusColor = statusColors[session.status as keyof typeof statusColors] || "bg-gray-100 text-gray-800";
+  const themeColor = session.workspace?.themeColor || "#3B82F6";
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-6">
+      {/* Workspace Logo */}
+      {session.workspace?.logo && (
+        <div className="flex justify-center mb-4 pb-4 border-b border-gray-100">
+          <img
+            src={session.workspace.logo}
+            alt="Workspace logo"
+            className="h-12 object-contain"
+          />
+        </div>
+      )}
+
       <div className="flex items-start justify-between mb-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">{session.quiz.title}</h2>
           <div className="flex items-center gap-3">
             <span
               className={`inline-flex items-center px-3 py-1 text-sm font-medium rounded-full border ${statusColor}`}
+              style={session.status === "ACTIVE" ? { 
+                backgroundColor: `${themeColor}20`, 
+                borderColor: themeColor,
+                color: themeColor 
+              } : {}}
             >
               {session.status}
             </span>
@@ -100,7 +125,12 @@ function SessionInfo({ session }: { session: any }) {
       <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-200">
         <div>
           <p className="text-sm text-gray-600">Session Code</p>
-          <p className="text-2xl font-bold text-blue-600 mt-1">{session.code}</p>
+          <p 
+            className="text-2xl font-bold mt-1"
+            style={{ color: themeColor }}
+          >
+            {session.code}
+          </p>
         </div>
         <div>
           <p className="text-sm text-gray-600">Active Players</p>

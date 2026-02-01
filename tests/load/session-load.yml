@@ -1,0 +1,117 @@
+config:
+  target: 'http://localhost:3000'
+  phases:
+    # Warm up phase
+    - duration: 30
+      arrivalRate: 2
+      name: "Warm up - 2 users/sec"
+    
+    # Ramp up phase
+    - duration: 60
+      arrivalRate: 2
+      rampTo: 10
+      name: "Ramp up - 2 to 10 users/sec"
+    
+    # Sustained load phase (30+ concurrent players)
+    - duration: 120
+      arrivalRate: 15
+      name: "Peak load - 15 users/sec (30+ concurrent)"
+    
+    # Cool down
+    - duration: 30
+      arrivalRate: 5
+      name: "Cool down - 5 users/sec"
+  
+  processor: "./load-processor.js"
+  
+  # Performance thresholds
+  ensure:
+    maxErrorRate: 1  # Max 1% error rate
+    p95: 200  # 95th percentile response time < 200ms
+    p99: 500  # 99th percentile response time < 500ms
+
+scenarios:
+  # Scenario 1: Player joins session and plays
+  - name: "Join session and answer questions"
+    weight: 70
+    flow:
+      # Join session
+      - post:
+          url: "/api/sessions/join"
+          json:
+            sessionCode: "DEMO123"
+            playerName: "LoadTest_{{ $randomString() }}"
+          capture:
+            - json: "$.playerId"
+              as: "playerId"
+            - json: "$.sessionId"
+              as: "sessionId"
+          expect:
+            - statusCode: 200
+      
+      # Wait in lobby
+      - think: 3
+      
+      # Simulate answering 5 questions
+      - loop:
+        - post:
+            url: "/api/sessions/{{ sessionId }}/answer"
+            json:
+              playerId: "{{ playerId }}"
+              questionId: "{{ $randomString() }}"
+              answer: "{{ $randomNumber(0, 3) }}"
+              timeMs: "{{ $randomNumber(2000, 8000) }}"
+            expect:
+              - statusCode: [200, 201]
+        
+        - think: 2
+        
+        count: 5
+      
+      # Leave session
+      - post:
+          url: "/api/sessions/{{ sessionId }}/leave"
+          json:
+            playerId: "{{ playerId }}"
+
+  # Scenario 2: Spectator (view-only)
+  - name: "Join as spectator"
+    weight: 20
+    flow:
+      - get:
+          url: "/play?code=DEMO123"
+          expect:
+            - statusCode: 200
+      
+      - think: 10
+      
+      - get:
+          url: "/api/sessions/DEMO123/status"
+          expect:
+            - statusCode: 200
+
+  # Scenario 3: Host actions
+  - name: "Host controls session"
+    weight: 10
+    flow:
+      # Start question
+      - post:
+          url: "/api/sessions/{{ sessionId }}/start-question"
+          headers:
+            Authorization: "Bearer {{ hostToken }}"
+          json:
+            questionId: "{{ $randomString() }}"
+          expect:
+            - statusCode: [200, 401]  # 401 if not authenticated
+      
+      - think: 10
+      
+      # Reveal answers
+      - post:
+          url: "/api/sessions/{{ sessionId }}/reveal"
+          headers:
+            Authorization: "Bearer {{ hostToken }}"
+          expect:
+            - statusCode: [200, 401]
+      
+      - think: 3

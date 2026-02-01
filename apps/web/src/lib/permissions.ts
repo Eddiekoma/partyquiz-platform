@@ -255,6 +255,10 @@ export enum AuditAction {
   // Spotify
   SPOTIFY_CONNECTED = "SPOTIFY_CONNECTED",
   SPOTIFY_DISCONNECTED = "SPOTIFY_DISCONNECTED",
+
+  // Data Management
+  DATA_EXPORTED = "DATA_EXPORTED",
+  DATA_IMPORTED = "DATA_IMPORTED",
 }
 
 export enum EntityType {
