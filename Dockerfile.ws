@@ -73,6 +73,10 @@ RUN pnpm install --frozen-lockfile --prod --filter ws...
 FROM node:${NODE_VERSION} AS runner
 WORKDIR /app
 
+# Install pnpm (needed for workspace resolution)
+ARG PNPM_VERSION
+RUN npm install -g pnpm@${PNPM_VERSION}
+
 # Install dumb-init for proper signal handling
 RUN apk add --no-cache dumb-init
 
@@ -80,15 +84,17 @@ RUN apk add --no-cache dumb-init
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 socketio
 
-# Copy production dependencies and Prisma Client
+# Copy workspace configuration files first
+COPY --from=builder /app/package.json /app/pnpm-workspace.yaml ./
+
+# Copy production dependencies with proper structure
 COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=prod-deps /app/apps/ws/node_modules ./apps/ws/node_modules
 COPY --from=prod-deps /app/packages ./packages
 
-# Copy built application
-COPY --from=builder /app/apps/ws/dist ./dist
-COPY --from=builder /app/apps/ws/prisma ./prisma
-COPY --from=builder /app/apps/ws/package.json ./package.json
+# Copy WS app structure
+COPY --from=builder /app/apps/ws/package.json ./apps/ws/package.json
+COPY --from=builder /app/apps/ws/dist ./apps/ws/dist
+COPY --from=builder /app/apps/ws/prisma ./apps/ws/prisma
 
 # Set environment
 ENV NODE_ENV=production
@@ -105,6 +111,7 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
 
-# Start WebSocket server
+# Start WebSocket server from apps/ws directory
+WORKDIR /app/apps/ws
 CMD ["node", "dist/index.js"]
 
