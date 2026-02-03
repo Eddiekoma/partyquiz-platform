@@ -10,7 +10,7 @@ import { hasPermission, WorkspaceRole } from "@partyquiz/shared";
  */
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string; sessionId: string; answerId: string } }
+  { params }: { params: Promise<{  id: string; sessionId: string; answerId: string}> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -18,7 +18,7 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id: workspaceId, sessionId, answerId } = params;
+    const { id: workspaceId, sessionId, answerId } = await params;
     const userId = session.user.id;
 
     // Check workspace permission
@@ -86,7 +86,7 @@ export async function PATCH(
  */
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string; sessionId: string; answerId: string } }
+  { params }: { params: Promise<{  id: string; sessionId: string; answerId: string}> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -94,7 +94,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id: workspaceId, sessionId, answerId } = params;
+    const { id: workspaceId, sessionId, answerId } = await params;
     const userId = session.user.id;
 
     // Check workspace permission

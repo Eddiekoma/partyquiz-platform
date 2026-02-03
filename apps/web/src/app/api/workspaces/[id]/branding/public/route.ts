@@ -4,11 +4,11 @@ import { prisma } from "@/lib/prisma";
 // GET /api/workspaces/[id]/branding/public - Get workspace branding (public, no auth required)
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{  id: string}> }
 ) {
   try {
     const workspace = await prisma.workspace.findUnique({
-      where: { id: params.id },
+      where: { id: (await params).id },
       select: {
         id: true,
         name: true,

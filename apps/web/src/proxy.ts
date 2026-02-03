@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-// This middleware runs on Edge Runtime and cannot use the full auth() function
+// This proxy runs on Edge Runtime and cannot use the full auth() function
 // because nodemailer is not compatible with Edge Runtime.
 // Instead, we check for the session cookie directly.
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const sessionCookie = request.cookies.get("authjs.session-token");
 
   // If no session cookie and trying to access protected routes, redirect to signin

@@ -17,7 +17,7 @@ const createRoundSchema = z.object({
 // POST /api/workspaces/:id/quizzes/:quizId/rounds - Create round
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string; quizId: string } }
+  { params }: { params: Promise<{  id: string; quizId: string}> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -25,8 +25,8 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceId = params.id;
-    const quizId = params.quizId;
+    const workspaceId = (await params).id;
+    const quizId = (await params).quizId;
 
     // Check workspace membership and permission
     const membership = await prisma.workspaceMember.findUnique({
@@ -113,7 +113,7 @@ export async function POST(
  */
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string; quizId: string } }
+  { params }: { params: Promise<{  id: string; quizId: string}> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -121,8 +121,8 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceId = params.id;
-    const quizId = params.quizId;
+    const workspaceId = (await params).id;
+    const quizId = (await params).quizId;
 
     // Get roundId from query params
     const { searchParams } = new URL(req.url);

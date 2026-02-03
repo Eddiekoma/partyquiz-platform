@@ -7,7 +7,7 @@ import { DeleteObjectCommand } from "@aws-sdk/client-s3";
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string; assetId: string } }
+  { params }: { params: Promise<{  id: string; assetId: string}> }
 ) {
   try {
     const session = await auth();
@@ -15,8 +15,8 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceId = params.id;
-    const assetId = params.assetId;
+    const workspaceId = (await params).id;
+    const assetId = (await params).assetId;
 
     // Check membership and permissions
     const member = await prisma.workspaceMember.findUnique({

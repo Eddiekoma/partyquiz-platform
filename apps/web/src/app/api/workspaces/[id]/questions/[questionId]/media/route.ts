@@ -8,7 +8,7 @@ import { z } from "zod";
 // POST /api/workspaces/:id/questions/:questionId/media - Attach media to question
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string; questionId: string } }
+  { params }: { params: Promise<{  id: string; questionId: string}> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -16,8 +16,8 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceId = params.id;
-    const questionId = params.questionId;
+    const workspaceId = (await params).id;
+    const questionId = (await params).questionId;
 
     // Check workspace membership and permission
     const membership = await prisma.workspaceMember.findUnique({
@@ -152,7 +152,7 @@ export async function POST(
 // DELETE /api/workspaces/:id/questions/:questionId/media - Remove all media or specific media
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string; questionId: string } }
+  { params }: { params: Promise<{  id: string; questionId: string}> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -160,8 +160,8 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceId = params.id;
-    const questionId = params.questionId;
+    const workspaceId = (await params).id;
+    const questionId = (await params).questionId;
 
     // Check workspace membership and permission
     const membership = await prisma.workspaceMember.findUnique({

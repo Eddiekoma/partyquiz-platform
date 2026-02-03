@@ -10,7 +10,7 @@ import { hasPermission, WorkspaceRole } from "@partyquiz/shared";
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string; sessionId: string } }
+  { params }: { params: Promise<{  id: string; sessionId: string}> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -18,7 +18,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id: workspaceId, sessionId } = params;
+    const { id: workspaceId, sessionId } = await params;
     const userId = session.user.id;
 
     // Check workspace permission
