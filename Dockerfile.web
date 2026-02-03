@@ -14,7 +14,8 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web/package.json ./apps/web/
 COPY packages/shared/package.json ./packages/shared/
 
-# Install dependencies
+# Install ALL dependencies including devDependencies (needed for build tools like Prisma, TypeScript, etc.)
+ENV NODE_ENV=development
 RUN pnpm install --frozen-lockfile
 
 # Stage 2: Builder
