@@ -68,21 +68,13 @@ RUN apk add --no-cache dumb-init
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copy necessary files
-COPY --from=builder /app/apps/web/next.config.js ./
-COPY --from=builder /app/apps/web/package.json ./
-COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next ./.next
-COPY --from=builder /app/apps/web/public ./public
-COPY --from=builder /app/apps/web/prisma ./prisma
+# Copy standalone Next.js output (self-contained with all dependencies)
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
 
-# Copy complete node_modules including .bin directory with proper symlinks
-COPY --from=builder /app/node_modules ./node_modules
-
-# Copy packages
-COPY --from=builder /app/packages ./packages
-
-# Copy root package.json and pnpm workspace files for proper resolution
-COPY --from=builder /app/package.json /app/pnpm-workspace.yaml ./
+# Copy Prisma schema for migrations (if needed at runtime)
+COPY --from=builder /app/apps/web/prisma ./apps/web/prisma
 
 # Set environment
 ENV NODE_ENV=production
@@ -96,10 +88,10 @@ EXPOSE 3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/healthz', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+CMD node -e "require('http').get('http://localhost:3000/healthz', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
 
-# Start Next.js using node with the next/dist/bin/next module directly
-CMD ["node", "./node_modules/next/dist/bin/next", "start"]
+# Start Next.js using the standalone server.js (includes everything needed)
+CMD ["node", "apps/web/server.js"]
