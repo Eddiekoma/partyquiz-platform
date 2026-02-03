@@ -43,6 +43,7 @@ RUN pnpm prisma generate
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+ENV PRISMA_ENGINE_TYPE=binary
 RUN pnpm --filter web build
 
 # Stage 3: Runner
