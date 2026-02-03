@@ -7,10 +7,9 @@ import { getEnv } from "./env";
 
 const env = getEnv();
 
-export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
-  providers: [
-    EmailProvider({
+// Email provider configuration - only if SMTP credentials are available
+const emailProvider = env.EMAIL_SMTP_HOST && env.EMAIL_SMTP_USER && env.EMAIL_SMTP_PASS && env.EMAIL_FROM
+  ? EmailProvider({
       server: {
         host: env.EMAIL_SMTP_HOST,
         port: parseInt(env.EMAIL_SMTP_PORT || "587"),
@@ -20,8 +19,12 @@ export const authOptions: NextAuthOptions = {
         },
       },
       from: env.EMAIL_FROM,
-    }),
-  ],
+    })
+  : null;
+
+export const authOptions: NextAuthOptions = {
+  adapter: PrismaAdapter(prisma),
+  providers: emailProvider ? [emailProvider] : [],
   pages: {
     signIn: "/auth/signin",
     verifyRequest: "/auth/verify",
@@ -38,7 +41,7 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
-  secret: env.NEXTAUTH_SECRET,
+  secret: env.NEXTAUTH_SECRET || "temp-build-secret-change-in-production",
 };
 
 const handler = NextAuth(authOptions);

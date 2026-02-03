@@ -6,17 +6,17 @@ export const envSchema = z.object({
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().url(),
-  NEXTAUTH_SECRET: z.string().min(32),
+  NEXTAUTH_SECRET: z.string().min(32).optional(), // Made optional for build
   NEXTAUTH_URL: z.string().url(),
   APP_BASE_URL: z.string().url(),
   WS_BASE_URL: z.string().url(),
 
-  // S3 (Hetzner Object Storage)
-  S3_ENDPOINT: z.string().url(),
+  // S3 (Hetzner Object Storage) - Optional for build, required for media features
+  S3_ENDPOINT: z.string().url().optional(),
   S3_REGION: z.string().default("eu-central"),
-  S3_BUCKET: z.string(),
-  S3_ACCESS_KEY: z.string(),
-  S3_SECRET_KEY: z.string(),
+  S3_BUCKET: z.string().optional(),
+  S3_ACCESS_KEY: z.string().optional(),
+  S3_SECRET_KEY: z.string().optional(),
 
   // Spotify
   SPOTIFY_CLIENT_ID: z.string().optional(),

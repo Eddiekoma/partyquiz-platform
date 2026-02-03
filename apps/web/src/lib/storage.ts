@@ -4,17 +4,23 @@ import { getEnv } from "./env";
 
 const env = getEnv();
 
-export const s3Client = new S3Client({
-  endpoint: env.S3_ENDPOINT,
-  region: env.S3_REGION,
-  credentials: {
-    accessKeyId: env.S3_ACCESS_KEY,
-    secretAccessKey: env.S3_SECRET_KEY,
-  },
-  forcePathStyle: true, // Required for Hetzner Object Storage
-});
+// S3 client - only initialize if credentials are available
+export const s3Client = env.S3_ENDPOINT && env.S3_ACCESS_KEY && env.S3_SECRET_KEY && env.S3_BUCKET
+  ? new S3Client({
+      endpoint: env.S3_ENDPOINT,
+      region: env.S3_REGION,
+      credentials: {
+        accessKeyId: env.S3_ACCESS_KEY,
+        secretAccessKey: env.S3_SECRET_KEY,
+      },
+      forcePathStyle: true, // Required for Hetzner Object Storage
+    })
+  : null;
 
 export function getS3Config() {
+  if (!env.S3_ENDPOINT || !env.S3_BUCKET) {
+    throw new Error("S3 configuration not available. Please set S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY, and S3_SECRET_KEY environment variables.");
+  }
   return {
     endpoint: env.S3_ENDPOINT,
     region: env.S3_REGION,
@@ -27,6 +33,9 @@ export async function generatePresignedUploadUrl(
   contentType: string,
   expiresIn: number = 3600
 ): Promise<string> {
+  if (!s3Client || !env.S3_BUCKET) {
+    throw new Error("S3 is not configured");
+  }
   const command = new PutObjectCommand({
     Bucket: env.S3_BUCKET,
     Key: key,
@@ -40,6 +49,9 @@ export async function generatePresignedDownloadUrl(
   key: string,
   expiresIn: number = 3600
 ): Promise<string> {
+  if (!s3Client || !env.S3_BUCKET) {
+    throw new Error("S3 is not configured");
+  }
   const command = new GetObjectCommand({
     Bucket: env.S3_BUCKET,
     Key: key,
@@ -49,6 +61,9 @@ export async function generatePresignedDownloadUrl(
 }
 
 export function getPublicUrl(key: string): string {
+  if (!env.S3_ENDPOINT || !env.S3_BUCKET) {
+    throw new Error("S3 is not configured");
+  }
   // For public buckets (not recommended for sensitive data)
   return `${env.S3_ENDPOINT}/${env.S3_BUCKET}/${key}`;
 }
@@ -57,6 +72,9 @@ export function getPublicUrl(key: string): string {
  * Check if object exists in S3
  */
 export async function objectExists(key: string): Promise<boolean> {
+  if (!s3Client || !env.S3_BUCKET) {
+    throw new Error("S3 is not configured");
+  }
   try {
     const command = new HeadObjectCommand({
       Bucket: env.S3_BUCKET,
@@ -76,6 +94,9 @@ export async function objectExists(key: string): Promise<boolean> {
  * Delete object from S3
  */
 export async function deleteObject(key: string): Promise<void> {
+  if (!s3Client || !env.S3_BUCKET) {
+    throw new Error("S3 is not configured");
+  }
   const command = new DeleteObjectCommand({
     Bucket: env.S3_BUCKET,
     Key: key,
