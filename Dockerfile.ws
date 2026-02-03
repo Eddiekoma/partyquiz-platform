@@ -91,7 +91,7 @@ COPY --from=builder /app/package.json /app/pnpm-workspace.yaml ./
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=prod-deps /app/packages ./packages
 
-# Copy WS app structure
+# Copy WS app structure  
 COPY --from=builder /app/apps/ws/package.json ./apps/ws/package.json
 COPY --from=builder /app/apps/ws/dist ./apps/ws/dist
 COPY --from=builder /app/apps/ws/prisma ./apps/ws/prisma
@@ -111,7 +111,6 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
 
-# Start WebSocket server from apps/ws directory
-WORKDIR /app/apps/ws
-CMD ["node", "dist/index.js"]
+# Start WebSocket server from root (so node_modules resolution works)
+CMD ["node", "apps/ws/dist/index.js"]
 
