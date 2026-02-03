@@ -46,17 +46,19 @@ export async function DELETE(
       return NextResponse.json({ error: "Asset not found" }, { status: 404 });
     }
 
-    // Delete from S3
-    try {
-      await s3Client.send(
-        new DeleteObjectCommand({
-          Bucket: process.env.S3_BUCKET!,
-          Key: asset.storageKey,
-        })
-      );
-    } catch (s3Error) {
-      console.error("Failed to delete from S3:", s3Error);
-      // Continue with database deletion even if S3 fails
+    // Delete from S3 (if configured)
+    if (s3Client) {
+      try {
+        await s3Client.send(
+          new DeleteObjectCommand({
+            Bucket: process.env.S3_BUCKET!,
+            Key: asset.storageKey,
+          })
+        );
+      } catch (s3Error) {
+        console.error("Failed to delete from S3:", s3Error);
+        // Continue with database deletion even if S3 fails
+      }
     }
 
     // Delete from database
