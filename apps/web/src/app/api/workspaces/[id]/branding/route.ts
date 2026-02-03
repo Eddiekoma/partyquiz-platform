@@ -52,14 +52,7 @@ export async function PATCH(
       },
     });
 
-    return NextResponse.json({ 
-      workspace: {
-        id: workspace.id,
-        name: workspace.name,
-        logo: workspace.logo,
-        themeColor: workspace.themeColor,
-      }
-    });
+    // Create audit log
     await prisma.auditLog.create({
       data: {
         workspaceId: params.id,
@@ -71,7 +64,14 @@ export async function PATCH(
       },
     });
 
-    return NextResponse.json({ workspace });
+    return NextResponse.json({ 
+      workspace: {
+        id: workspace.id,
+        name: workspace.name,
+        logo: (workspace as any).logo,
+        themeColor: (workspace as any).themeColor,
+      }
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -115,19 +115,20 @@ export async function GET(
 
     const workspace = await prisma.workspace.findUnique({
       where: { id: params.id },
-      select: {
-        id: true,
-        name: true,
-        logo: true,
-        themeColor: true,
-      },
     });
 
     if (!workspace) {
       return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ workspace });
+    return NextResponse.json({ 
+      workspace: {
+        id: workspace.id,
+        name: workspace.name,
+        logo: (workspace as any).logo,
+        themeColor: (workspace as any).themeColor,
+      }
+    });
   } catch (error) {
     console.error("Failed to fetch workspace branding:", error);
     return NextResponse.json(
