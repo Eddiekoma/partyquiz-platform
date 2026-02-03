@@ -2,7 +2,7 @@
 # Dockerfile for PartyQuiz WebSocket Server
 # ============================================
 
-# Stage 1: Dependencies
+# Stage 1: Dependencies (ALL deps for building)
 FROM node:20-alpine AS deps
 WORKDIR /app
 
@@ -14,7 +14,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/ws/package.json ./apps/ws/
 COPY packages/shared/package.json ./packages/shared/
 
-# Install ALL dependencies including devDependencies (needed for build tools like Prisma, TypeScript, etc.)
+# Install ALL dependencies including devDependencies
 ENV NODE_ENV=development
 RUN pnpm install --frozen-lockfile
 
@@ -25,29 +25,45 @@ WORKDIR /app
 # Install pnpm
 RUN npm install -g pnpm@8.15.0
 
-# Copy dependencies
+# Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/ws/node_modules ./apps/ws/node_modules
 COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
 
-# Copy source code
+# Copy all source code
 COPY . .
 
-# Remove any cached Prisma Client and regenerate
+# Generate Prisma Client for WS
 WORKDIR /app/apps/ws
 RUN rm -rf ../../node_modules/.prisma ../../node_modules/@prisma/client
 RUN pnpm prisma generate
 
-# Build TypeScript
+# Build TypeScript with tsup
 WORKDIR /app
 RUN pnpm --filter ws build
 
-# Stage 3: Runner
-FROM node:20-alpine AS runner
+# Stage 3: Production dependencies only
+FROM node:20-alpine AS prod-deps
 WORKDIR /app
 
 # Install pnpm
 RUN npm install -g pnpm@8.15.0
+
+# Copy package files
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/ws/package.json ./apps/ws/
+COPY packages/shared/package.json ./packages/shared/
+
+# Copy shared package source (needed for workspace:* deps)
+COPY packages/shared ./packages/shared
+
+# Install ONLY production dependencies
+ENV NODE_ENV=production
+RUN pnpm install --frozen-lockfile --prod --filter ws...
+
+# Stage 4: Runner
+FROM node:20-alpine AS runner
+WORKDIR /app
 
 # Install dumb-init for proper signal handling
 RUN apk add --no-cache dumb-init
@@ -56,22 +72,18 @@ RUN apk add --no-cache dumb-init
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 socketio
 
-# Copy package files for production install
-COPY --from=builder /app/package.json ./
-COPY --from=builder /app/pnpm-lock.yaml ./
-COPY --from=builder /app/pnpm-workspace.yaml ./
-COPY --from=builder /app/apps/ws/package.json ./apps/ws/
-COPY --from=builder /app/packages/shared/package.json ./packages/shared/
+# Copy production dependencies and Prisma Client
+COPY --from=prod-deps /app/node_modules ./node_modules
+COPY --from=prod-deps /app/apps/ws/node_modules ./apps/ws/node_modules
+COPY --from=prod-deps /app/packages ./packages
 
-# Install ONLY production dependencies
-ENV NODE_ENV=production
-RUN pnpm install --frozen-lockfile --prod
-
-# Copy built files
+# Copy built application
 COPY --from=builder /app/apps/ws/dist ./dist
 COPY --from=builder /app/apps/ws/prisma ./prisma
-COPY --from=builder /app/packages ./packages
+COPY --from=builder /app/apps/ws/package.json ./package.json
 
+# Set environment
+ENV NODE_ENV=production
 ENV PORT=8080
 
 USER socketio
@@ -87,3 +99,4 @@ ENTRYPOINT ["dumb-init", "--"]
 
 # Start WebSocket server
 CMD ["node", "dist/index.js"]
+
