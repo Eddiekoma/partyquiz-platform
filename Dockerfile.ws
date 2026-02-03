@@ -33,9 +33,10 @@ COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_module
 # Copy all source code
 COPY . .
 
-# Generate Prisma Client for WS
+# Generate Prisma Client for WS with binary engine
 WORKDIR /app/apps/ws
 RUN rm -rf ../../node_modules/.prisma ../../node_modules/@prisma/client
+ENV PRISMA_ENGINE_TYPE=binary
 RUN pnpm prisma generate
 
 # Build TypeScript with tsup

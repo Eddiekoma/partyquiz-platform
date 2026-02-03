@@ -33,9 +33,10 @@ COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_module
 # Copy source code
 COPY . .
 
-# Remove any cached Prisma Client and regenerate
+# Remove any cached Prisma Client and regenerate with binary engine
 WORKDIR /app/apps/web
-RUN rm -rf ../../node_modules/.prisma ../../node_modules/@prisma/client
+RUN rm -rf ../../node_modules/.prisma ../../node_modules/@prisma/client ./prisma/.cache ./.next
+ENV PRISMA_ENGINE_TYPE=binary
 RUN pnpm prisma generate
 
 # Build Next.js app
