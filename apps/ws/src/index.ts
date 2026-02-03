@@ -1,8 +1,10 @@
 import { Server, Socket } from "socket.io";
 import { createServer } from "http";
 import { pino } from "pino";
-import { WSMessageType, validateAndScore, QuestionType } from "@partyquiz/shared";
 import {
+  WSMessageType,
+  validateAndScore,
+  QuestionType,
   redis,
   cacheSessionState,
   getSessionState,
@@ -14,7 +16,7 @@ import {
   cachePlayer,
   getPlayer,
   checkRateLimit,
-} from "@partyquiz/shared/src/redis";
+} from "@partyquiz/shared";
 import { prisma } from "./lib/prisma";
 import "dotenv/config";
 
