@@ -156,16 +156,16 @@ export async function POST(
             order: round.order,
             items: {
               create: round.items.map((item) => ({
+                itemType: item.itemType,
                 questionId: item.questionId,
+                minigameType: (item as any).minigameType || null,
                 order: item.order,
-                timerDuration: item.timerDuration,
-                points: item.points,
-                settingsJson: item.settingsJson,
+                settingsJson: item.settingsJson || {},
               })),
             },
           })),
         },
-      },
+      } as any,
       include: {
         rounds: {
           include: {
