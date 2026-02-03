@@ -33,8 +33,9 @@ COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_module
 # Copy source code
 COPY . .
 
-# Generate Prisma Client
+# Remove any cached Prisma Client and regenerate
 WORKDIR /app/apps/ws
+RUN rm -rf ../../node_modules/.prisma ../../node_modules/@prisma/client
 RUN pnpm prisma generate
 
 # Build TypeScript
