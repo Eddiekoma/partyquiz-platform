@@ -2,12 +2,17 @@
 # Dockerfile for PartyQuiz Web App (Next.js)
 # ============================================
 
+# Build arguments
+ARG NODE_VERSION=20-alpine
+ARG PNPM_VERSION=10.28.2
+
 # Stage 1: Dependencies
-FROM node:20-alpine AS deps
+FROM node:${NODE_VERSION} AS deps
 WORKDIR /app
 
 # Install pnpm
-RUN npm install -g pnpm@8.15.0
+ARG PNPM_VERSION
+RUN npm install -g pnpm@${PNPM_VERSION}
 
 # Copy package files
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -19,11 +24,12 @@ ENV NODE_ENV=development
 RUN pnpm install --frozen-lockfile
 
 # Stage 2: Builder
-FROM node:20-alpine AS builder
+FROM node:${NODE_VERSION} AS builder
 WORKDIR /app
 
 # Install pnpm
-RUN npm install -g pnpm@8.15.0
+ARG PNPM_VERSION
+RUN npm install -g pnpm@${PNPM_VERSION}
 
 # Copy dependencies
 COPY --from=deps /app/node_modules ./node_modules
@@ -47,11 +53,13 @@ ENV PRISMA_ENGINE_TYPE=binary
 RUN pnpm --filter web build
 
 # Stage 3: Runner
-FROM node:20-alpine AS runner
+# Stage 3: Runner
+FROM node:${NODE_VERSION} AS runner
 WORKDIR /app
 
 # Install pnpm
-RUN npm install -g pnpm@8.15.0
+ARG PNPM_VERSION
+RUN npm install -g pnpm@${PNPM_VERSION}
 
 # Install dumb-init for proper signal handling
 RUN apk add --no-cache dumb-init

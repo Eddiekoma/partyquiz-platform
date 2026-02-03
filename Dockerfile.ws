@@ -2,12 +2,17 @@
 # Dockerfile for PartyQuiz WebSocket Server
 # ============================================
 
+# Build arguments
+ARG NODE_VERSION=20-alpine
+ARG PNPM_VERSION=10.28.2
+
 # Stage 1: Dependencies (ALL deps for building)
-FROM node:20-alpine AS deps
+FROM node:${NODE_VERSION} AS deps
 WORKDIR /app
 
 # Install pnpm
-RUN npm install -g pnpm@8.15.0
+ARG PNPM_VERSION
+RUN npm install -g pnpm@${PNPM_VERSION}
 
 # Copy package files
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -19,11 +24,12 @@ ENV NODE_ENV=development
 RUN pnpm install --frozen-lockfile
 
 # Stage 2: Builder
-FROM node:20-alpine AS builder
+FROM node:${NODE_VERSION} AS builder
 WORKDIR /app
 
 # Install pnpm
-RUN npm install -g pnpm@8.15.0
+ARG PNPM_VERSION
+RUN npm install -g pnpm@${PNPM_VERSION}
 
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
@@ -43,12 +49,13 @@ RUN pnpm prisma generate
 WORKDIR /app
 RUN pnpm --filter ws build
 
-# Stage 3: Production dependencies only
-FROM node:20-alpine AS prod-deps
+# Stage 3: Production Dependencies
+FROM node:${NODE_VERSION} AS prod-deps
 WORKDIR /app
 
 # Install pnpm
-RUN npm install -g pnpm@8.15.0
+ARG PNPM_VERSION
+RUN npm install -g pnpm@${PNPM_VERSION}
 
 # Copy package files
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -63,7 +70,7 @@ ENV NODE_ENV=production
 RUN pnpm install --frozen-lockfile --prod --filter ws...
 
 # Stage 4: Runner
-FROM node:20-alpine AS runner
+FROM node:${NODE_VERSION} AS runner
 WORKDIR /app
 
 # Install dumb-init for proper signal handling
