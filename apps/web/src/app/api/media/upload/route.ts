@@ -50,6 +50,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  // Check if S3 is configured
+  if (!s3Client) {
+    return NextResponse.json(
+      { error: "Media upload is not configured. Please contact your administrator." },
+      { status: 503 }
+    );
+  }
+
   try {
     const body = await req.json();
     const data = uploadRequestSchema.parse(body);
