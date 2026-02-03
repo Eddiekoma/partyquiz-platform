@@ -66,8 +66,15 @@ COPY --from=builder /app/apps/web/package.json ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next ./.next
 COPY --from=builder /app/apps/web/public ./public
 COPY --from=builder /app/apps/web/prisma ./prisma
+
+# Copy complete node_modules including .bin directory with proper symlinks
 COPY --from=builder /app/node_modules ./node_modules
+
+# Copy packages
 COPY --from=builder /app/packages ./packages
+
+# Copy root package.json and pnpm workspace files for proper resolution
+COPY --from=builder /app/package.json /app/pnpm-workspace.yaml ./
 
 # Set environment
 ENV NODE_ENV=production
@@ -86,5 +93,5 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
 
-# Start Next.js (use node directly to run next binary)
-CMD ["node", "node_modules/.bin/next", "start"]
+# Start Next.js using node with the next/dist/bin/next module directly
+CMD ["node", "./node_modules/next/dist/bin/next", "start"]
