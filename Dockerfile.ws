@@ -56,15 +56,22 @@ RUN apk add --no-cache dumb-init
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 socketio
 
-# Copy necessary files
+# Copy package files for production install
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/pnpm-lock.yaml ./
+COPY --from=builder /app/pnpm-workspace.yaml ./
+COPY --from=builder /app/apps/ws/package.json ./apps/ws/
+COPY --from=builder /app/packages/shared/package.json ./packages/shared/
+
+# Install ONLY production dependencies
+ENV NODE_ENV=production
+RUN pnpm install --frozen-lockfile --prod
+
+# Copy built files
 COPY --from=builder /app/apps/ws/dist ./dist
-COPY --from=builder /app/apps/ws/package.json ./
 COPY --from=builder /app/apps/ws/prisma ./prisma
-COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/packages ./packages
 
-# Set environment
-ENV NODE_ENV=production
 ENV PORT=8080
 
 USER socketio
