@@ -49,33 +49,12 @@ RUN pnpm prisma generate
 WORKDIR /app
 RUN pnpm --filter ws build
 
-# Stage 3: Production Dependencies
-FROM node:${NODE_VERSION} AS prod-deps
-WORKDIR /app
+# Deploy ws package with all production dependencies (resolves all workspace symlinks)
+RUN pnpm --filter ws --prod deploy /prod/ws
 
-# Install pnpm
-ARG PNPM_VERSION
-RUN npm install -g pnpm@${PNPM_VERSION}
-
-# Copy package files
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY apps/ws/package.json ./apps/ws/
-COPY packages/shared/package.json ./packages/shared/
-
-# Copy shared package source (needed for workspace:* deps)
-COPY packages/shared ./packages/shared
-
-# Install ONLY production dependencies
-ENV NODE_ENV=production
-RUN pnpm install --frozen-lockfile --prod --filter ws...
-
-# Stage 4: Runner
+# Stage 3: Runner
 FROM node:${NODE_VERSION} AS runner
 WORKDIR /app
-
-# Install pnpm (needed for workspace resolution)
-ARG PNPM_VERSION
-RUN npm install -g pnpm@${PNPM_VERSION}
 
 # Install dumb-init for proper signal handling
 RUN apk add --no-cache dumb-init
@@ -84,17 +63,8 @@ RUN apk add --no-cache dumb-init
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 socketio
 
-# Copy workspace configuration files first
-COPY --from=builder /app/package.json /app/pnpm-workspace.yaml ./
-
-# Copy production dependencies with proper structure
-COPY --from=prod-deps /app/node_modules ./node_modules
-COPY --from=prod-deps /app/packages ./packages
-
-# Copy WS app structure  
-COPY --from=builder /app/apps/ws/package.json ./apps/ws/package.json
-COPY --from=builder /app/apps/ws/dist ./apps/ws/dist
-COPY --from=builder /app/apps/ws/prisma ./apps/ws/prisma
+# Copy deployed app with resolved dependencies (no symlinks!)
+COPY --from=builder /prod/ws .
 
 # Set environment
 ENV NODE_ENV=production
@@ -111,6 +81,6 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
 
-# Start WebSocket server from root (so node_modules resolution works)
-CMD ["node", "apps/ws/dist/index.js"]
+# Start WebSocket server (pnpm deploy puts everything in root)
+CMD ["node", "dist/index.js"]
 

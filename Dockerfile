@@ -53,13 +53,8 @@ ENV PRISMA_ENGINE_TYPE=binary
 RUN pnpm --filter web build
 
 # Stage 3: Runner
-# Stage 3: Runner
 FROM node:${NODE_VERSION} AS runner
 WORKDIR /app
-
-# Install pnpm
-ARG PNPM_VERSION
-RUN npm install -g pnpm@${PNPM_VERSION}
 
 # Install dumb-init for proper signal handling
 RUN apk add --no-cache dumb-init
