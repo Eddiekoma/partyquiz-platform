@@ -86,5 +86,5 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
 # Use dumb-init to handle signals properly
 ENTRYPOINT ["dumb-init", "--"]
 
-# Start Next.js
-CMD ["pnpm", "start"]
+# Start Next.js (use node directly to run next binary)
+CMD ["node", "node_modules/.bin/next", "start"]
