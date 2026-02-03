@@ -2,8 +2,8 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider   = "prisma-client-js"
-  engineType = "binary"
+  provider = "prisma-client-js"
+  // Prisma 7: Uses client engine (no Rust binaries) with driver adapters
 }
 
 datasource db {
