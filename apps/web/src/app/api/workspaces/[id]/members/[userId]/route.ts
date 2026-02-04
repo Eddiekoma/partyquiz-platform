@@ -11,7 +11,7 @@ const updateMemberSchema = z.object({
 // PATCH /api/workspaces/[id]/members/[userId] - Update member role
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string; userId: string } }
+  { params }: { params: Promise<{  id: string; userId: string}> }
 ) {
   const session = await auth();
 
@@ -24,7 +24,7 @@ export async function PATCH(
     const member = await prisma.workspaceMember.findUnique({
       where: {
         workspaceId_userId: {
-          workspaceId: params.id,
+          workspaceId: (await params).id,
           userId: session.user.id,
         },
       },
@@ -41,8 +41,8 @@ export async function PATCH(
     const targetMember = await prisma.workspaceMember.findUnique({
       where: {
         workspaceId_userId: {
-          workspaceId: params.id,
-          userId: params.userId,
+          workspaceId: (await params).id,
+          userId: (await params).userId,
         },
       },
     });
@@ -57,8 +57,8 @@ export async function PATCH(
     const updatedMember = await prisma.workspaceMember.update({
       where: {
         workspaceId_userId: {
-          workspaceId: params.id,
-          userId: params.userId,
+          workspaceId: (await params).id,
+          userId: (await params).userId,
         },
       },
       data: {
@@ -79,13 +79,13 @@ export async function PATCH(
     // Log the update
     await prisma.auditLog.create({
       data: {
-        workspaceId: params.id,
+        workspaceId: (await params).id,
         actorUserId: session.user.id,
         action: "MEMBER_ROLE_UPDATED",
         entityType: "WORKSPACE_MEMBER",
         entityId: updatedMember.id,
         payloadJson: {
-          targetUserId: params.userId,
+          targetUserId: (await params).userId,
           newRole: data.role,
         },
       },
@@ -94,7 +94,7 @@ export async function PATCH(
     return NextResponse.json(updatedMember);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return NextResponse.json({ error: error.issues }, { status: 400 });
     }
 
     console.error("Failed to update member:", error);
@@ -108,7 +108,7 @@ export async function PATCH(
 // DELETE /api/workspaces/[id]/members/[userId] - Remove member
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string; userId: string } }
+  { params }: { params: Promise<{  id: string; userId: string}> }
 ) {
   const session = await auth();
 
@@ -121,7 +121,7 @@ export async function DELETE(
     const member = await prisma.workspaceMember.findUnique({
       where: {
         workspaceId_userId: {
-          workspaceId: params.id,
+          workspaceId: (await params).id,
           userId: session.user.id,
         },
       },
@@ -135,8 +135,8 @@ export async function DELETE(
     const targetMember = await prisma.workspaceMember.findUnique({
       where: {
         workspaceId_userId: {
-          workspaceId: params.id,
-          userId: params.userId,
+          workspaceId: (await params).id,
+          userId: (await params).userId,
         },
       },
     });
@@ -151,8 +151,8 @@ export async function DELETE(
     await prisma.workspaceMember.delete({
       where: {
         workspaceId_userId: {
-          workspaceId: params.id,
-          userId: params.userId,
+          workspaceId: (await params).id,
+          userId: (await params).userId,
         },
       },
     });
@@ -160,12 +160,12 @@ export async function DELETE(
     // Log the removal
     await prisma.auditLog.create({
       data: {
-        workspaceId: params.id,
+        workspaceId: (await params).id,
         actorUserId: session.user.id,
         action: "MEMBER_REMOVED",
         entityType: "WORKSPACE_MEMBER",
         payloadJson: {
-          targetUserId: params.userId,
+          targetUserId: (await params).userId,
         },
       },
     });

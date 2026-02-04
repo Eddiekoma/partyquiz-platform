@@ -19,15 +19,15 @@
     "pino": "^8.17.2",
     "pino-pretty": "^10.3.1",
     "redis": "^4.6.12",
-    "socket.io": "^4.6.1",
+    "socket.io": "^4.8.3",
     "zod": "^3.22.4"
   },
   "devDependencies": {
-    "@types/node": "^20.10.6",
+    "@types/node": "^25.2.0",
     "eslint": "^8.56.0",
     "prisma": "^7.3.0",
-    "tsup": "^8.0.1",
-    "tsx": "^4.7.0",
-    "typescript": "^5.3.3"
+    "tsup": "^8.5.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
   }
 }

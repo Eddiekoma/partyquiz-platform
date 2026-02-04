@@ -17,7 +17,7 @@ import { hasPermission, WorkspaceRole, Permission, AuditAction, EntityType } fro
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{  id: string}> }
 ) {
   try {
     const session = await auth();
@@ -25,7 +25,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceId = params.id;
+    const workspaceId = (await params).id;
 
     // Check membership and permissions
     const member = await prisma.workspaceMember.findUnique({

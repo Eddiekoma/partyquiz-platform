@@ -12,7 +12,7 @@ const updateBrandingSchema = z.object({
 // PATCH /api/workspaces/[id]/branding - Update workspace branding
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{  id: string}> }
 ) {
   const session = await auth();
 
@@ -25,7 +25,7 @@ export async function PATCH(
     const membership = await prisma.workspaceMember.findUnique({
       where: {
         workspaceId_userId: {
-          workspaceId: params.id,
+          workspaceId: (await params).id,
           userId: session.user.id,
         },
       },
@@ -45,7 +45,7 @@ export async function PATCH(
 
     // Update workspace branding
     const workspace = await prisma.workspace.update({
-      where: { id: params.id },
+      where: { id: (await params).id },
       data: {
         ...(validatedData.logo !== undefined && { logo: validatedData.logo }),
         ...(validatedData.themeColor !== undefined && { themeColor: validatedData.themeColor }),
@@ -55,11 +55,11 @@ export async function PATCH(
     // Create audit log
     await prisma.auditLog.create({
       data: {
-        workspaceId: params.id,
+        workspaceId: (await params).id,
         actorUserId: session.user.id,
         action: "workspace.branding.updated",
         entityType: "workspace",
-        entityId: params.id,
+        entityId: (await params).id,
         payloadJson: validatedData,
       },
     });
@@ -75,7 +75,7 @@ export async function PATCH(
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Validation failed", issues: error.errors },
+        { error: "Validation failed", issues: error.issues },
         { status: 400 }
       );
     }
@@ -90,7 +90,7 @@ export async function PATCH(
 // GET /api/workspaces/[id]/branding - Get workspace branding
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{  id: string}> }
 ) {
   const session = await auth();
 
@@ -103,7 +103,7 @@ export async function GET(
     const membership = await prisma.workspaceMember.findUnique({
       where: {
         workspaceId_userId: {
-          workspaceId: params.id,
+          workspaceId: (await params).id,
           userId: session.user.id,
         },
       },
@@ -114,7 +114,7 @@ export async function GET(
     }
 
     const workspace = await prisma.workspace.findUnique({
-      where: { id: params.id },
+      where: { id: (await params).id },
     });
 
     if (!workspace) {

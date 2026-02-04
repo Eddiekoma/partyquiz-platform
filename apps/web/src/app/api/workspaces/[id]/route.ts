@@ -12,7 +12,7 @@ const updateWorkspaceSchema = z.object({
 // GET /api/workspaces/[id] - Get workspace details
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{  id: string}> }
 ) {
   const session = await auth();
 
@@ -22,7 +22,7 @@ export async function GET(
 
   try {
     const workspace = await prisma.workspace.findUnique({
-      where: { id: params.id },
+      where: { id: (await params).id },
       include: {
         members: {
           include: {
@@ -68,7 +68,7 @@ export async function GET(
 // PATCH /api/workspaces/[id] - Update workspace
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{  id: string}> }
 ) {
   const session = await auth();
 
@@ -81,7 +81,7 @@ export async function PATCH(
     const member = await prisma.workspaceMember.findUnique({
       where: {
         workspaceId_userId: {
-          workspaceId: params.id,
+          workspaceId: (await params).id,
           userId: session.user.id,
         },
       },
@@ -95,7 +95,7 @@ export async function PATCH(
     const data = updateWorkspaceSchema.parse(body);
 
     const workspace = await prisma.workspace.update({
-      where: { id: params.id },
+      where: { id: (await params).id },
       data,
     });
 
@@ -114,7 +114,7 @@ export async function PATCH(
     return NextResponse.json(workspace);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return NextResponse.json({ error: error.issues }, { status: 400 });
     }
 
     console.error("Failed to update workspace:", error);
@@ -128,7 +128,7 @@ export async function PATCH(
 // DELETE /api/workspaces/[id] - Delete workspace
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{  id: string}> }
 ) {
   const session = await auth();
 
@@ -141,7 +141,7 @@ export async function DELETE(
     const member = await prisma.workspaceMember.findUnique({
       where: {
         workspaceId_userId: {
-          workspaceId: params.id,
+          workspaceId: (await params).id,
           userId: session.user.id,
         },
       },
@@ -155,7 +155,7 @@ export async function DELETE(
     }
 
     await prisma.workspace.delete({
-      where: { id: params.id },
+      where: { id: (await params).id },
     });
 
     return NextResponse.json({ success: true });

@@ -20,7 +20,7 @@ const reorderSchema = z.object({
  */
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string; quizId: string } }
+  { params }: { params: Promise<{  id: string; quizId: string}> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -28,8 +28,8 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceId = params.id;
-    const quizId = params.quizId;
+    const workspaceId = (await params).id;
+    const quizId = (await params).quizId;
 
     // Check workspace membership
     const membership = await prisma.workspaceMember.findUnique({

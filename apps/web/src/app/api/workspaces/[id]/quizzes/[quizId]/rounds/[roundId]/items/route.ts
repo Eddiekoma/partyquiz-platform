@@ -12,7 +12,7 @@ const addItemSchema = z.object({
 // POST /api/workspaces/:id/quizzes/:quizId/rounds/:roundId/items - Add question to round
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string; quizId: string; roundId: string } }
+  { params }: { params: Promise<{  id: string; quizId: string; roundId: string}> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -20,9 +20,9 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceId = params.id;
-    const quizId = params.quizId;
-    const roundId = params.roundId;
+    const workspaceId = (await params).id;
+    const quizId = (await params).quizId;
+    const roundId = (await params).roundId;
 
     // Check workspace membership and permission
     const membership = await prisma.workspaceMember.findUnique({
@@ -115,7 +115,7 @@ export async function POST(
     console.error("Error adding item to round:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid request data", details: error.errors },
+        { error: "Invalid request data", details: error.issues },
         { status: 400 }
       );
     }
@@ -126,7 +126,7 @@ export async function POST(
 // DELETE /api/workspaces/:id/quizzes/:quizId/rounds/:roundId/items/:itemId - Remove item from round
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string; quizId: string; roundId: string } }
+  { params }: { params: Promise<{  id: string; quizId: string; roundId: string}> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -134,9 +134,9 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceId = params.id;
-    const quizId = params.quizId;
-    const roundId = params.roundId;
+    const workspaceId = (await params).id;
+    const quizId = (await params).quizId;
+    const roundId = (await params).roundId;
 
     // Get itemId from query params
     const { searchParams } = new URL(req.url);

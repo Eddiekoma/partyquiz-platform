@@ -39,7 +39,7 @@ const updateQuestionSchema = z.object({
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string; questionId: string } }
+  { params }: { params: Promise<{  id: string; questionId: string}> }
 ) {
   try {
     const session = await auth();
@@ -47,8 +47,8 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceId = params.id;
-    const questionId = params.questionId;
+    const workspaceId = (await params).id;
+    const questionId = (await params).questionId;
 
     // Check membership and permissions
     const member = await prisma.workspaceMember.findUnique({
@@ -100,7 +100,7 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string; questionId: string } }
+  { params }: { params: Promise<{  id: string; questionId: string}> }
 ) {
   try {
     const session = await auth();
@@ -108,8 +108,8 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceId = params.id;
-    const questionId = params.questionId;
+    const workspaceId = (await params).id;
+    const questionId = (await params).questionId;
 
     // Check membership and permissions
     const member = await prisma.workspaceMember.findUnique({
@@ -208,7 +208,7 @@ export async function PUT(
     return NextResponse.json({ question });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: "Validation error", details: error.errors }, { status: 400 });
+      return NextResponse.json({ error: "Validation error", details: error.issues }, { status: 400 });
     }
     console.error("Failed to update question:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -217,7 +217,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string; questionId: string } }
+  { params }: { params: Promise<{  id: string; questionId: string}> }
 ) {
   try {
     const session = await auth();
@@ -225,8 +225,8 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceId = params.id;
-    const questionId = params.questionId;
+    const workspaceId = (await params).id;
+    const questionId = (await params).questionId;
 
     // Check membership and permissions
     const member = await prisma.workspaceMember.findUnique({

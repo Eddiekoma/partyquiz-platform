@@ -45,7 +45,7 @@ async function generateSessionCode(): Promise<string> {
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{  id: string}> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -53,7 +53,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceId = params.id;
+    const workspaceId = (await params).id;
 
     // Check workspace membership
     const membership = await prisma.workspaceMember.findUnique({
@@ -137,7 +137,7 @@ export async function GET(
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{  id: string}> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -145,7 +145,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceId = params.id;
+    const workspaceId = (await params).id;
 
     // Check workspace membership and permission
     const membership = await prisma.workspaceMember.findUnique({

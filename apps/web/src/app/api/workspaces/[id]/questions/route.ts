@@ -37,7 +37,7 @@ const createQuestionSchema = z.object({
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{  id: string}> }
 ) {
   try {
     const session = await auth();
@@ -45,7 +45,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceId = params.id;
+    const workspaceId = (await params).id;
     const { searchParams } = new URL(request.url);
 
     // Check membership and permissions
@@ -139,7 +139,7 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{  id: string}> }
 ) {
   try {
     const session = await auth();
@@ -147,7 +147,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceId = params.id;
+    const workspaceId = (await params).id;
 
     // Check membership and permissions
     const member = await prisma.workspaceMember.findUnique({
@@ -221,7 +221,7 @@ export async function POST(
     return NextResponse.json({ question }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: "Validation error", details: error.errors }, { status: 400 });
+      return NextResponse.json({ error: "Validation error", details: error.issues }, { status: 400 });
     }
     console.error("Failed to create question:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

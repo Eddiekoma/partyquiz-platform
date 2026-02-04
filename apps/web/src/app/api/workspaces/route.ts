@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ...workspace, role: WorkspaceRole.OWNER });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return NextResponse.json({ error: error.issues }, { status: 400 });
     }
 
     console.error("Failed to create workspace:", error);

@@ -13,7 +13,7 @@ const updateQuizSchema = z.object({
 // GET /api/workspaces/:id/quizzes/:quizId - Get quiz details
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string; quizId: string } }
+  { params }: { params: Promise<{  id: string; quizId: string}> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -21,8 +21,8 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceId = params.id;
-    const quizId = params.quizId;
+    const workspaceId = (await params).id;
+    const quizId = (await params).quizId;
 
     // Check workspace membership
     const membership = await prisma.workspaceMember.findUnique({
@@ -82,7 +82,7 @@ export async function GET(
 // PUT /api/workspaces/:id/quizzes/:quizId - Update quiz
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string; quizId: string } }
+  { params }: { params: Promise<{  id: string; quizId: string}> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -90,8 +90,8 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceId = params.id;
-    const quizId = params.quizId;
+    const workspaceId = (await params).id;
+    const quizId = (await params).quizId;
 
     // Check workspace membership and permission
     const membership = await prisma.workspaceMember.findUnique({
@@ -156,7 +156,7 @@ export async function PUT(
     console.error("Error updating quiz:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid request data", details: error.errors },
+        { error: "Invalid request data", details: error.issues },
         { status: 400 }
       );
     }
@@ -167,7 +167,7 @@ export async function PUT(
 // DELETE /api/workspaces/:id/quizzes/:quizId - Delete quiz
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string; quizId: string } }
+  { params }: { params: Promise<{  id: string; quizId: string}> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -175,8 +175,8 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceId = params.id;
-    const quizId = params.quizId;
+    const workspaceId = (await params).id;
+    const quizId = (await params).quizId;
 
     // Check workspace membership and permission
     const membership = await prisma.workspaceMember.findUnique({

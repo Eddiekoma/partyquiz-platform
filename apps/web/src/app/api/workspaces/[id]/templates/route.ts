@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 // GET /api/workspaces/[id]/templates - Get quiz templates
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{  id: string}> }
 ) {
   const session = await auth();
 
@@ -18,7 +18,7 @@ export async function GET(
     const membership = await prisma.workspaceMember.findUnique({
       where: {
         workspaceId_userId: {
-          workspaceId: params.id,
+          workspaceId: (await params).id,
           userId: session.user.id,
         },
       },
@@ -32,7 +32,7 @@ export async function GET(
     const templates = await prisma.quiz.findMany({
       where: {
         isTemplate: true,
-        workspaceId: params.id,
+        workspaceId: (await params).id,
       },
       include: {
         rounds: {
@@ -89,7 +89,7 @@ export async function GET(
 // POST /api/workspaces/[id]/templates - Create quiz from template
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{  id: string}> }
 ) {
   const session = await auth();
 
@@ -102,7 +102,7 @@ export async function POST(
     const membership = await prisma.workspaceMember.findUnique({
       where: {
         workspaceId_userId: {
-          workspaceId: params.id,
+          workspaceId: (await params).id,
           userId: session.user.id,
         },
       },
@@ -145,7 +145,7 @@ export async function POST(
     // Create new quiz from template
     const newQuiz = await prisma.quiz.create({
       data: {
-        workspaceId: params.id,
+        workspaceId: (await params).id,
         title: title || `${template.title} (Copy)`,
         description: template.description,
         createdBy: session.user.id,
@@ -178,7 +178,7 @@ export async function POST(
     // Create audit log
     await prisma.auditLog.create({
       data: {
-        workspaceId: params.id,
+        workspaceId: (await params).id,
         actorUserId: session.user.id,
         action: "quiz.created_from_template",
         entityType: "quiz",

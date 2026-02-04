@@ -13,7 +13,7 @@ const createQuizSchema = z.object({
 // GET /api/workspaces/:id/quizzes - List quizzes
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{  id: string}> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -21,7 +21,7 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceId = params.id;
+    const workspaceId = (await params).id;
 
     // Check workspace membership
     const membership = await prisma.workspaceMember.findUnique({
@@ -97,7 +97,7 @@ export async function GET(
 // POST /api/workspaces/:id/quizzes - Create quiz
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{  id: string}> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -105,7 +105,7 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceId = params.id;
+    const workspaceId = (await params).id;
 
     // Check workspace membership and permission
     const membership = await prisma.workspaceMember.findUnique({
@@ -157,7 +157,7 @@ export async function POST(
     console.error("Error creating quiz:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid request data", details: error.errors },
+        { error: "Invalid request data", details: error.issues },
         { status: 400 }
       );
     }

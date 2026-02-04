@@ -15,7 +15,7 @@ const updateSessionSchema = z.object({
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string; sessionId: string } }
+  { params }: { params: Promise<{  id: string; sessionId: string}> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -23,8 +23,8 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceId = params.id;
-    const sessionId = params.sessionId;
+    const workspaceId = (await params).id;
+    const sessionId = (await params).sessionId;
 
     // Check workspace membership
     const membership = await prisma.workspaceMember.findUnique({
@@ -108,7 +108,7 @@ export async function GET(
  */
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string; sessionId: string } }
+  { params }: { params: Promise<{  id: string; sessionId: string}> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -116,8 +116,8 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceId = params.id;
-    const sessionId = params.sessionId;
+    const workspaceId = (await params).id;
+    const sessionId = (await params).sessionId;
 
     // Check workspace membership and permission
     const membership = await prisma.workspaceMember.findUnique({
@@ -226,7 +226,7 @@ export async function PUT(
  */
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string; sessionId: string } }
+  { params }: { params: Promise<{  id: string; sessionId: string}> }
 ) {
   try {
     const session = await getServerSession(authOptions);
@@ -234,8 +234,8 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const workspaceId = params.id;
-    const sessionId = params.sessionId;
+    const workspaceId = (await params).id;
+    const sessionId = (await params).sessionId;
 
     // Check workspace membership and permission
     const membership = await prisma.workspaceMember.findUnique({

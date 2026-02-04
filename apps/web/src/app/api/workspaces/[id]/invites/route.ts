@@ -13,7 +13,7 @@ const inviteMemberSchema = z.object({
 // POST /api/workspaces/[id]/invites - Invite member to workspace
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{  id: string}> }
 ) {
   const session = await auth();
 
@@ -26,7 +26,7 @@ export async function POST(
     const member = await prisma.workspaceMember.findUnique({
       where: {
         workspaceId_userId: {
-          workspaceId: params.id,
+          workspaceId: (await params).id,
           userId: session.user.id,
         },
       },
@@ -49,7 +49,7 @@ export async function POST(
       const existingMember = await prisma.workspaceMember.findUnique({
         where: {
           workspaceId_userId: {
-            workspaceId: params.id,
+            workspaceId: (await params).id,
             userId: existingUser.id,
           },
         },
@@ -72,7 +72,7 @@ export async function POST(
 
     const invite = await prisma.workspaceInvite.create({
       data: {
-        workspaceId: params.id,
+        workspaceId: (await params).id,
         email: data.email,
         role: data.role,
         token,
@@ -95,7 +95,7 @@ export async function POST(
     // Log the invite
     await prisma.auditLog.create({
       data: {
-        workspaceId: params.id,
+        workspaceId: (await params).id,
         actorUserId: session.user.id,
         action: "MEMBER_INVITED",
         entityType: "WORKSPACE_INVITE",
@@ -110,7 +110,7 @@ export async function POST(
     return NextResponse.json(invite);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      return NextResponse.json({ error: error.issues }, { status: 400 });
     }
 
     console.error("Failed to invite member:", error);
