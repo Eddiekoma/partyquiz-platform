@@ -39,6 +39,10 @@ COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_module
 # Copy source code
 COPY . .
 
+# Build shared package first (required by web app)
+WORKDIR /app
+RUN pnpm --filter @partyquiz/shared build
+
 # Remove any cached Prisma Client and regenerate with binary engine
 WORKDIR /app/apps/web
 RUN rm -rf ../../node_modules/.prisma ../../node_modules/@prisma/client ./prisma/.cache ./.next
