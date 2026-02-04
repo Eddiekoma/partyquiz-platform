@@ -1,7 +1,11 @@
-import { PrismaClient } from "@prisma/client";
+// ES Module import fix: Prisma Client is CommonJS, use default import
+import prismaClientPkg from "@prisma/client";
+const { PrismaClient } = prismaClientPkg;
 import { PrismaPg } from "@prisma/adapter-pg";
 
-const globalForPrisma = global as unknown as { prisma: PrismaClient };
+// Type for global prisma instance
+type PrismaClientInstance = InstanceType<typeof PrismaClient>;
+const globalForPrisma = global as unknown as { prisma: PrismaClientInstance };
 
 // Prisma 7: Initialize with PostgreSQL driver adapter
 const adapter = new PrismaPg({
