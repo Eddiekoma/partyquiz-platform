@@ -57,9 +57,9 @@ RUN pnpm --filter ws build
 RUN pnpm --filter ws --prod deploy /prod/ws
 
 # Copy Prisma Client to deployed directory
-# The .prisma directory contains the generated Prisma Client that's needed at runtime
-COPY --from=builder /app/node_modules/.prisma /prod/ws/node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma/client /prod/ws/node_modules/@prisma/client
+# pnpm deploy doesn't copy .prisma (generated files), so we copy it manually
+RUN cp -r /app/node_modules/.prisma /prod/ws/node_modules/.prisma
+RUN cp -r /app/node_modules/@prisma /prod/ws/node_modules/@prisma
 
 # Stage 3: Runner
 FROM node:${NODE_VERSION} AS runner
