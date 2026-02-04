@@ -86,7 +86,7 @@ export async function POST(
     const validation = importDataSchema.safeParse(data);
     if (!validation.success) {
       return NextResponse.json(
-        { error: "Invalid import data format", details: validation.error.errors },
+        { error: "Invalid import data format", details: validation.error.issues },
         { status: 400 }
       );
     }

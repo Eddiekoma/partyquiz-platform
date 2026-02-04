@@ -208,7 +208,7 @@ export async function PUT(
     return NextResponse.json({ question });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: "Validation error", details: error.errors }, { status: 400 });
+      return NextResponse.json({ error: "Validation error", details: error.issues }, { status: 400 });
     }
     console.error("Failed to update question:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

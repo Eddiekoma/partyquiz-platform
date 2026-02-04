@@ -99,7 +99,7 @@ export async function POST(
     console.error("Error creating round:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
-        { error: "Invalid request data", details: error.errors },
+        { error: "Invalid request data", details: error.issues },
         { status: 400 }
       );
     }
