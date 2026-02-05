@@ -68,12 +68,14 @@ RUN cp -r /app/apps/ws/prisma /prod/ws/prisma
 
 # 3. CRITICAL: Copy generated Prisma Client from workspace build
 # pnpm deploy doesn't include generated files, so we copy from the workspace build
-# Prisma Client is in the pnpm virtual store, so we find and copy it dynamically
+# Prisma Client is in the pnpm virtual store at a path like:
+# /app/node_modules/.pnpm/@prisma+client@7.3.0_prisma@7.3.0_typescript@5.9.3/node_modules/@prisma/client
+# .prisma generated folder is also in the pnpm store
 RUN mkdir -p /prod/ws/node_modules/@prisma && \
-    PRISMA_CLIENT_PATH=$(find /app/node_modules/.pnpm -type d -path "*/@prisma/client@*" -name "@prisma" | head -1) && \
-    cp -r "$PRISMA_CLIENT_PATH/client" /prod/ws/node_modules/@prisma/client && \
-    PRISMA_GENERATED=$(find /app/node_modules/.pnpm -type d -name ".prisma" | head -1) && \
-    cp -r "$PRISMA_GENERATED" /prod/ws/node_modules/
+    PRISMA_CLIENT_DIR=$(find /app/node_modules/.pnpm -type d -path "*/node_modules/@prisma/client" | head -1) && \
+    cp -r "$PRISMA_CLIENT_DIR" /prod/ws/node_modules/@prisma/client && \
+    PRISMA_GENERATED_DIR=$(find /app/node_modules/.pnpm -type d -name ".prisma" | head -1) && \
+    cp -r "$PRISMA_GENERATED_DIR" /prod/ws/node_modules/.prisma
 
 # Stage 3: Runner
 FROM node:${NODE_VERSION} AS runner
