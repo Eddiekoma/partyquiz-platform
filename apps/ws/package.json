@@ -18,6 +18,7 @@
     "pg": "^8.18.0",
     "pino": "^8.17.2",
     "pino-pretty": "^10.3.1",
+    "prisma": "^7.3.0",
     "redis": "^4.6.12",
     "socket.io": "^4.8.3",
     "zod": "^3.22.4"
@@ -25,7 +26,6 @@
   "devDependencies": {
     "@types/node": "^25.2.0",
     "eslint": "^8.56.0",
-    "prisma": "^7.3.0",
     "tsup": "^8.5.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
