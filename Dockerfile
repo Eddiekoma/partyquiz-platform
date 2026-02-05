@@ -43,11 +43,13 @@ COPY . .
 WORKDIR /app
 RUN pnpm --filter @partyquiz/shared build
 
-# Remove any cached Prisma Client and regenerate with binary engine
+# Remove any cached Prisma Client and regenerate for Prisma 7
 WORKDIR /app/apps/web
 RUN rm -rf ../../node_modules/.prisma ../../node_modules/@prisma/client ./prisma/.cache ./.next
-ENV PRISMA_ENGINE_TYPE=binary
-RUN pnpm prisma generate
+
+# For Prisma 7: Generate client using the config file
+# tsx is available via devDependencies for parsing prisma.config.ts
+RUN pnpm exec prisma generate
 
 # Build Next.js app
 WORKDIR /app
@@ -72,8 +74,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
 
-# Copy Prisma schema for migrations (if needed at runtime)
+# Copy Prisma schema and config for migrations (if needed at runtime)
 COPY --from=builder /app/apps/web/prisma ./apps/web/prisma
+COPY --from=builder /app/apps/web/prisma.config.mjs ./apps/web/prisma.config.mjs
 
 # Set environment
 ENV NODE_ENV=production

@@ -43,11 +43,14 @@ COPY . .
 WORKDIR /app
 RUN pnpm --filter @partyquiz/shared build
 
-# Generate Prisma Client with binary engine (before building TypeScript)
+# Generate Prisma Client for Prisma 7 (before building TypeScript)
+# Prisma 7 requires prisma.config.ts which needs tsx to parse
 WORKDIR /app/apps/ws
 RUN rm -rf ../../node_modules/.prisma ../../node_modules/@prisma/client
-ENV PRISMA_ENGINE_TYPE=binary
-RUN pnpm prisma generate
+
+# For Prisma 7: Generate client using the config file
+# tsx is available via devDependencies for parsing prisma.config.ts
+RUN pnpm exec prisma generate
 
 # Build TypeScript with tsup (now with Prisma Client available)
 WORKDIR /app
@@ -66,11 +69,14 @@ RUN cp -r /app/apps/ws/dist /prod/ws/dist
 # 2. prisma/ - schema files (needed at runtime for migrations, introspection, etc.)
 RUN cp -r /app/apps/ws/prisma /prod/ws/prisma
 
-# 3. IMPORTANT: WS and Web share the same database, so WS needs Web's migrations
+# 3. prisma.config.mjs - Prisma 7 requires this for migrate deploy (using .mjs for runtime without tsx)
+RUN cp /app/apps/ws/prisma.config.mjs /prod/ws/prisma.config.mjs
+
+# 4. IMPORTANT: WS and Web share the same database, so WS needs Web's migrations
 #    Copy migrations from Web app (they're already applied, but prisma migrate deploy needs them)
 RUN cp -r /app/apps/web/prisma/migrations /prod/ws/prisma/migrations
 
-# 3. CRITICAL: Copy generated Prisma Client from workspace build
+# 5. CRITICAL: Copy generated Prisma Client from workspace build
 # pnpm deploy doesn't include generated files, so we copy from the workspace build
 # Prisma Client is in the pnpm virtual store at a path like:
 # /app/node_modules/.pnpm/@prisma+client@7.3.0_prisma@7.3.0_typescript@5.9.3/node_modules/@prisma/client
@@ -112,13 +118,15 @@ ENTRYPOINT ["dumb-init", "--"]
 
 # Run migrations and start WebSocket server
 # Debug: print env vars (masked) and schema location before running migrations
+# Prisma 7: Uses prisma.config.mjs for configuration (auto-detected)
 CMD ["sh", "-c", "echo '=== Startup Debug ===' && \
      echo 'DATABASE_URL available:' $(test -n \"$DATABASE_URL\" && echo 'YES' || echo 'NO') && \
      echo 'REDIS_URL available:' $(test -n \"$REDIS_URL\" && echo 'YES' || echo 'NO') && \
      echo 'Working directory:' $(pwd) && \
      echo 'Prisma schema exists:' $(test -f ./prisma/schema.prisma && echo 'YES' || echo 'NO') && \
+     echo 'Prisma config exists:' $(test -f ./prisma.config.mjs && echo 'YES' || echo 'NO') && \
      echo 'Prisma migrations dir:' $(test -d ./prisma/migrations && echo 'YES' || echo 'NO') && \
      echo '===================' && \
-     npx prisma migrate deploy --schema=./prisma/schema.prisma && \
+     npx prisma migrate deploy && \
      node dist/index.js"]
 
