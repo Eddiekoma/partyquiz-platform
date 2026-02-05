@@ -200,40 +200,8 @@ const logger = pino({
 
 const PORT = process.env.WS_PORT || 8080;
 
-// Create HTTP server with request handler for health checks only
-const httpServer = createServer((req, res) => {
-  // Health check endpoints
-  if (req.url === "/healthz" || req.url === "/health") {
-    prisma.liveSession.count({
-      where: { status: { in: ["WAITING", "ACTIVE"] } },
-    }).then(activeSessions => {
-      return prisma.livePlayer.count({ where: { leftAt: null } }).then(totalPlayers => {
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({
-          status: "ok",
-          timestamp: new Date().toISOString(),
-          activeSessions,
-          totalPlayers,
-        }));
-      });
-    }).catch(error => {
-      logger.error({ error }, "Health check failed");
-      res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ status: "error", message: "Database connection failed" }));
-    });
-    return;
-  }
-  
-  // For non-health, non-websocket routes return 404
-  // Socket.io intercepts /ws routes before this handler via upgrade event
-  if (!req.url?.startsWith("/ws")) {
-    res.writeHead(404);
-    res.end();
-  }
-  // Note: /ws polling requests will be handled here too, but Socket.io 
-  // doesn't use the createServer callback - it uses the 'request' event
-  // So we need to NOT respond for /ws routes to let Socket.io handle them
-});
+// Create HTTP server - Socket.io will attach its handlers
+const httpServer = createServer();
 
 const io = new Server(httpServer, {
   cors: {
@@ -956,6 +924,36 @@ io.on("connection", (socket: Socket) => {
       logger.error({ error }, "Error handling disconnect");
     }
   });
+});
+
+// Health check endpoint - runs after Socket.io attaches its handlers
+// Socket.io handles /ws routes, this handles /health and /healthz
+httpServer.on("request", async (req, res) => {
+  // Socket.io handles its own routes (/ws/*), so we only handle health checks here
+  if (req.url === "/healthz" || req.url === "/health") {
+    try {
+      const activeSessions = await prisma.liveSession.count({
+        where: { status: { in: ["WAITING", "ACTIVE"] } },
+      });
+      const totalPlayers = await prisma.livePlayer.count({
+        where: { leftAt: null },
+      });
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        status: "ok",
+        timestamp: new Date().toISOString(),
+        activeSessions,
+        totalPlayers,
+      }));
+    } catch (error) {
+      logger.error({ error }, "Health check failed");
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ status: "error", message: "Database connection failed" }));
+    }
+  }
+  // Note: Don't return 404 for other routes - Socket.io's engine.io handles /ws/*
+  // If it's not /health and not /ws, the request just won't be responded to
+  // which will cause a timeout. That's acceptable for unknown routes.
 });
 
 // Start server
