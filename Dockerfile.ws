@@ -66,6 +66,10 @@ RUN cp -r /app/apps/ws/dist /prod/ws/dist
 # 2. prisma/ - schema files (needed at runtime for migrations, introspection, etc.)
 RUN cp -r /app/apps/ws/prisma /prod/ws/prisma
 
+# 3. IMPORTANT: WS and Web share the same database, so WS needs Web's migrations
+#    Copy migrations from Web app (they're already applied, but prisma migrate deploy needs them)
+RUN cp -r /app/apps/web/prisma/migrations /prod/ws/prisma/migrations
+
 # 3. CRITICAL: Copy generated Prisma Client from workspace build
 # pnpm deploy doesn't include generated files, so we copy from the workspace build
 # Prisma Client is in the pnpm virtual store at a path like:
