@@ -19,7 +19,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/ws/package.json ./apps/ws/
 COPY packages/shared/package.json ./packages/shared/
 
-# Install ALL dependencies including devDependencies
+# Install ALL dependencies including devDependencies (needed for Prisma, TypeScript, tsup, etc.)
 ENV NODE_ENV=development
 RUN pnpm install --frozen-lockfile
 
@@ -39,27 +39,38 @@ COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_module
 # Copy all source code
 COPY . .
 
-# Build shared package first (TypeScript → JavaScript for production)
-WORKDIR /app/packages/shared
-RUN pnpm build
+# Build shared package first (required by WS app)
+WORKDIR /app
+RUN pnpm --filter @partyquiz/shared build
 
-# Generate Prisma Client for WS with binary engine
+# Generate Prisma Client with binary engine (before building TypeScript)
 WORKDIR /app/apps/ws
 RUN rm -rf ../../node_modules/.prisma ../../node_modules/@prisma/client
 ENV PRISMA_ENGINE_TYPE=binary
 RUN pnpm prisma generate
 
-# Build TypeScript with tsup
+# Build TypeScript with tsup (now with Prisma Client available)
 WORKDIR /app
 RUN pnpm --filter ws build
 
-# Deploy ws package with all production dependencies (resolves all workspace symlinks)
-RUN pnpm --filter ws --prod deploy /prod/ws
+# Create production deployment directory with resolved dependencies
+RUN mkdir -p /prod/ws
 
-# Copy Prisma Client to deployed directory
-# pnpm deploy doesn't copy .prisma (generated files), so we copy it manually
-RUN cp -r /app/node_modules/.prisma /prod/ws/node_modules/.prisma
-RUN cp -r /app/node_modules/@prisma /prod/ws/node_modules/@prisma
+# Copy built application
+RUN cp -r /app/apps/ws/dist /prod/ws/dist
+RUN cp /app/apps/ws/package.json /prod/ws/package.json
+
+# Copy Prisma schema and generated client (needed at runtime)
+RUN cp -r /app/apps/ws/prisma /prod/ws/prisma
+
+# Install ONLY production dependencies in deployment directory
+WORKDIR /prod/ws
+RUN pnpm install --prod --frozen-lockfile --prefer-offline
+
+# Generate Prisma Client in the production directory
+# This ensures Prisma Client is in the correct location with correct dependencies
+ENV PRISMA_ENGINE_TYPE=binary
+RUN pnpm prisma generate
 
 # Stage 3: Runner
 FROM node:${NODE_VERSION} AS runner
