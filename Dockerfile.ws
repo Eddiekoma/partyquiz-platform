@@ -68,9 +68,11 @@ RUN cp -r /app/apps/ws/prisma /prod/ws/prisma
 
 # 3. CRITICAL: Copy .prisma/ generated client from workspace build
 # pnpm deploy doesn't include generated files, so we copy from the workspace build
-# This contains the Prisma Client that was generated in the builder stage
-RUN cp -r /app/node_modules/.prisma /prod/ws/node_modules/.prisma
-RUN cp -r /app/node_modules/.pnpm/@prisma+client@7.3.0_prisma@7.3.0_typescript@5.9.3/node_modules/@prisma/client /prod/ws/node_modules/@prisma/client
+# Find the Prisma Client dynamically (version-agnostic)
+RUN mkdir -p /prod/ws/node_modules/@prisma && \
+    cp -r /app/node_modules/.prisma /prod/ws/node_modules/ && \
+    PRISMA_CLIENT_PATH=$(find /app/node_modules/.pnpm -type d -path "*/@prisma/client" -not -path "*/node_modules/*" | head -1) && \
+    cp -r "$PRISMA_CLIENT_PATH" /prod/ws/node_modules/@prisma/client
 
 # Stage 3: Runner
 FROM node:${NODE_VERSION} AS runner
