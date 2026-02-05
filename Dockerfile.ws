@@ -107,6 +107,14 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
 ENTRYPOINT ["dumb-init", "--"]
 
 # Run migrations and start WebSocket server
-# We use sh -c to run multiple commands in sequence
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
+# Debug: print env vars (masked) and schema location before running migrations
+CMD ["sh", "-c", "echo '=== Startup Debug ===' && \
+     echo 'DATABASE_URL available:' $(test -n \"$DATABASE_URL\" && echo 'YES' || echo 'NO') && \
+     echo 'REDIS_URL available:' $(test -n \"$REDIS_URL\" && echo 'YES' || echo 'NO') && \
+     echo 'Working directory:' $(pwd) && \
+     echo 'Prisma schema exists:' $(test -f ./prisma/schema.prisma && echo 'YES' || echo 'NO') && \
+     echo 'Prisma migrations dir:' $(test -d ./prisma/migrations && echo 'YES' || echo 'NO') && \
+     echo '===================' && \
+     npx prisma migrate deploy --schema=./prisma/schema.prisma && \
+     node dist/index.js"]
 
