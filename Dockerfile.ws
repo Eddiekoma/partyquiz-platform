@@ -60,8 +60,12 @@ RUN mkdir -p /prod/ws
 RUN cp -r /app/apps/ws/dist /prod/ws/dist
 RUN cp /app/apps/ws/package.json /prod/ws/package.json
 
-# Copy Prisma schema and generated client (needed at runtime)
+# Copy Prisma schema (needed for generate command)
 RUN cp -r /app/apps/ws/prisma /prod/ws/prisma
+
+# Copy lockfile and workspace config for proper dependency resolution
+RUN cp /app/pnpm-lock.yaml /prod/ws/pnpm-lock.yaml
+RUN cp /app/pnpm-workspace.yaml /prod/ws/pnpm-workspace.yaml
 
 # Install ONLY production dependencies in deployment directory
 WORKDIR /prod/ws
