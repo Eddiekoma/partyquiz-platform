@@ -63,15 +63,14 @@ RUN pnpm --filter ws --prod deploy /prod/ws
 # 1. dist/ - our built TypeScript output
 RUN cp -r /app/apps/ws/dist /prod/ws/dist
 
-# 2. prisma/ - schema files needed for Prisma Client generation
+# 2. prisma/ - schema files (needed at runtime for migrations, introspection, etc.)
 RUN cp -r /app/apps/ws/prisma /prod/ws/prisma
 
-# Generate Prisma Client in the deployed directory
-# We do this AFTER pnpm deploy to ensure Prisma Client is generated
-# in the correct node_modules structure (not the workspace virtual store)
-WORKDIR /prod/ws
-ENV PRISMA_ENGINE_TYPE=binary
-RUN pnpm prisma generate
+# 3. CRITICAL: Copy .prisma/ generated client from workspace build
+# pnpm deploy doesn't include generated files, so we copy from the workspace build
+# This contains the Prisma Client that was generated in the builder stage
+RUN cp -r /app/node_modules/.prisma /prod/ws/node_modules/.prisma
+RUN cp -r /app/node_modules/.pnpm/@prisma+client@7.3.0_prisma@7.3.0_typescript@5.9.3/node_modules/@prisma/client /prod/ws/node_modules/@prisma/client
 
 # Stage 3: Runner
 FROM node:${NODE_VERSION} AS runner
