@@ -15,8 +15,10 @@ ARG PNPM_VERSION
 RUN npm install -g pnpm@${PNPM_VERSION}
 
 # Copy package files
+# Include web package.json because WS uses web's Prisma schema
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/ws/package.json ./apps/ws/
+COPY apps/web/package.json ./apps/web/
 COPY packages/shared/package.json ./packages/shared/
 
 # Install ALL dependencies including devDependencies (needed for Prisma, TypeScript, tsup, etc.)
@@ -32,8 +34,10 @@ ARG PNPM_VERSION
 RUN npm install -g pnpm@${PNPM_VERSION}
 
 # Copy dependencies from deps stage
+# Include web's node_modules because WS uses web's Prisma schema
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/ws/node_modules ./apps/ws/node_modules
+COPY --from=deps /app/apps/web/node_modules ./apps/web/node_modules
 COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
 
 # Copy all source code
@@ -44,7 +48,7 @@ WORKDIR /app
 RUN pnpm --filter @partyquiz/shared build
 
 # Generate Prisma Client for Prisma 7 (before building TypeScript)
-# Prisma 7 requires prisma.config.ts which needs tsx to parse
+# WS uses web's schema, so we generate from WS dir but pointing to ../web/prisma
 WORKDIR /app/apps/ws
 RUN rm -rf ../../node_modules/.prisma ../../node_modules/@prisma/client
 
