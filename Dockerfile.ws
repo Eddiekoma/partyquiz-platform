@@ -75,7 +75,10 @@ RUN cp -r /app/apps/ws/dist /prod/ws/dist
 RUN cp -r /app/apps/web/prisma /prod/ws/prisma
 
 # 3. prisma.config.mjs - Prisma 7 requires this for migrate deploy (using .mjs for runtime without tsx)
-RUN cp /app/apps/ws/prisma.config.mjs /prod/ws/prisma.config.mjs
+#    IMPORTANT: Remove any .ts config that pnpm deploy might have copied - we only want the .mjs version
+#    The .ts version points to ../web/prisma which doesn't exist in production
+RUN cp /app/apps/ws/prisma.config.mjs /prod/ws/prisma.config.mjs && \
+    rm -f /prod/ws/prisma.config.ts
 
 # 4. CRITICAL: Copy generated Prisma Client from workspace build
 # pnpm deploy doesn't include generated files, so we copy from the workspace build
