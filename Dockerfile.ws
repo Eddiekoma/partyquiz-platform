@@ -53,26 +53,23 @@ RUN pnpm prisma generate
 WORKDIR /app
 RUN pnpm --filter ws build
 
-# Create production deployment directory with resolved dependencies
-RUN mkdir -p /prod/ws
+# Use pnpm deploy to create standalone production directory
+# This is the KEY: pnpm deploy resolves workspace:* dependencies automatically
+# It runs in workspace context (/app) so it knows where @partyquiz/shared is
+# Then creates a standalone directory with all production dependencies resolved
+RUN pnpm --filter ws --prod deploy /prod/ws
 
-# Copy built application
+# Copy files that pnpm deploy doesn't include:
+# 1. dist/ - our built TypeScript output
 RUN cp -r /app/apps/ws/dist /prod/ws/dist
-RUN cp /app/apps/ws/package.json /prod/ws/package.json
 
-# Copy Prisma schema (needed for generate command)
+# 2. prisma/ - schema files needed for Prisma Client generation
 RUN cp -r /app/apps/ws/prisma /prod/ws/prisma
 
-# Copy lockfile and workspace config for proper dependency resolution
-RUN cp /app/pnpm-lock.yaml /prod/ws/pnpm-lock.yaml
-RUN cp /app/pnpm-workspace.yaml /prod/ws/pnpm-workspace.yaml
-
-# Install ONLY production dependencies in deployment directory
+# Generate Prisma Client in the deployed directory
+# We do this AFTER pnpm deploy to ensure Prisma Client is generated
+# in the correct node_modules structure (not the workspace virtual store)
 WORKDIR /prod/ws
-RUN pnpm install --prod --frozen-lockfile --prefer-offline
-
-# Generate Prisma Client in the production directory
-# This ensures Prisma Client is in the correct location with correct dependencies
 ENV PRISMA_ENGINE_TYPE=binary
 RUN pnpm prisma generate
 
