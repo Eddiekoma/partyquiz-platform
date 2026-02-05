@@ -218,11 +218,18 @@ The platform supports 20+ question types:
 
 Magic link authentication via Auth.js (NextAuth v5):
 
-- Passwordless email-based login
+- Passwordless email-based login via [Resend.com](https://resend.com)
 - Database sessions (secure, httpOnly cookies)
 - Rate limiting (3 emails per 5 minutes)
 - HTTPS-aware redirects
 - Cloudflare Tunnel compatible
+
+### Email Provider Setup
+
+The platform uses [Resend.com](https://resend.com) for transactional emails (magic link authentication).
+Free tier includes 3,000 emails/month which is sufficient for most quiz events.
+
+See **COOLIFY_ENV_VARIABLES.md** for required email environment variables.
 
 ## 🌐 Deployment
 

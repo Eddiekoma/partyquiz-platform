@@ -16,7 +16,7 @@ NEXTAUTH_URL=https://partyquiz.databridge360.com
 
 # Application URLs
 APP_BASE_URL=https://partyquiz.databridge360.com
-WS_BASE_URL=wss://partyquiz.databridge360.com
+WS_BASE_URL=wss://partyquiz-ws.databridge360.com
 
 # S3 Storage (Optional - voor media uploads)
 S3_ENDPOINT=https://fsn1.your-objectstorage.com
@@ -33,9 +33,13 @@ SPOTIFY_REDIRECT_URI=https://partyquiz.databridge360.com/api/auth/spotify/callba
 # YouTube API (Optional)
 YOUTUBE_API_KEY=
 
-# Email (Optional - voor magic links)
-EMAIL_SMTP_HOST=smtp.ethereal.email
-EMAIL_SMTP_PORT=587
-EMAIL_SMTP_USER=
-EMAIL_SMTP_PASS=
-EMAIL_FROM=noreply@partyquiz.databridge360.com
+# Email - Resend.com (Required for magic link authentication)
+# Sign up at https://resend.com (free tier: 3,000 emails/month)
+# 1. Create account at resend.com
+# 2. Add your domain and verify DNS records
+# 3. Create an API key
+EMAIL_SMTP_HOST=smtp.resend.com
+EMAIL_SMTP_PORT=465
+EMAIL_SMTP_USER=resend
+EMAIL_SMTP_PASS=re_your_api_key_here
+EMAIL_FROM=PartyQuiz <noreply@databridge360.com>

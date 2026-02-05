@@ -28,7 +28,8 @@ export const envSchema = z.object({
   EMAIL_SMTP_PORT: z.string().optional(),
   EMAIL_SMTP_USER: z.string().optional(),
   EMAIL_SMTP_PASS: z.string().optional(),
-  EMAIL_FROM: z.string().email().optional(),
+  // EMAIL_FROM can be "email@example.com" or "Name <email@example.com>"
+  EMAIL_FROM: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

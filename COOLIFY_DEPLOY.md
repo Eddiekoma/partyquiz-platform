@@ -103,12 +103,14 @@ SPOTIFY_CLIENT_ID=[YOUR_SPOTIFY_CLIENT_ID]
 SPOTIFY_CLIENT_SECRET=[YOUR_SPOTIFY_CLIENT_SECRET]
 SPOTIFY_REDIRECT_URI=https://partyquiz-platform.databridge360.com/api/auth/spotify/callback
 
-# Email (for magic links)
-EMAIL_SMTP_HOST=smtp.yourprovider.com
-EMAIL_SMTP_PORT=587
-EMAIL_SMTP_USER=[YOUR_SMTP_USER]
-EMAIL_SMTP_PASS=[YOUR_SMTP_PASSWORD]
-EMAIL_FROM=noreply@partyquiz-platform.databridge360.com
+# Email (for magic links) - Using Resend.com
+# Resend provides free tier with 3,000 emails/month
+# Sign up at https://resend.com and add your domain
+EMAIL_SMTP_HOST=smtp.resend.com
+EMAIL_SMTP_PORT=465
+EMAIL_SMTP_USER=resend
+EMAIL_SMTP_PASS=[YOUR_RESEND_API_KEY]
+EMAIL_FROM=PartyQuiz <noreply@yourdomain.com>
 ```
 
 #### C. Build & Deploy
