@@ -66,17 +66,14 @@ RUN pnpm --filter ws --prod deploy /prod/ws
 # 1. dist/ - our built TypeScript output
 RUN cp -r /app/apps/ws/dist /prod/ws/dist
 
-# 2. prisma/ - schema files (needed at runtime for migrations, introspection, etc.)
-RUN cp -r /app/apps/ws/prisma /prod/ws/prisma
+# 2. prisma/ - Copy from WEB app (single source of truth for schema + migrations)
+#    WS app no longer has its own prisma folder - it uses web's schema
+RUN cp -r /app/apps/web/prisma /prod/ws/prisma
 
 # 3. prisma.config.mjs - Prisma 7 requires this for migrate deploy (using .mjs for runtime without tsx)
 RUN cp /app/apps/ws/prisma.config.mjs /prod/ws/prisma.config.mjs
 
-# 4. IMPORTANT: WS and Web share the same database, so WS needs Web's migrations
-#    Copy migrations from Web app (they're already applied, but prisma migrate deploy needs them)
-RUN cp -r /app/apps/web/prisma/migrations /prod/ws/prisma/migrations
-
-# 5. CRITICAL: Copy generated Prisma Client from workspace build
+# 4. CRITICAL: Copy generated Prisma Client from workspace build
 # pnpm deploy doesn't include generated files, so we copy from the workspace build
 # Prisma Client is in the pnpm virtual store at a path like:
 # /app/node_modules/.pnpm/@prisma+client@7.3.0_prisma@7.3.0_typescript@5.9.3/node_modules/@prisma/client
