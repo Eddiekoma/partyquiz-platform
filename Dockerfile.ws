@@ -66,13 +66,14 @@ RUN cp -r /app/apps/ws/dist /prod/ws/dist
 # 2. prisma/ - schema files (needed at runtime for migrations, introspection, etc.)
 RUN cp -r /app/apps/ws/prisma /prod/ws/prisma
 
-# 3. CRITICAL: Copy .prisma/ generated client from workspace build
+# 3. CRITICAL: Copy generated Prisma Client from workspace build
 # pnpm deploy doesn't include generated files, so we copy from the workspace build
-# Find the Prisma Client dynamically (version-agnostic)
+# Prisma Client is in the pnpm virtual store, so we find and copy it dynamically
 RUN mkdir -p /prod/ws/node_modules/@prisma && \
-    cp -r /app/node_modules/.prisma /prod/ws/node_modules/ && \
-    PRISMA_CLIENT_PATH=$(find /app/node_modules/.pnpm -type d -path "*/@prisma/client" -not -path "*/node_modules/*" | head -1) && \
-    cp -r "$PRISMA_CLIENT_PATH" /prod/ws/node_modules/@prisma/client
+    PRISMA_CLIENT_PATH=$(find /app/node_modules/.pnpm -type d -path "*/@prisma/client@*" -name "@prisma" | head -1) && \
+    cp -r "$PRISMA_CLIENT_PATH/client" /prod/ws/node_modules/@prisma/client && \
+    PRISMA_GENERATED=$(find /app/node_modules/.pnpm -type d -name ".prisma" | head -1) && \
+    cp -r "$PRISMA_GENERATED" /prod/ws/node_modules/
 
 # Stage 3: Runner
 FROM node:${NODE_VERSION} AS runner
