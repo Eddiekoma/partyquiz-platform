@@ -307,8 +307,14 @@ export async function DELETE(
       });
     }
 
-    // Delete QuizItems first (to avoid orphaned items with null questionId)
+    // Delete LiveAnswers first (FK constraint to QuizItems)
     if (question.quizItems.length > 0) {
+      const quizItemIds = question.quizItems.map(item => item.id);
+      await prisma.liveAnswer.deleteMany({
+        where: { quizItemId: { in: quizItemIds } },
+      });
+      
+      // Then delete QuizItems (to avoid orphaned items with null questionId)
       await prisma.quizItem.deleteMany({
         where: { questionId },
       });

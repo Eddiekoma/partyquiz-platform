@@ -205,15 +205,43 @@ export async function DELETE(
       return NextResponse.json({ error: "Quiz not found" }, { status: 404 });
     }
 
-    // Prevent deletion if quiz has sessions
-    if (existingQuiz._count.sessions > 0) {
-      return NextResponse.json(
-        { error: "Cannot delete quiz with existing sessions" },
-        { status: 400 }
-      );
+    // Delete all related data in the correct order to avoid FK constraint violations
+    // 1. Get all QuizItem IDs for this quiz
+    const quizItems = await prisma.quizItem.findMany({
+      where: {
+        round: { quizId },
+      },
+      select: { id: true },
+    });
+    const quizItemIds = quizItems.map(item => item.id);
+
+    // 2. Delete LiveAnswers (references QuizItems)
+    if (quizItemIds.length > 0) {
+      await prisma.liveAnswer.deleteMany({
+        where: { quizItemId: { in: quizItemIds } },
+      });
     }
 
-    // Delete quiz (cascades to rounds and items)
+    // 3. Get all session IDs for this quiz
+    const sessions = await prisma.liveSession.findMany({
+      where: { quizId },
+      select: { id: true },
+    });
+    const sessionIds = sessions.map(s => s.id);
+
+    // 4. Delete LivePlayers (references LiveSessions)
+    if (sessionIds.length > 0) {
+      await prisma.livePlayer.deleteMany({
+        where: { sessionId: { in: sessionIds } },
+      });
+    }
+
+    // 5. Delete LiveSessions
+    await prisma.liveSession.deleteMany({
+      where: { quizId },
+    });
+
+    // 6. Delete quiz (cascades to rounds and items)
     await prisma.quiz.delete({
       where: { id: quizId },
     });

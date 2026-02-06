@@ -252,6 +252,11 @@ export async function DELETE(
       return NextResponse.json({ error: "Item not found" }, { status: 404 });
     }
 
+    // First delete any LiveAnswers that reference this QuizItem
+    await prisma.liveAnswer.deleteMany({
+      where: { quizItemId: itemId },
+    });
+
     // Delete item
     await prisma.quizItem.delete({
       where: { id: itemId },
