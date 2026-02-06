@@ -32,8 +32,9 @@ const credentialsProvider = CredentialsProvider({
       throw new Error("Geen account gevonden met dit emailadres");
     }
 
-    // @ts-expect-error - Field exists after migration
-    if (!user.passwordHash) {
+    // Cast to any for local dev - Prisma types are regenerated in Docker with new fields
+    const userWithPassword = user as any;
+    if (!userWithPassword.passwordHash) {
       throw new Error("Dit account gebruikt een andere inlogmethode (bijv. Google)");
     }
 
@@ -41,8 +42,7 @@ const credentialsProvider = CredentialsProvider({
       throw new Error("Verifieer eerst je email voordat je kunt inloggen");
     }
 
-    // @ts-expect-error - Field exists after migration
-    const isValid = await verifyPassword(credentials.password, user.passwordHash);
+    const isValid = await verifyPassword(credentials.password, userWithPassword.passwordHash);
     if (!isValid) {
       throw new Error("Ongeldig wachtwoord");
     }
