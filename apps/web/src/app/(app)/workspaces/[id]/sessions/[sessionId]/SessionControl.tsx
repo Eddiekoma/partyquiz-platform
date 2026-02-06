@@ -126,7 +126,7 @@ export default function SessionControl({ session }: SessionControlProps) {
   }
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-6">
+    <div className="bg-white border border-slate-700 rounded-lg p-6">
       <h3 className="font-semibold text-gray-900 mb-4">Host Controls</h3>
 
       {error && (
@@ -139,7 +139,7 @@ export default function SessionControl({ session }: SessionControlProps) {
         {/* Export Results (for ended sessions) */}
         {session.status === "ENDED" && (
           <div>
-            <p className="text-sm text-gray-600 mb-2">Export Results</p>
+            <p className="text-sm text-slate-400 mb-2">Export Results</p>
             <button
               onClick={exportResults}
               disabled={exporting}
@@ -147,7 +147,7 @@ export default function SessionControl({ session }: SessionControlProps) {
             >
               {exporting ? "Exporting..." : "📥 Download CSV"}
             </button>
-            <p className="text-xs text-gray-500 mt-2">
+            <p className="text-xs text-slate-400 mt-2">
               Export all player results with answers, scores, and correctness
             </p>
           </div>
@@ -155,7 +155,7 @@ export default function SessionControl({ session }: SessionControlProps) {
 
         {/* Status Controls */}
         <div>
-          <p className="text-sm text-gray-600 mb-2">Session Status</p>
+          <p className="text-sm text-slate-400 mb-2">Session Status</p>
           <div className="flex gap-2">
             {session.status === "LOBBY" && (
               <button
@@ -208,8 +208,8 @@ export default function SessionControl({ session }: SessionControlProps) {
         </div>
 
         {/* WebSocket Info */}
-        <div className="pt-4 border-t border-gray-200">
-          <p className="text-sm text-gray-600 mb-2">WebSocket Connection</p>
+        <div className="pt-4 border-t border-slate-700">
+          <p className="text-sm text-slate-400 mb-2">WebSocket Connection</p>
           <div className="flex items-center gap-2 mb-2">
             <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
             <span className="text-sm font-medium">
@@ -219,25 +219,25 @@ export default function SessionControl({ session }: SessionControlProps) {
           {wsError && (
             <p className="text-xs text-red-600 mb-2">Error: {wsError.message}</p>
           )}
-          <p className="text-xs text-gray-500 bg-gray-50 p-3 rounded font-mono">
+          <p className="text-xs text-slate-400 bg-slate-800/50 p-3 rounded font-mono">
             {process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080'}/ws
           </p>
-          <p className="text-xs text-gray-500 mt-2">
+          <p className="text-xs text-slate-400 mt-2">
             💡 Real-time updates are {isConnected ? 'active' : 'paused'}. Player joins and answers will be reflected automatically.
           </p>
         </div>
 
         {/* Delete Session */}
-        <div className="pt-4 border-t border-gray-200">
-          <p className="text-sm text-gray-600 mb-2">Danger Zone</p>
+        <div className="pt-4 border-t border-slate-700">
+          <p className="text-sm text-slate-400 mb-2">Danger Zone</p>
           <button
             onClick={deleteSession}
             disabled={deleting}
-            className="px-4 py-2 bg-red-50 text-red-700 font-medium rounded-lg border border-red-200 hover:bg-red-100 disabled:bg-gray-100 disabled:text-gray-400 transition-colors"
+            className="px-4 py-2 bg-red-50 text-red-700 font-medium rounded-lg border border-red-200 hover:bg-red-100 disabled:bg-slate-700 disabled:text-slate-500 transition-colors"
           >
             {deleting ? "Deleting..." : "🗑️ Delete Session"}
           </button>
-          <p className="text-xs text-gray-500 mt-2">
+          <p className="text-xs text-slate-400 mt-2">
             This will permanently delete the session, all players, and all answers.
           </p>
         </div>

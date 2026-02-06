@@ -79,10 +79,10 @@ export default function NewSessionPage({ params }: NewSessionPageProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-800/50 flex items-center justify-center">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent"></div>
-          <p className="mt-4 text-gray-600">Loading quizzes...</p>
+          <p className="mt-4 text-slate-400">Loading quizzes...</p>
         </div>
       </div>
     );
@@ -90,12 +90,12 @@ export default function NewSessionPage({ params }: NewSessionPageProps) {
 
   if (quizzes.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-slate-800/50">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="bg-white border border-gray-200 rounded-lg p-8 text-center">
+          <div className="bg-white border border-slate-700 rounded-lg p-8 text-center">
             <div className="text-6xl mb-4">📝</div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2">No quizzes available</h2>
-            <p className="text-gray-600 mb-6">You need to create a quiz before starting a session.</p>
+            <p className="text-slate-400 mb-6">You need to create a quiz before starting a session.</p>
             <Link
               href={`/workspaces/${resolvedParams.id}/quizzes/new`}
               className="inline-flex items-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700"
@@ -109,7 +109,7 @@ export default function NewSessionPage({ params }: NewSessionPageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-800/50">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
@@ -120,11 +120,11 @@ export default function NewSessionPage({ params }: NewSessionPageProps) {
             ← Back to Sessions
           </Link>
           <h1 className="text-3xl font-bold text-gray-900">Create Live Session</h1>
-          <p className="text-gray-600 mt-1">Select a quiz to start a live session</p>
+          <p className="text-slate-400 mt-1">Select a quiz to start a live session</p>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleCreateSession} className="bg-white border border-gray-200 rounded-lg p-6">
+        <form onSubmit={handleCreateSession} className="bg-white border border-slate-700 rounded-lg p-6">
           {error && (
             <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
               <p className="text-red-800 font-medium">{error}</p>
@@ -132,7 +132,7 @@ export default function NewSessionPage({ params }: NewSessionPageProps) {
           )}
 
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-3">Select Quiz</label>
+            <label className="block text-sm font-medium text-slate-300 mb-3">Select Quiz</label>
             <div className="space-y-3">
               {quizzes.map((quiz) => (
                 <label
@@ -140,7 +140,7 @@ export default function NewSessionPage({ params }: NewSessionPageProps) {
                   className={`block p-4 border-2 rounded-lg cursor-pointer transition-all ${
                     selectedQuizId === quiz.id
                       ? "border-blue-600 bg-blue-50"
-                      : "border-gray-200 hover:border-gray-300 bg-white"
+                      : "border-slate-700 hover:border-slate-600 bg-white"
                   }`}
                 >
                   <input
@@ -154,8 +154,8 @@ export default function NewSessionPage({ params }: NewSessionPageProps) {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <h3 className="font-semibold text-gray-900">{quiz.title}</h3>
-                      {quiz.description && <p className="text-sm text-gray-600 mt-1">{quiz.description}</p>}
-                      <p className="text-xs text-gray-500 mt-2">
+                      {quiz.description && <p className="text-sm text-slate-400 mt-1">{quiz.description}</p>}
+                      <p className="text-xs text-slate-400 mt-2">
                         {quiz._count.items} {quiz._count.items === 1 ? "item" : "items"}
                       </p>
                     </div>
@@ -182,7 +182,7 @@ export default function NewSessionPage({ params }: NewSessionPageProps) {
             </button>
             <Link
               href={`/workspaces/${resolvedParams.id}/sessions`}
-              className="px-4 py-3 bg-white text-gray-700 font-medium rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
+              className="px-4 py-3 bg-white text-slate-300 font-medium rounded-lg border border-slate-600 hover:bg-slate-800/50 transition-colors"
             >
               Cancel
             </Link>

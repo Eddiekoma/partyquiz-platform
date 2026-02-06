@@ -434,7 +434,7 @@ export default function EditQuestionPage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold mb-2">Edit Question</h1>
-          <p className="text-gray-600">{QUESTION_TYPE_LABELS[selectedType]}</p>
+          <p className="text-slate-400">{QUESTION_TYPE_LABELS[selectedType]}</p>
         </div>
         <div className="flex gap-3">
           <Button
@@ -470,7 +470,7 @@ export default function EditQuestionPage() {
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="Additional context or instructions (optional)..."
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="w-full px-4 py-3 border border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             rows={3}
           />
         </Card>
@@ -550,7 +550,7 @@ export default function EditQuestionPage() {
                 className={`flex-1 px-6 py-4 rounded-lg border-2 transition-colors ${
                   trueFalseAnswer
                     ? "border-green-500 bg-green-50 text-green-700"
-                    : "border-gray-300 hover:border-gray-400"
+                    : "border-slate-600 hover:border-slate-500"
                 }`}
               >
                 ✓ True
@@ -560,7 +560,7 @@ export default function EditQuestionPage() {
                 className={`flex-1 px-6 py-4 rounded-lg border-2 transition-colors ${
                   !trueFalseAnswer
                     ? "border-red-500 bg-red-50 text-red-700"
-                    : "border-gray-300 hover:border-gray-400"
+                    : "border-slate-600 hover:border-slate-500"
                 }`}
               >
                 ✗ False
@@ -575,7 +575,7 @@ export default function EditQuestionPage() {
             <label className="block text-sm font-semibold mb-4">Estimation Settings</label>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm text-gray-600 mb-2">Correct Answer</label>
+                <label className="block text-sm text-slate-400 mb-2">Correct Answer</label>
                 <Input
                   type="number"
                   value={estimationAnswer}
@@ -584,7 +584,7 @@ export default function EditQuestionPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-600 mb-2">Margin (%)</label>
+                <label className="block text-sm text-slate-400 mb-2">Margin (%)</label>
                 <Input
                   type="number"
                   value={estimationMargin}
@@ -595,7 +595,7 @@ export default function EditQuestionPage() {
                 />
               </div>
             </div>
-            <p className="text-sm text-gray-500 mt-2">
+            <p className="text-sm text-slate-400 mt-2">
               Players within {estimationMargin}% of {estimationAnswer} get points (Swan Race compatible)
             </p>
           </Card>
@@ -610,7 +610,7 @@ export default function EditQuestionPage() {
             <div className="space-y-3">
               {orderItems.map((item, index) => (
                 <div key={index} className="flex gap-3 items-center">
-                  <span className="text-gray-500 font-mono w-8">{index + 1}.</span>
+                  <span className="text-slate-400 font-mono w-8">{index + 1}.</span>
                   <Input
                     value={item.text}
                     onChange={(e) => {
@@ -654,7 +654,7 @@ export default function EditQuestionPage() {
             <div className="space-y-3">
               {options.map((option, index) => (
                 <div key={index} className="flex gap-3 items-center">
-                  <span className="text-gray-400 text-2xl">📊</span>
+                  <span className="text-slate-500 text-2xl">📊</span>
                   <Input
                     value={option.text}
                     onChange={(e) => {
@@ -701,7 +701,7 @@ export default function EditQuestionPage() {
               value={openTextAnswer}
               onChange={(e) => setOpenTextAnswer(e.target.value)}
               placeholder="Enter the expected answer or leave blank for fully open questions..."
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full px-4 py-3 border border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               rows={3}
             />
           </Card>
@@ -721,12 +721,12 @@ export default function EditQuestionPage() {
             {media.length > 0 && (
               <div className="space-y-2 mb-4">
                 {media.map((m) => (
-                  <div key={m.id} className="p-3 bg-gray-50 rounded flex justify-between items-center">
+                  <div key={m.id} className="p-3 bg-slate-800/50 rounded flex justify-between items-center">
                     <div>
                       <span className="text-sm font-medium">
                         {m.mediaType} media
                       </span>
-                      <span className="text-xs text-gray-500 ml-2">({m.provider})</span>
+                      <span className="text-xs text-slate-400 ml-2">({m.provider})</span>
                     </div>
                     <button
                       onClick={() => handleRemoveMedia(m.id)}
@@ -756,7 +756,7 @@ export default function EditQuestionPage() {
             )}
 
             {media.length > 0 && (
-              <p className="text-sm text-gray-500 mt-2">
+              <p className="text-sm text-slate-400 mt-2">
                 📎 Media is attached. Remove it to upload a different file.
               </p>
             )}
@@ -773,7 +773,7 @@ export default function EditQuestionPage() {
                 onChange={(e) => setSpotifyTrackId(e.target.value || null)}
                 placeholder="Enter Spotify Track ID (e.g., 3n3Ppam7vgaVa1iaRUc9Lp)"
               />
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-slate-400">
                 You can find the Track ID in the Spotify share URL. Full Spotify integration coming soon!
               </p>
             </div>
@@ -792,13 +792,13 @@ export default function EditQuestionPage() {
             <div className="space-y-4">
               {/* Video ID Display */}
               <div>
-                <label className="block text-sm text-gray-600 mb-2">Video ID</label>
+                <label className="block text-sm text-slate-400 mb-2">Video ID</label>
                 <Input
                   value={youtubeVideoId || ""}
                   disabled
-                  className="bg-gray-50"
+                  className="bg-slate-800/50"
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-slate-400 mt-1">
                   Video ID is set when creating the question. To change the video, create a new question.
                 </p>
               </div>
@@ -806,7 +806,7 @@ export default function EditQuestionPage() {
               {/* Timestamp Controls */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm text-gray-600 mb-2">
+                  <label className="block text-sm text-slate-400 mb-2">
                     Start Time (MM:SS)
                   </label>
                   <Input
@@ -814,12 +814,12 @@ export default function EditQuestionPage() {
                     onChange={(e) => setYoutubeStartTime(e.target.value)}
                     placeholder="0:00"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-slate-400 mt-1">
                     When to start playing (e.g., 1:30)
                   </p>
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-600 mb-2">
+                  <label className="block text-sm text-slate-400 mb-2">
                     End Time (MM:SS) - Optional
                   </label>
                   <Input
@@ -827,7 +827,7 @@ export default function EditQuestionPage() {
                     onChange={(e) => setYoutubeEndTime(e.target.value)}
                     placeholder="Leave empty for no limit"
                   />
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-slate-400 mt-1">
                     When to stop playing (e.g., 1:45)
                   </p>
                 </div>
@@ -868,7 +868,7 @@ export default function EditQuestionPage() {
             value={explanation}
             onChange={(e) => setExplanation(e.target.value)}
             placeholder="Optional: Explain the correct answer..."
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="w-full px-4 py-3 border border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             rows={3}
           />
         </Card>
@@ -878,11 +878,11 @@ export default function EditQuestionPage() {
           <h3 className="text-lg font-semibold mb-4">Question Settings</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
-              <label className="block text-sm text-gray-600 mb-2">Difficulty</label>
+              <label className="block text-sm text-slate-400 mb-2">Difficulty</label>
               <select
                 value={difficulty}
                 onChange={(e) => setDifficulty(parseInt(e.target.value) as 1 | 2 | 3 | 4 | 5)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               >
                 <option value="1">Very Easy</option>
                 <option value="2">Easy</option>
@@ -892,11 +892,11 @@ export default function EditQuestionPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm text-gray-600 mb-2">Status</label>
+              <label className="block text-sm text-slate-400 mb-2">Status</label>
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value as "DRAFT" | "PUBLISHED")}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               >
                 <option value="DRAFT">Draft</option>
                 <option value="PUBLISHED">Published</option>
@@ -906,7 +906,7 @@ export default function EditQuestionPage() {
 
           {/* Tags */}
           <div>
-            <label className="block text-sm text-gray-600 mb-2">Tags</label>
+            <label className="block text-sm text-slate-400 mb-2">Tags</label>
             <div className="flex gap-2 mb-2">
               <Input
                 value={tagInput}

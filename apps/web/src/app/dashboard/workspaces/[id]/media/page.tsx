@@ -111,7 +111,7 @@ export default function MediaPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="mb-6">
         <h1 className="text-3xl font-bold mb-2">Media Library</h1>
-        <p className="text-gray-600">Upload and manage images, audio, and video files</p>
+        <p className="text-slate-400">Upload and manage images, audio, and video files</p>
       </div>
 
       {/* Upload Section */}
@@ -144,7 +144,7 @@ export default function MediaPage() {
             placeholder="Search files..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="w-full px-4 py-2 border border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           />
         </div>
 
@@ -154,7 +154,7 @@ export default function MediaPage() {
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value as FilterType)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="px-4 py-2 border border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           >
             <option value="all">All Types</option>
             <option value="IMAGE">Images</option>
@@ -163,11 +163,11 @@ export default function MediaPage() {
           </select>
 
           {/* View Mode Toggle */}
-          <div className="flex border border-gray-300 rounded-lg overflow-hidden">
+          <div className="flex border border-slate-600 rounded-lg overflow-hidden">
             <button
               onClick={() => setViewMode("grid")}
               className={`px-4 py-2 ${
-                viewMode === "grid" ? "bg-primary-600 text-white" : "bg-white text-gray-700"
+                viewMode === "grid" ? "bg-primary-600 text-white" : "bg-white text-slate-300"
               }`}
             >
               Grid
@@ -175,7 +175,7 @@ export default function MediaPage() {
             <button
               onClick={() => setViewMode("list")}
               className={`px-4 py-2 ${
-                viewMode === "list" ? "bg-primary-600 text-white" : "bg-white text-gray-700"
+                viewMode === "list" ? "bg-primary-600 text-white" : "bg-white text-slate-300"
               }`}
             >
               List
@@ -188,13 +188,13 @@ export default function MediaPage() {
       {loading ? (
         <div className="text-center py-12">
           <div className="spinner mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading media...</p>
+          <p className="text-slate-400">Loading media...</p>
         </div>
       ) : filteredAssets.length === 0 ? (
         <div className="text-center py-12">
           <div className="text-6xl mb-4">📁</div>
           <h3 className="text-xl font-semibold mb-2">No media files found</h3>
-          <p className="text-gray-600">
+          <p className="text-slate-400">
             {searchQuery || filterType !== "all"
               ? "Try adjusting your filters"
               : "Upload your first file to get started"}
@@ -205,7 +205,7 @@ export default function MediaPage() {
           {filteredAssets.map((asset) => (
             <Card key={asset.id} className="overflow-hidden hover:shadow-lg transition-shadow">
               {/* Preview */}
-              <div className="aspect-video bg-gray-100 flex items-center justify-center relative">
+              <div className="aspect-video bg-slate-700 flex items-center justify-center relative">
                 {asset.type === "IMAGE" ? (
                   <img
                     src={asset.publicUrl}
@@ -224,13 +224,13 @@ export default function MediaPage() {
                 <h3 className="font-semibold text-sm mb-2 truncate" title={asset.filename}>
                   {asset.filename}
                 </h3>
-                <div className="text-xs text-gray-600 space-y-1 mb-3">
+                <div className="text-xs text-slate-400 space-y-1 mb-3">
                   <div>{formatFileSize(asset.size)}</div>
                   {asset.width && asset.height && (
                     <div>{asset.width} × {asset.height}</div>
                   )}
                   {asset.duration && <div>{formatDuration(asset.duration)}</div>}
-                  <div className="text-gray-500">
+                  <div className="text-slate-400">
                     by {asset.creator.name || asset.creator.email}
                   </div>
                 </div>
@@ -241,7 +241,7 @@ export default function MediaPage() {
                     href={asset.publicUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex-1 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded text-center transition-colors"
+                    className="flex-1 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm rounded text-center transition-colors"
                   >
                     View
                   </a>
@@ -269,7 +269,7 @@ export default function MediaPage() {
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                   <h3 className="font-semibold truncate">{asset.filename}</h3>
-                  <div className="text-sm text-gray-600 flex gap-4">
+                  <div className="text-sm text-slate-400 flex gap-4">
                     <span>{formatFileSize(asset.size)}</span>
                     {asset.width && asset.height && (
                       <span>{asset.width} × {asset.height}</span>
@@ -285,7 +285,7 @@ export default function MediaPage() {
                     href={asset.publicUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded transition-colors"
+                    className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 text-sm rounded transition-colors"
                   >
                     View
                   </a>

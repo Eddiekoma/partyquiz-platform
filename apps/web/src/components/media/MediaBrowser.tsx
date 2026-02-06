@@ -88,7 +88,7 @@ export function MediaBrowser({
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        <Loader2 className="h-8 w-8 animate-spin text-slate-500" />
       </div>
     );
   }
@@ -98,21 +98,21 @@ export function MediaBrowser({
       {/* Toolbar */}
       <div className="flex items-center gap-4">
         <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-500" />
           <input
             type="text"
             placeholder="Search files..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-10 pr-4 py-2 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
-        <div className="flex items-center gap-2 border border-gray-300 rounded-lg p-1">
+        <div className="flex items-center gap-2 border border-slate-600 rounded-lg p-1">
           <button
             onClick={() => setViewMode("grid")}
             className={`p-2 rounded ${
-              viewMode === "grid" ? "bg-blue-100 text-blue-600" : "text-gray-600 hover:bg-gray-100"
+              viewMode === "grid" ? "bg-blue-100 text-blue-600" : "text-slate-400 hover:bg-slate-700"
             }`}
           >
             <Grid className="h-5 w-5" />
@@ -120,7 +120,7 @@ export function MediaBrowser({
           <button
             onClick={() => setViewMode("list")}
             className={`p-2 rounded ${
-              viewMode === "list" ? "bg-blue-100 text-blue-600" : "text-gray-600 hover:bg-gray-100"
+              viewMode === "list" ? "bg-blue-100 text-blue-600" : "text-slate-400 hover:bg-slate-700"
             }`}
           >
             <List className="h-5 w-5" />
@@ -130,7 +130,7 @@ export function MediaBrowser({
 
       {/* Empty State */}
       {filteredAssets.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-12 text-gray-500">
+        <div className="flex flex-col items-center justify-center py-12 text-slate-400">
           <ImageIcon className="h-16 w-16 mb-4 text-gray-300" />
           <p className="text-lg font-medium">No assets found</p>
           <p className="text-sm">Upload files to get started</p>
@@ -150,7 +150,7 @@ export function MediaBrowser({
                 ${
                   selectedAsset === asset.id
                     ? "border-blue-500 ring-2 ring-blue-200"
-                    : "border-gray-200 hover:border-blue-300"
+                    : "border-slate-700 hover:border-blue-300"
                 }
               `}
             >
@@ -162,12 +162,12 @@ export function MediaBrowser({
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+                <div className="w-full h-full bg-slate-700 flex items-center justify-center">
                   <div className="text-center p-4">
                     <div className="text-3xl mb-2">
                       {asset.type === "AUDIO" ? "🎵" : asset.type === "VIDEO" ? "🎬" : "📄"}
                     </div>
-                    <p className="text-xs text-gray-600 truncate">{asset.filename}</p>
+                    <p className="text-xs text-slate-400 truncate">{asset.filename}</p>
                   </div>
                 </div>
               )}
@@ -186,16 +186,16 @@ export function MediaBrowser({
 
       {/* List View */}
       {viewMode === "list" && filteredAssets.length > 0 && (
-        <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <div className="border border-slate-700 rounded-lg overflow-hidden">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="bg-slate-800/50 border-b border-slate-700">
               <tr>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Preview</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Name</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Type</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Size</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Uploaded</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">By</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Preview</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Name</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Type</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Size</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">Uploaded</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-slate-300">By</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
@@ -204,12 +204,12 @@ export function MediaBrowser({
                   key={asset.id}
                   onClick={() => handleAssetClick(asset)}
                   className={`
-                    hover:bg-gray-50 cursor-pointer
+                    hover:bg-slate-800/50 cursor-pointer
                     ${selectedAsset === asset.id ? "bg-blue-50" : ""}
                   `}
                 >
                   <td className="px-4 py-3">
-                    <div className="w-12 h-12 rounded overflow-hidden bg-gray-100">
+                    <div className="w-12 h-12 rounded overflow-hidden bg-slate-700">
                       {asset.type === "IMAGE" ? (
                         <img src={asset.url} alt={asset.filename} className="w-full h-full object-cover" />
                       ) : (
@@ -219,11 +219,11 @@ export function MediaBrowser({
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">{asset.filename}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{asset.mime}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{formatFileSize(asset.size)}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{formatDate(asset.createdAt)}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
+                  <td className="px-4 py-3 text-sm font-medium text-white">{asset.filename}</td>
+                  <td className="px-4 py-3 text-sm text-slate-400">{asset.mime}</td>
+                  <td className="px-4 py-3 text-sm text-slate-400">{formatFileSize(asset.size)}</td>
+                  <td className="px-4 py-3 text-sm text-slate-400">{formatDate(asset.createdAt)}</td>
+                  <td className="px-4 py-3 text-sm text-slate-400">
                     {asset.creator.name || asset.creator.email}
                   </td>
                 </tr>

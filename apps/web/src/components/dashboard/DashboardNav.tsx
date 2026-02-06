@@ -25,8 +25,8 @@ export function DashboardNav({ user }: DashboardNavProps) {
   const navLinkClass = (path: string) => 
     `px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
       isActive(path)
-        ? "bg-white/10 text-white"
-        : "text-slate-300 hover:text-white hover:bg-white/5"
+        ? "bg-slate-800/10 text-white"
+        : "text-slate-300 hover:text-white hover:bg-slate-800/5"
     }`;
 
   return (
@@ -90,7 +90,7 @@ export function DashboardNav({ user }: DashboardNavProps) {
             {/* Sign Out Button */}
             <button
               onClick={() => signOut({ callbackUrl: "/" })}
-              className="px-3 py-1.5 text-sm text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-200"
+              className="px-3 py-1.5 text-sm text-slate-400 hover:text-white hover:bg-slate-800/10 rounded-lg transition-all duration-200"
             >
               Uitloggen
             </button>

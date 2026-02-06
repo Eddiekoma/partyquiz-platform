@@ -256,7 +256,7 @@ export default function NewQuestionPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="mb-6">
           <h1 className="text-3xl font-bold mb-2">Create Question</h1>
-          <p className="text-gray-600">Choose a question type to get started</p>
+          <p className="text-slate-400">Choose a question type to get started</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -264,7 +264,7 @@ export default function NewQuestionPage() {
             <div key={type.value} onClick={() => setSelectedType(type.value)}>
               <Card className="p-6 cursor-pointer hover:shadow-lg transition-shadow border-2 border-transparent hover:border-primary-500">
                 <h3 className="text-lg font-semibold mb-2">{type.label}</h3>
-                <p className="text-sm text-gray-600">{type.description}</p>
+                <p className="text-sm text-slate-400">{type.description}</p>
               </Card>
             </div>
           ))}
@@ -285,7 +285,7 @@ export default function NewQuestionPage() {
         <h1 className="text-3xl font-bold mb-2">
           {QUESTION_TYPES.find((t) => t.value === selectedType)?.label}
         </h1>
-        <p className="text-gray-600">
+        <p className="text-slate-400">
           {QUESTION_TYPES.find((t) => t.value === selectedType)?.description}
         </p>
       </div>
@@ -313,7 +313,7 @@ export default function NewQuestionPage() {
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder="Additional context or instructions (optional)..."
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="w-full px-4 py-3 border border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             rows={3}
           />
         </Card>
@@ -382,7 +382,7 @@ export default function NewQuestionPage() {
                 className={`flex-1 px-6 py-4 rounded-lg border-2 font-semibold transition-colors ${
                   trueFalseAnswer
                     ? "border-green-500 bg-green-50 text-green-700"
-                    : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
+                    : "border-slate-600 bg-white text-slate-300 hover:border-slate-500"
                 }`}
               >
                 ✅ True
@@ -392,7 +392,7 @@ export default function NewQuestionPage() {
                 className={`flex-1 px-6 py-4 rounded-lg border-2 font-semibold transition-colors ${
                   !trueFalseAnswer
                     ? "border-red-500 bg-red-50 text-red-700"
-                    : "border-gray-300 bg-white text-gray-700 hover:border-gray-400"
+                    : "border-slate-600 bg-white text-slate-300 hover:border-slate-500"
                 }`}
               >
                 ❌ False
@@ -406,7 +406,7 @@ export default function NewQuestionPage() {
             <label className="block text-sm font-semibold mb-4">Correct Answer & Margin</label>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm text-gray-600 mb-2">Correct Answer</label>
+                <label className="block text-sm text-slate-400 mb-2">Correct Answer</label>
                 <Input
                   type="number"
                   value={estimationAnswer}
@@ -415,7 +415,7 @@ export default function NewQuestionPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm text-gray-600 mb-2">Margin (%)</label>
+                <label className="block text-sm text-slate-400 mb-2">Margin (%)</label>
                 <Input
                   type="number"
                   value={estimationMargin}
@@ -424,7 +424,7 @@ export default function NewQuestionPage() {
                 />
               </div>
             </div>
-            <p className="text-sm text-gray-500 mt-2">
+            <p className="text-sm text-slate-400 mt-2">
               Answers within {estimationMargin}% of {estimationAnswer} will be considered correct.
             </p>
           </Card>
@@ -439,7 +439,7 @@ export default function NewQuestionPage() {
             <div className="space-y-3">
               {orderItems.map((item, index) => (
                 <div key={index} className="flex gap-3 items-center">
-                  <span className="text-gray-500 font-mono w-8">{index + 1}.</span>
+                  <span className="text-slate-400 font-mono w-8">{index + 1}.</span>
                   <Input
                     value={item.text}
                     onChange={(e) => {
@@ -475,7 +475,7 @@ export default function NewQuestionPage() {
             >
               + Add Item
             </Button>
-            <p className="text-sm text-gray-500 mt-2">
+            <p className="text-sm text-slate-400 mt-2">
               Players will need to drag these items into the correct order
             </p>
           </Card>
@@ -490,7 +490,7 @@ export default function NewQuestionPage() {
             <div className="space-y-3">
               {options.map((option, index) => (
                 <div key={index} className="flex gap-3 items-center">
-                  <span className="text-gray-400 text-2xl">📊</span>
+                  <span className="text-slate-500 text-2xl">📊</span>
                   <Input
                     value={option.text}
                     onChange={(e) => {
@@ -535,10 +535,10 @@ export default function NewQuestionPage() {
               value={openTextAnswer}
               onChange={(e) => setOpenTextAnswer(e.target.value)}
               placeholder="Enter the expected answer or leave blank for fully open questions..."
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full px-4 py-3 border border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               rows={3}
             />
-            <p className="text-sm text-gray-500 mt-2">
+            <p className="text-sm text-slate-400 mt-2">
               Players will type their answer. Host reviews manually.
             </p>
           </Card>
@@ -576,7 +576,7 @@ export default function NewQuestionPage() {
                 }}
               />
             ) : (
-              <div className="border border-gray-200 rounded-lg p-4">
+              <div className="border border-slate-700 rounded-lg p-4">
                 <div className="flex items-start gap-4">
                   {selectedType.startsWith("PHOTO") && (
                     <img 
@@ -587,7 +587,7 @@ export default function NewQuestionPage() {
                   )}
                   <div className="flex-1">
                     <p className="font-medium text-gray-900">{uploadedAsset.filename}</p>
-                    <p className="text-sm text-gray-600 mt-1">
+                    <p className="text-sm text-slate-400 mt-1">
                       {selectedType.startsWith("PHOTO") ? "Image" :
                        selectedType.startsWith("AUDIO") ? "Audio" : "Video"} uploaded successfully
                     </p>
@@ -628,13 +628,13 @@ export default function NewQuestionPage() {
             <label className="block text-sm font-semibold mb-4">
               🎬 YouTube Video
             </label>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-slate-400 mb-4">
               Enter a YouTube URL to attach a video clip to this question.
               You can specify which segment of the video to show.
             </p>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm text-gray-600 mb-2">
+                <label className="block text-sm text-slate-400 mb-2">
                   YouTube URL *
                 </label>
                 <div className="flex gap-2">
@@ -656,7 +656,7 @@ export default function NewQuestionPage() {
                     {youtubeValidating ? "Validating..." : youtubeMetadata ? "✓ Valid" : "Validate"}
                   </Button>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-slate-400 mt-1">
                   Paste any YouTube URL (watch, youtu.be, embed format)
                 </p>
                 {youtubeError && (
@@ -679,7 +679,7 @@ export default function NewQuestionPage() {
                     )}
                     <div className="flex-1">
                       <p className="font-semibold text-gray-900">{youtubeMetadata.title}</p>
-                      <p className="text-sm text-gray-600 mt-1">{youtubeMetadata.channelName}</p>
+                      <p className="text-sm text-slate-400 mt-1">{youtubeMetadata.channelName}</p>
                       <p className="text-xs text-green-700 mt-2">✓ Video validated successfully</p>
                     </div>
                   </div>
@@ -702,7 +702,7 @@ export default function NewQuestionPage() {
             value={explanation}
             onChange={(e) => setExplanation(e.target.value)}
             placeholder="Explain the answer..."
-            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="w-full px-4 py-3 border border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             rows={3}
           />
         </Card>
@@ -712,11 +712,11 @@ export default function NewQuestionPage() {
           <h3 className="text-lg font-semibold mb-4">Question Settings</h3>
           <div className="grid grid-cols-1 gap-4 mb-4">
             <div>
-              <label className="block text-sm text-gray-600 mb-2">Difficulty</label>
+              <label className="block text-sm text-slate-400 mb-2">Difficulty</label>
               <select
                 value={difficulty}
                 onChange={(e) => setDifficulty(parseInt(e.target.value) as 1 | 2 | 3 | 4 | 5)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               >
                 <option value="1">Very Easy</option>
                 <option value="2">Easy</option>
@@ -729,7 +729,7 @@ export default function NewQuestionPage() {
 
           {/* Tags */}
           <div>
-            <label className="block text-sm text-gray-600 mb-2">Tags</label>
+            <label className="block text-sm text-slate-400 mb-2">Tags</label>
             <div className="flex gap-2 mb-2">
               <Input
                 value={tagInput}
@@ -747,7 +747,7 @@ export default function NewQuestionPage() {
                 {tags.map((tag) => (
                   <span
                     key={tag}
-                    className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm flex items-center gap-2"
+                    className="px-3 py-1 bg-slate-700 text-slate-300 rounded-full text-sm flex items-center gap-2"
                   >
                     #{tag}
                     <button

@@ -44,8 +44,8 @@ export function Leaderboard({ sessionCode, visible = false }: LeaderboardProps) 
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-        <h2 className="text-3xl font-black text-gray-900 mb-6 text-center">
+      <div className="bg-slate-800 rounded-3xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+        <h2 className="text-3xl font-black text-white mb-6 text-center">
           🏆 Leaderboard
         </h2>
         <div className="space-y-2">
@@ -55,13 +55,13 @@ export function Leaderboard({ sessionCode, visible = false }: LeaderboardProps) 
               className="flex items-center gap-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4"
             >
               <div className="w-12 text-center">
-                <span className="text-2xl font-black text-gray-700">
+                <span className="text-2xl font-black text-slate-300">
                   {getRankEmoji(index + 1)}
                 </span>
               </div>
               <div className="text-3xl">{entry.avatar}</div>
               <div className="flex-1">
-                <p className="text-lg font-bold text-gray-900">
+                <p className="text-lg font-bold text-white">
                   {entry.playerName}
                 </p>
               </div>

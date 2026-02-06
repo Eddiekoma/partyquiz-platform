@@ -95,8 +95,8 @@ export default function QuizzesPage() {
       {/* Header */}
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold mb-2">Quizzes</h1>
-          <p className="text-gray-600">Create and manage your quiz collections</p>
+          <h1 className="text-3xl font-bold mb-2 text-white">Quizzes</h1>
+          <p className="text-slate-400">Create and manage your quiz collections</p>
         </div>
         <Button onClick={handleCreateQuiz} disabled={creating}>
           {creating ? "Creating..." : "+ New Quiz"}
@@ -104,28 +104,28 @@ export default function QuizzesPage() {
       </div>
 
       {/* Search */}
-      <Card className="p-4 mb-6">
+      <div className="backdrop-blur-xl bg-slate-800/40 border border-slate-700/50 rounded-xl p-4 mb-6">
         <Input
           type="text"
           placeholder="Search quizzes..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full"
+          className="w-full bg-slate-900/50 border-slate-600 text-white placeholder:text-slate-500"
         />
-      </Card>
+      </div>
 
       {/* Quiz List */}
       {loading ? (
         <div className="text-center py-12">
-          <p className="text-gray-500">Loading quizzes...</p>
+          <p className="text-slate-400">Loading quizzes...</p>
         </div>
       ) : quizzes.length === 0 ? (
-        <Card className="p-12 text-center">
-          <p className="text-gray-500 mb-4">No quizzes found</p>
+        <div className="backdrop-blur-xl bg-slate-800/40 border border-slate-700/50 rounded-xl p-12 text-center">
+          <p className="text-slate-400 mb-4">No quizzes found</p>
           <Button onClick={handleCreateQuiz} disabled={creating}>
             Create Your First Quiz
           </Button>
-        </Card>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {quizzes.map((quiz) => (
@@ -133,15 +133,15 @@ export default function QuizzesPage() {
               key={quiz.id}
               href={`/dashboard/workspaces/${workspaceId}/quizzes/${quiz.id}`}
             >
-              <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer h-full">
-                <h3 className="text-xl font-bold mb-2 line-clamp-2">{quiz.title}</h3>
+              <div className="backdrop-blur-xl bg-slate-800/40 border border-slate-700/50 rounded-xl p-6 hover:bg-slate-800/60 hover:border-primary-500/50 transition-all cursor-pointer h-full">
+                <h3 className="text-xl font-bold mb-2 line-clamp-2 text-white">{quiz.title}</h3>
                 {quiz.description && (
-                  <p className="text-gray-600 text-sm mb-4 line-clamp-2">
+                  <p className="text-slate-400 text-sm mb-4 line-clamp-2">
                     {quiz.description}
                   </p>
                 )}
 
-                <div className="space-y-2 text-sm text-gray-500">
+                <div className="space-y-2 text-sm text-slate-400">
                   <div className="flex items-center justify-between">
                     <span>📋 {quiz.rounds.length} rounds</span>
                     <span>❓ {getTotalQuestions(quiz)} questions</span>
@@ -155,11 +155,11 @@ export default function QuizzesPage() {
                 </div>
 
                 {quiz.rounds.length === 0 && (
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    <p className="text-xs text-amber-600">⚠️ No rounds yet</p>
+                  <div className="mt-4 pt-4 border-t border-slate-700">
+                    <p className="text-xs text-amber-400">⚠️ No rounds yet</p>
                   </div>
                 )}
-              </Card>
+              </div>
             </Link>
           ))}
         </div>

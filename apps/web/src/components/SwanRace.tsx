@@ -173,7 +173,7 @@ export function SwanRace({ sessionCode, playerId, playerName, isActive, onFinish
   if (!isActive) {
     return (
       <div className="flex items-center justify-center h-64">
-        <p className="text-gray-500">Waiting for Swan Race to start...</p>
+        <p className="text-slate-400">Waiting for Swan Race to start...</p>
       </div>
     );
   }
@@ -194,8 +194,8 @@ export function SwanRace({ sessionCode, playerId, playerName, isActive, onFinish
       {!finished && (
         <div className="flex flex-col items-center gap-4">
           <div className="text-center">
-            <p className="text-lg font-bold text-gray-900">Tap and Hold to Paddle!</p>
-            <p className="text-sm text-gray-600">The longer you hold, the stronger your stroke</p>
+            <p className="text-lg font-bold text-white">Tap and Hold to Paddle!</p>
+            <p className="text-sm text-slate-400">The longer you hold, the stronger your stroke</p>
           </div>
           <button
             onMouseDown={() => handleInput(true)}
@@ -222,7 +222,7 @@ export function SwanRace({ sessionCode, playerId, playerName, isActive, onFinish
             {finalPosition === 3 && "🥉 3rd Place!"}
             {finalPosition > 3 && `Position ${finalPosition}`}
           </p>
-          <p className="text-lg text-gray-700">Great paddling, {playerName}!</p>
+          <p className="text-lg text-slate-300">Great paddling, {playerName}!</p>
         </div>
       )}
     </div>

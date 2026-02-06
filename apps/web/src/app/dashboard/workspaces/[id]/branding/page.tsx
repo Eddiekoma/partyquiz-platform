@@ -94,7 +94,7 @@ export default function WorkspaceBrandingPage() {
     return (
       <div className="container mx-auto p-6">
         <div className="flex items-center justify-center h-64">
-          <div className="text-gray-600">Loading workspace branding...</div>
+          <div className="text-slate-400">Loading workspace branding...</div>
         </div>
       </div>
     );
@@ -116,7 +116,7 @@ export default function WorkspaceBrandingPage() {
         </Link>
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Workspace Branding</h1>
-          <p className="text-gray-600 mt-1">{workspace.name}</p>
+          <p className="text-slate-400 mt-1">{workspace.name}</p>
         </div>
       </div>
 
@@ -145,7 +145,7 @@ export default function WorkspaceBrandingPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-slate-400 mb-4">
               Upload a logo that will appear on live session screens. Recommended size:
               200x200px or larger.
             </p>
@@ -156,7 +156,7 @@ export default function WorkspaceBrandingPage() {
                   <img
                     src={logo}
                     alt="Workspace logo"
-                    className="w-32 h-32 object-contain border-2 border-gray-200 rounded-lg bg-white"
+                    className="w-32 h-32 object-contain border-2 border-slate-700 rounded-lg bg-white"
                   />
                   <button
                     onClick={handleRemoveLogo}
@@ -195,7 +195,7 @@ export default function WorkspaceBrandingPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-slate-400 mb-4">
               Choose a brand color that will be applied to live session screens and UI
               elements.
             </p>
@@ -207,7 +207,7 @@ export default function WorkspaceBrandingPage() {
                   type="color"
                   value={themeColor}
                   onChange={(e) => setThemeColor(e.target.value)}
-                  className="w-16 h-16 rounded-lg border-2 border-gray-200 cursor-pointer"
+                  className="w-16 h-16 rounded-lg border-2 border-slate-700 cursor-pointer"
                 />
                 <div>
                   <input
@@ -219,11 +219,11 @@ export default function WorkspaceBrandingPage() {
                         setThemeColor(value);
                       }
                     }}
-                    className="font-mono text-sm px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="font-mono text-sm px-3 py-2 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="#3B82F6"
                     maxLength={7}
                   />
-                  <p className="text-xs text-gray-500 mt-1">Hex color code</p>
+                  <p className="text-xs text-slate-400 mt-1">Hex color code</p>
                 </div>
               </div>
 
@@ -231,31 +231,31 @@ export default function WorkspaceBrandingPage() {
               <div className="flex gap-2 ml-auto">
                 <button
                   onClick={() => setThemeColor("#3B82F6")}
-                  className="w-10 h-10 rounded-lg border-2 border-gray-200 hover:border-gray-400 transition-colors"
+                  className="w-10 h-10 rounded-lg border-2 border-slate-700 hover:border-slate-500 transition-colors"
                   style={{ backgroundColor: "#3B82F6" }}
                   title="Blue"
                 />
                 <button
                   onClick={() => setThemeColor("#8B5CF6")}
-                  className="w-10 h-10 rounded-lg border-2 border-gray-200 hover:border-gray-400 transition-colors"
+                  className="w-10 h-10 rounded-lg border-2 border-slate-700 hover:border-slate-500 transition-colors"
                   style={{ backgroundColor: "#8B5CF6" }}
                   title="Purple"
                 />
                 <button
                   onClick={() => setThemeColor("#10B981")}
-                  className="w-10 h-10 rounded-lg border-2 border-gray-200 hover:border-gray-400 transition-colors"
+                  className="w-10 h-10 rounded-lg border-2 border-slate-700 hover:border-slate-500 transition-colors"
                   style={{ backgroundColor: "#10B981" }}
                   title="Green"
                 />
                 <button
                   onClick={() => setThemeColor("#F59E0B")}
-                  className="w-10 h-10 rounded-lg border-2 border-gray-200 hover:border-gray-400 transition-colors"
+                  className="w-10 h-10 rounded-lg border-2 border-slate-700 hover:border-slate-500 transition-colors"
                   style={{ backgroundColor: "#F59E0B" }}
                   title="Amber"
                 />
                 <button
                   onClick={() => setThemeColor("#EF4444")}
-                  className="w-10 h-10 rounded-lg border-2 border-gray-200 hover:border-gray-400 transition-colors"
+                  className="w-10 h-10 rounded-lg border-2 border-slate-700 hover:border-slate-500 transition-colors"
                   style={{ backgroundColor: "#EF4444" }}
                   title="Red"
                 />
@@ -270,7 +270,7 @@ export default function WorkspaceBrandingPage() {
             <CardTitle>Live Preview</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-slate-400 mb-4">
               Preview how your branding will appear on live session screens.
             </p>
 

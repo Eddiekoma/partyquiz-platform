@@ -114,11 +114,11 @@ function SortableRound({
             <button
               {...attributes}
               {...listeners}
-              className="cursor-grab active:cursor-grabbing p-2 hover:bg-gray-100 rounded"
+              className="cursor-grab active:cursor-grabbing p-2 hover:bg-slate-700 rounded"
               aria-label="Drag to reorder round"
             >
               <svg
-                className="w-5 h-5 text-gray-400"
+                className="w-5 h-5 text-slate-500"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -149,7 +149,7 @@ function SortableRound({
           </Button>
         </div>
       </div>        {round.items.length === 0 ? (
-          <p className="text-gray-500 text-center py-8">No questions in this round yet</p>
+          <p className="text-slate-400 text-center py-8">No questions in this round yet</p>
         ) : (
           <DndContext
             sensors={useSensors(
@@ -218,16 +218,16 @@ function SortableItem({
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg"
+      className="flex items-center gap-4 p-4 bg-slate-800/50 rounded-lg"
     >
       <button
         {...attributes}
         {...listeners}
-        className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-200 rounded"
+        className="cursor-grab active:cursor-grabbing p-1 hover:bg-slate-600 rounded"
         aria-label="Drag to reorder question"
       >
         <svg
-          className="w-4 h-4 text-gray-400"
+          className="w-4 h-4 text-slate-500"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -240,10 +240,10 @@ function SortableItem({
           />
         </svg>
       </button>
-      <span className="text-gray-500 font-mono w-8">{itemIndex + 1}.</span>
+      <span className="text-slate-400 font-mono w-8">{itemIndex + 1}.</span>
       <div className="flex-1">
         <h3 className="font-semibold">{item.question?.title}</h3>
-        <div className="flex gap-4 text-sm text-gray-500 mt-1">
+        <div className="flex gap-4 text-sm text-slate-400 mt-1">
           <span>{item.question?.type.replace(/_/g, " ")}</span>
           <span>{getDifficultyLabel(item.question?.difficulty || 3)}</span>
           <span>{item.question?.options.length || 0} options</span>
@@ -567,7 +567,7 @@ export default function QuizDetailPage() {
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <p className="text-center text-gray-500">Loading quiz...</p>
+        <p className="text-center text-slate-400">Loading quiz...</p>
       </div>
     );
   }
@@ -575,7 +575,7 @@ export default function QuizDetailPage() {
   if (!quiz) {
     return (
       <div className="container mx-auto px-4 py-8">
-        <p className="text-center text-gray-500">Quiz not found</p>
+        <p className="text-center text-slate-400">Quiz not found</p>
       </div>
     );
   }
@@ -635,7 +635,7 @@ export default function QuizDetailPage() {
                   value={editDescription}
                   onChange={(e) => setEditDescription(e.target.value)}
                   placeholder="Quiz description..."
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-4 py-3 border border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500"
                   rows={3}
                 />
               </div>
@@ -644,8 +644,8 @@ export default function QuizDetailPage() {
         ) : (
           <>
             <h1 className="text-3xl font-bold mb-2">{quiz.title}</h1>
-            {quiz.description && <p className="text-gray-600 mb-4">{quiz.description}</p>}
-            <div className="flex gap-6 text-sm text-gray-500">
+            {quiz.description && <p className="text-slate-400 mb-4">{quiz.description}</p>}
+            <div className="flex gap-6 text-sm text-slate-400">
               <span>📋 {quiz.rounds.length} rounds</span>
               <span>❓ {totalQuestions} questions</span>
               <span>🎮 {quiz._count.sessions} sessions played</span>
@@ -722,7 +722,7 @@ export default function QuizDetailPage() {
             </div>
 
             {availableQuestions.length === 0 ? (
-              <p className="text-center text-gray-500 py-8">
+              <p className="text-center text-slate-400 py-8">
                 No questions available. Create some questions first!
               </p>
             ) : (
@@ -731,10 +731,10 @@ export default function QuizDetailPage() {
                   <div
                     key={question.id}
                     onClick={() => handleSelectQuestion(question.id)}
-                    className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
+                    className="p-4 border border-slate-700 rounded-lg hover:bg-slate-800/50 cursor-pointer"
                   >
                     <h3 className="font-semibold mb-1">{question.title}</h3>
-                    <div className="flex gap-4 text-sm text-gray-500">
+                    <div className="flex gap-4 text-sm text-slate-400">
                       <span>{question.type.replace(/_/g, " ")}</span>
                       <span>{getDifficultyLabel(question.difficulty)}</span>
                       <span>{question.options.length} options</span>

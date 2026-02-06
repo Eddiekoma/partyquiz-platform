@@ -17,8 +17,8 @@ export function Card({ children, className = "", padding = "md", hover = false }
 
   return (
     <div
-      className={`bg-white rounded-lg border border-gray-200 shadow-sm ${paddingStyles[padding]} ${
-        hover ? "hover:shadow-md transition-shadow duration-200" : ""
+      className={`backdrop-blur-xl bg-slate-800/40 rounded-xl border border-slate-700/50 ${paddingStyles[padding]} ${
+        hover ? "hover:bg-slate-800/60 hover:border-primary-500/50 transition-all duration-200" : ""
       } ${className}`}
     >
       {children}
@@ -31,7 +31,7 @@ export function CardHeader({ children, className = "" }: { children: React.React
 }
 
 export function CardTitle({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <h3 className={`text-lg font-semibold text-gray-900 ${className}`}>{children}</h3>;
+  return <h3 className={`text-lg font-semibold text-white ${className}`}>{children}</h3>;
 }
 
 export function CardContent({ children, className = "" }: { children: React.ReactNode; className?: string }) {

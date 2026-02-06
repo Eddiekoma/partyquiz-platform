@@ -283,31 +283,31 @@ export function UploadZone({
           transition-colors duration-200
           ${isDragging
             ? "border-primary-500 bg-primary-50"
-            : "border-gray-300 hover:border-gray-400 bg-gray-50"
+            : "border-slate-600 hover:border-slate-500 bg-slate-800/50"
           }
           ${uploading ? "opacity-60 pointer-events-none" : ""}
         `}
       >
         {uploading && progress ? (
           <div className="space-y-3">
-            <div className="text-lg font-semibold text-gray-900">
+            <div className="text-lg font-semibold text-white">
               Uploading... {progress.percentage}%
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-2">
+            <div className="w-full bg-slate-600 rounded-full h-2">
               <div
                 className="bg-primary-600 h-2 rounded-full transition-all duration-300"
                 style={{ width: `${progress.percentage}%` }}
               />
             </div>
-            <div className="text-sm text-gray-600">
+            <div className="text-sm text-slate-400">
               {Math.round(progress.loaded / (1024 * 1024))}MB / {Math.round(progress.total / (1024 * 1024))}MB
             </div>
           </div>
         ) : (
           <>
             <div className="text-4xl mb-3">📁</div>
-            <div className="text-lg font-semibold text-gray-900 mb-1">{label}</div>
-            <div className="text-sm text-gray-600">{description}</div>
+            <div className="text-lg font-semibold text-white mb-1">{label}</div>
+            <div className="text-sm text-slate-400">{description}</div>
           </>
         )}
       </div>

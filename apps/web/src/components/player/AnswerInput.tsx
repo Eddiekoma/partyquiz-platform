@@ -49,7 +49,7 @@ export function AnswerInput({
               setTimeout(() => onSubmit(option.id), 100);
             }}
             disabled={disabled}
-            className="w-full p-4 text-lg font-bold text-white bg-white/20 backdrop-blur-sm rounded-xl hover:bg-white/30 active:scale-95 transition-all disabled:opacity-50"
+            className="w-full p-4 text-lg font-bold text-white bg-slate-800/20 backdrop-blur-sm rounded-xl hover:bg-slate-800/30 active:scale-95 transition-all disabled:opacity-50"
           >
             {option.text}
           </button>
@@ -96,7 +96,7 @@ export function AnswerInput({
           onChange={(e) => setAnswer(e.target.value)}
           placeholder="Type your answer..."
           disabled={disabled}
-          className="w-full px-6 py-4 text-xl font-bold text-gray-900 bg-white rounded-xl focus:ring-4 focus:ring-purple-300 outline-none transition-all disabled:opacity-50"
+          className="w-full px-6 py-4 text-xl font-bold text-white bg-slate-800 rounded-xl focus:ring-4 focus:ring-purple-300 outline-none transition-all disabled:opacity-50"
           autoFocus
         />
         <button
@@ -134,7 +134,7 @@ export function AnswerInput({
           onChange={(e) => setAnswer(e.target.value)}
           placeholder="What do you see?"
           disabled={disabled}
-          className="w-full px-6 py-4 text-xl font-bold text-gray-900 bg-white rounded-xl focus:ring-4 focus:ring-purple-300 outline-none transition-all disabled:opacity-50"
+          className="w-full px-6 py-4 text-xl font-bold text-white bg-slate-800 rounded-xl focus:ring-4 focus:ring-purple-300 outline-none transition-all disabled:opacity-50"
           autoFocus
         />
         <button
@@ -176,7 +176,7 @@ export function AnswerInput({
               : "Artist name..."
           }
           disabled={disabled}
-          className="w-full px-6 py-4 text-xl font-bold text-gray-900 bg-white rounded-xl focus:ring-4 focus:ring-purple-300 outline-none transition-all disabled:opacity-50"
+          className="w-full px-6 py-4 text-xl font-bold text-white bg-slate-800 rounded-xl focus:ring-4 focus:ring-purple-300 outline-none transition-all disabled:opacity-50"
           autoFocus
         />
         <button
@@ -202,7 +202,7 @@ export function AnswerInput({
           disabled={disabled}
           min={1900}
           max={2100}
-          className="w-full px-6 py-4 text-xl font-bold text-gray-900 bg-white rounded-xl focus:ring-4 focus:ring-purple-300 outline-none transition-all disabled:opacity-50"
+          className="w-full px-6 py-4 text-xl font-bold text-white bg-slate-800 rounded-xl focus:ring-4 focus:ring-purple-300 outline-none transition-all disabled:opacity-50"
           autoFocus
         />
         <button
@@ -269,7 +269,7 @@ export function AnswerInput({
           onChange={(e) => setAnswer(e.target.value)}
           placeholder="Type your answer..."
           disabled={disabled}
-          className="w-full px-6 py-4 text-xl font-bold text-gray-900 bg-white rounded-xl focus:ring-4 focus:ring-purple-300 outline-none transition-all disabled:opacity-50"
+          className="w-full px-6 py-4 text-xl font-bold text-white bg-slate-800 rounded-xl focus:ring-4 focus:ring-purple-300 outline-none transition-all disabled:opacity-50"
           autoFocus
         />
         <button
@@ -295,7 +295,7 @@ export function AnswerInput({
               setTimeout(() => onSubmit(option.id), 100);
             }}
             disabled={disabled}
-            className="w-full p-4 text-lg font-bold text-white bg-white/20 backdrop-blur-sm rounded-xl hover:bg-white/30 active:scale-95 transition-all disabled:opacity-50"
+            className="w-full p-4 text-lg font-bold text-white bg-slate-800/20 backdrop-blur-sm rounded-xl hover:bg-slate-800/30 active:scale-95 transition-all disabled:opacity-50"
           >
             {option.text}
           </button>
@@ -317,7 +317,7 @@ export function AnswerInput({
               setTimeout(() => onSubmit(emoji), 100);
             }}
             disabled={disabled}
-            className="aspect-square text-5xl bg-white/20 backdrop-blur-sm rounded-2xl hover:bg-white/30 hover:scale-110 active:scale-95 transition-all disabled:opacity-50"
+            className="aspect-square text-5xl bg-slate-800/20 backdrop-blur-sm rounded-2xl hover:bg-slate-800/30 hover:scale-110 active:scale-95 transition-all disabled:opacity-50"
           >
             {emoji}
           </button>
@@ -380,7 +380,7 @@ function MultipleChoiceMultiple({
             className={`w-full p-4 text-lg font-bold text-white rounded-xl transition-all disabled:opacity-50 ${
               selected.includes(option.id)
                 ? "bg-purple-600 ring-4 ring-purple-300"
-                : "bg-white/20 backdrop-blur-sm hover:bg-white/30"
+                : "bg-slate-800/20 backdrop-blur-sm hover:bg-slate-800/30"
             }`}
           >
             {selected.includes(option.id) ? "✅ " : ""}
@@ -434,20 +434,20 @@ function OrderingInput({
         {items.map((item, index) => (
           <div
             key={item.id}
-            className="flex items-center gap-2 bg-white/20 backdrop-blur-sm rounded-xl p-3"
+            className="flex items-center gap-2 bg-slate-800/20 backdrop-blur-sm rounded-xl p-3"
           >
             <div className="flex flex-col gap-1">
               <button
                 onClick={() => moveUp(index)}
                 disabled={disabled || index === 0}
-                className="p-1 text-white bg-white/20 rounded hover:bg-white/30 disabled:opacity-30 transition-all"
+                className="p-1 text-white bg-slate-800/20 rounded hover:bg-slate-800/30 disabled:opacity-30 transition-all"
               >
                 ▲
               </button>
               <button
                 onClick={() => moveDown(index)}
                 disabled={disabled || index === items.length - 1}
-                className="p-1 text-white bg-white/20 rounded hover:bg-white/30 disabled:opacity-30 transition-all"
+                className="p-1 text-white bg-slate-800/20 rounded hover:bg-slate-800/30 disabled:opacity-30 transition-all"
               >
                 ▼
               </button>

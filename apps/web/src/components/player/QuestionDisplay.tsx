@@ -24,7 +24,7 @@ export function QuestionDisplay({
       )}
 
       {/* Prompt */}
-      <div className="bg-white/10 backdrop-blur-sm rounded-3xl p-8 text-center">
+      <div className="bg-slate-800/10 backdrop-blur-sm rounded-3xl p-8 text-center">
         <h2 className="text-3xl md:text-4xl font-black text-white leading-tight">
           {prompt}
         </h2>

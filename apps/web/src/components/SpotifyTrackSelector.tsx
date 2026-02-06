@@ -106,17 +106,17 @@ export function SpotifyTrackSelector({ onSelect, selectedTrack }: SpotifyTrackSe
               />
             )}
             <div>
-              <p className="font-semibold text-gray-900">{selectedTrack.name}</p>
-              <p className="text-sm text-gray-600">{selectedTrack.artists.map((a) => a.name).join(", ")}</p>
-              <p className="text-xs text-gray-500">{selectedTrack.album.name} ({new Date(selectedTrack.album.release_date).getFullYear()})</p>
+              <p className="font-semibold text-white">{selectedTrack.name}</p>
+              <p className="text-sm text-slate-400">{selectedTrack.artists.map((a) => a.name).join(", ")}</p>
+              <p className="text-xs text-slate-400">{selectedTrack.album.name} ({new Date(selectedTrack.album.release_date).getFullYear()})</p>
             </div>
           </div>
         </div>
       )}
 
       {/* Search Bar */}
-      <div className="border border-gray-300 rounded-lg p-4 bg-gray-50">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
+      <div className="border border-slate-600 rounded-lg p-4 bg-slate-800/50">
+        <label className="block text-sm font-medium text-slate-300 mb-2">
           🎵 Search Spotify
         </label>
         <div className="flex gap-2">
@@ -126,7 +126,7 @@ export function SpotifyTrackSelector({ onSelect, selectedTrack }: SpotifyTrackSe
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Enter track name, artist..."
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="flex-1 px-3 py-2 border border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           />
           <button
             onClick={handleSearch}
@@ -147,8 +147,8 @@ export function SpotifyTrackSelector({ onSelect, selectedTrack }: SpotifyTrackSe
 
       {/* Results */}
       {results.length > 0 && (
-        <div className="border border-gray-300 rounded-lg p-4 bg-white">
-          <p className="text-sm font-medium text-gray-700 mb-3">Search Results ({results.length})</p>
+        <div className="border border-slate-600 rounded-lg p-4 bg-slate-800">
+          <p className="text-sm font-medium text-slate-300 mb-3">Search Results ({results.length})</p>
           <div className="space-y-2 max-h-96 overflow-y-auto">
             {results.map((track) => (
               <div
@@ -156,7 +156,7 @@ export function SpotifyTrackSelector({ onSelect, selectedTrack }: SpotifyTrackSe
                 className={`flex items-center gap-3 p-3 border rounded-lg transition-colors cursor-pointer ${
                   selectedTrack?.id === track.id
                     ? "border-green-500 bg-green-50"
-                    : "border-gray-200 hover:border-blue-400 hover:bg-blue-50"
+                    : "border-slate-700 hover:border-blue-400 hover:bg-blue-50"
                 }`}
                 onClick={() => onSelect(track)}
               >
@@ -173,9 +173,9 @@ export function SpotifyTrackSelector({ onSelect, selectedTrack }: SpotifyTrackSe
 
                 {/* Track Info */}
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-900 truncate">{track.name}</p>
-                  <p className="text-sm text-gray-600 truncate">{track.artists.map((a) => a.name).join(", ")}</p>
-                  <p className="text-xs text-gray-500 truncate">
+                  <p className="font-medium text-white truncate">{track.name}</p>
+                  <p className="text-sm text-slate-400 truncate">{track.artists.map((a) => a.name).join(", ")}</p>
+                  <p className="text-xs text-slate-400 truncate">
                     {track.album.name} · {new Date(track.album.release_date).getFullYear()}
                   </p>
                 </div>
@@ -190,7 +190,7 @@ export function SpotifyTrackSelector({ onSelect, selectedTrack }: SpotifyTrackSe
                     className={`px-3 py-2 rounded-lg transition-colors ${
                       previewingTrackId === track.id
                         ? "bg-red-500 text-white hover:bg-red-600"
-                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                        : "bg-slate-600 text-slate-300 hover:bg-gray-300"
                     }`}
                   >
                     {previewingTrackId === track.id ? "⏸️ Stop" : "▶️ Preview"}
@@ -220,7 +220,7 @@ export function SpotifyTrackSelector({ onSelect, selectedTrack }: SpotifyTrackSe
 
       {/* No Results */}
       {!isSearching && searchQuery && results.length === 0 && !error && (
-        <div className="text-center py-8 text-gray-500">
+        <div className="text-center py-8 text-slate-400">
           <p className="text-4xl mb-2">🔍</p>
           <p>No results found for &quot;{searchQuery}&quot;</p>
         </div>

@@ -69,17 +69,17 @@ export function MediaLibrary({
       {/* Header */}
       <div className="flex items-center justify-between pb-4 border-b">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Media Library</h2>
-          <p className="text-sm text-gray-600 mt-1">
+          <h2 className="text-2xl font-bold text-white">Media Library</h2>
+          <p className="text-sm text-slate-400 mt-1">
             Upload and manage your {category === "images" ? "images" : category}
           </p>
         </div>
         {onClose && (
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-slate-700 rounded-lg transition-colors"
           >
-            <X className="h-6 w-6 text-gray-600" />
+            <X className="h-6 w-6 text-slate-400" />
           </button>
         )}
       </div>
@@ -103,7 +103,7 @@ export function MediaLibrary({
 
       {/* Upload Section */}
       <div className="mt-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-3">Upload New File</h3>
+        <h3 className="text-lg font-semibold text-white mb-3">Upload New File</h3>
         <FileUploader
           workspaceId={workspaceId}
           category={category}
@@ -116,7 +116,7 @@ export function MediaLibrary({
 
       {/* Browser Section */}
       <div className="mt-8 flex-1 overflow-auto">
-        <h3 className="text-lg font-semibold text-gray-900 mb-3">Your Files</h3>
+        <h3 className="text-lg font-semibold text-white mb-3">Your Files</h3>
         <MediaBrowser
           key={refreshKey}
           workspaceId={workspaceId}

@@ -1,8 +1,28 @@
 # PartyQuiz Platform - Implementatieplan
 
 **Datum:** 6 februari 2026  
-**Status:** In Uitvoering  
-**Versie:** 1.0
+**Status:** Fase 1 & 2 Afgerond  
+**Versie:** 1.1
+
+---
+
+## 📋 Voortgang Samenvatting
+
+### ✅ Afgerond
+- **Dashboard Dark Theme** - Alle pagina's geconverteerd naar Databridge360 donker thema
+- **UI Components** - Card, Button, Input componenten naar dark mode
+- **Invite Systeem** - Complete API + UI voor team uitnodigingen
+- **Members Management** - Volledig werkende members pagina + API
+- **Questions/Quizzes** - Dark theme voor alle vraag/quiz pagina's
+- **NextAuth v5 Migratie** - Alle API routes bijgewerkt
+
+### 🔄 In Uitvoering
+- Live sessions testing op productie
+
+### 📋 Te Doen
+- Spotify integratie testen
+- YouTube integratie voltooien
+- Minigames (Swan Race) implementeren
 
 ---
 
@@ -129,14 +149,15 @@ Dashboard gebruikt witte achtergrond (`bg-gray-50`) terwijl rest van de app Data
 }
 ```
 
-### ✅ Fix Nodig
-1. **`/apps/web/src/app/dashboard/layout.tsx`**
-   - Verander `bg-gray-50` → dark gradient
-   - Text colors naar wit
+### ✅ Fix Afgerond
 
-2. **`/apps/web/src/app/dashboard/page.tsx`**
-   - Cards met glassmorphism
-   - Consistent met landing page
+Dashboard en alle workspace pagina's zijn nu geconverteerd naar Databridge360 dark theme:
+- `layout.tsx` - Dark gradient achtergrond
+- `page.tsx` - Glassmorphism cards
+- `workspaces/` - Alle workspace pagina's
+- `questions/` - Question bank met dark theme
+- `quizzes/` - Quiz pagina's met dark theme
+- UI Components (`Card`, `Button`, `Input`) - Volledig dark mode
 
 ---
 
@@ -174,10 +195,12 @@ Dashboard gebruikt witte achtergrond (`bg-gray-50`) terwijl rest van de app Data
       └── /integrations      → Spotify/YouTube setup
 ```
 
-### ✅ Fix Nodig
-1. Update `DashboardNav.tsx` - verwijder broken links of redirect naar workspace-specifieke routes
-2. Voeg workspace selector toe bovenin
-3. Context-aware navigatie (dashboard vs workspace)
+### ✅ Fix Afgerond
+1. ~~Update `DashboardNav.tsx` - verwijder broken links of redirect naar workspace-specifieke routes~~
+2. ~~Voeg workspace selector toe bovenin~~
+3. ~~Context-aware navigatie (dashboard vs workspace)~~
+
+Dashboard navigatie toont nu alleen werkende links (Workspaces, Settings) en linkt correct naar workspace-specifieke pagina's.
 
 ---
 
@@ -227,22 +250,25 @@ model WorkspaceInvite {
 
 ### 🔴 Ontbrekende Functionaliteit
 
-#### 5.1 Invite Flow
+### ✅ Invite Flow (AFGEROND)
+
 | Stap | Status | API |
 |------|--------|-----|
 | Invite aanmaken | ✅ Werkt | `POST /api/workspaces/[id]/invites` |
-| Invites bekijken (owner) | ❌ Ontbreekt | `GET /api/workspaces/[id]/invites` |
-| Invite accepteren | ❌ Ontbreekt | `POST /api/invites/[token]/accept` |
-| Mijn invites bekijken | ❌ Ontbreekt | `GET /api/user/invites` |
+| Invites bekijken (owner) | ✅ Werkt | `GET /api/workspaces/[id]/invites` |
+| Invite accepteren | ✅ Werkt | `POST /api/invites/[token]` |
+| Invite verwijderen | ✅ Werkt | `DELETE /api/workspaces/[id]/invites?token=xxx` |
+| Mijn invites bekijken | ✅ Werkt | `GET /api/user/invites` |
 
-#### 5.2 Members Management
+### ✅ Members Management (AFGEROND)
+
 | Stap | Status | API |
 |------|--------|-----|
-| Members bekijken | ❌ Ontbreekt | `GET /api/workspaces/[id]/members` |
-| Rol wijzigen | ❌ Ontbreekt | `PATCH /api/workspaces/[id]/members/[userId]` |
-| Lid verwijderen | ❌ Ontbreekt | `DELETE /api/workspaces/[id]/members/[userId]` |
+| Members bekijken | ✅ Werkt | `GET /api/workspaces/[id]/members` |
+| Rol wijzigen | ✅ Werkt | `PATCH /api/workspaces/[id]/members/[userId]` |
+| Lid verwijderen | ✅ Werkt | `DELETE /api/workspaces/[id]/members/[userId]` |
 
-### ✅ Te Bouwen
+### ✅ UI Pages (AFGEROND)
 
 1. **API Routes:**
    - `GET /api/workspaces/[id]/invites` - Lijst openstaande invites

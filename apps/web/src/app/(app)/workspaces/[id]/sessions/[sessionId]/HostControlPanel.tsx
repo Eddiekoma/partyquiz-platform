@@ -221,18 +221,18 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
 
   if (session.status === "ENDED") {
     return (
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
+      <div className="bg-white border border-slate-700 rounded-lg p-6">
         <h3 className="font-semibold text-gray-900 mb-2">Session Ended</h3>
-        <p className="text-gray-600 text-sm">This session has ended. View the final results above.</p>
+        <p className="text-slate-400 text-sm">This session has ended. View the final results above.</p>
       </div>
     );
   }
 
   if (!currentItem) {
     return (
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
+      <div className="bg-white border border-slate-700 rounded-lg p-6">
         <h3 className="font-semibold text-gray-900 mb-2">No Questions</h3>
-        <p className="text-gray-600 text-sm">This quiz has no questions to display.</p>
+        <p className="text-slate-400 text-sm">This quiz has no questions to display.</p>
       </div>
     );
   }
@@ -243,7 +243,7 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
       <PlayerConnectionStatus socket={socket} sessionCode={session.code} />
 
       {/* WebSocket Status */}
-      <div className="bg-white border border-gray-200 rounded-lg p-4">
+      <div className="bg-white border border-slate-700 rounded-lg p-4">
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-500" : "bg-red-500"}`} />
           <span className="text-sm font-medium">{isConnected ? "✅ Connected" : "❌ Disconnected"}</span>
@@ -252,17 +252,17 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
       </div>
 
       {/* Current Question */}
-      <div className="bg-white border border-gray-200 rounded-lg p-6">
+      <div className="bg-white border border-slate-700 rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <p className="text-sm text-gray-600">Round: {currentItem.roundTitle}</p>
+            <p className="text-sm text-slate-400">Round: {currentItem.roundTitle}</p>
             <h3 className="font-semibold text-gray-900">
               Question {currentItemIndex + 1} of {totalItems}
             </h3>
           </div>
           {timeRemaining !== null && (
             <div className="text-right">
-              <p className="text-sm text-gray-600">Time Remaining</p>
+              <p className="text-sm text-slate-400">Time Remaining</p>
               <p className={`text-2xl font-bold ${timeRemaining <= 10 ? "text-red-600" : "text-gray-900"}`}>
                 {timeRemaining}s
               </p>
@@ -270,11 +270,11 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
           )}
         </div>
 
-        <div className="bg-gray-50 p-4 rounded-lg mb-4">
+        <div className="bg-slate-800/50 p-4 rounded-lg mb-4">
           <p className="text-gray-900 font-medium">{currentItem.question.prompt}</p>
-          <p className="text-sm text-gray-600 mt-2">Type: {currentItem.question.type}</p>
-          <p className="text-sm text-gray-600">Points: {currentItem.points}</p>
-          <p className="text-sm text-gray-600">Time Limit: {currentItem.timeLimit}s</p>
+          <p className="text-sm text-slate-400 mt-2">Type: {currentItem.question.type}</p>
+          <p className="text-sm text-slate-400">Points: {currentItem.points}</p>
+          <p className="text-sm text-slate-400">Time Limit: {currentItem.timeLimit}s</p>
         </div>
 
         {/* YouTube Preview & Controls (for YouTube questions) */}
@@ -291,9 +291,9 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
           const endSeconds = settingsJson.endSeconds;
 
           return (
-            <div className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
-              <div className="bg-gray-100 px-4 py-2 border-b border-gray-200">
-                <p className="text-sm font-medium text-gray-700">🎬 YouTube Preview (Host Only)</p>
+            <div className="mb-4 border border-slate-700 rounded-lg overflow-hidden">
+              <div className="bg-slate-700 px-4 py-2 border-b border-slate-700">
+                <p className="text-sm font-medium text-slate-300">🎬 YouTube Preview (Host Only)</p>
               </div>
               <div className="p-4 bg-white">
                 <div ref={youtubePlayerRef}>
@@ -347,14 +347,14 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
           <button
             onClick={goToPreviousItem}
             disabled={currentItemIndex === 0}
-            className="px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 transition-colors"
+            className="px-4 py-2 bg-slate-700 text-slate-300 font-medium rounded-lg hover:bg-slate-600 disabled:bg-slate-800/50 disabled:text-slate-500 transition-colors"
           >
             ← Previous
           </button>
           <button
             onClick={goToNextItem}
             disabled={currentItemIndex === totalItems - 1}
-            className="px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 disabled:bg-gray-50 disabled:text-gray-400 transition-colors"
+            className="px-4 py-2 bg-slate-700 text-slate-300 font-medium rounded-lg hover:bg-slate-600 disabled:bg-slate-800/50 disabled:text-slate-500 transition-colors"
           >
             Next →
           </button>

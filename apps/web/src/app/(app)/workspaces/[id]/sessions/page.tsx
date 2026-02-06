@@ -61,15 +61,15 @@ function SessionCard({ session }: { session: any }) {
     LOBBY: "bg-blue-100 text-blue-800 border-blue-200",
     ACTIVE: "bg-green-100 text-green-800 border-green-200",
     PAUSED: "bg-yellow-100 text-yellow-800 border-yellow-200",
-    ENDED: "bg-gray-100 text-gray-800 border-gray-200",
+    ENDED: "bg-slate-700 text-gray-800 border-slate-700",
   };
 
-  const statusColor = statusColors[session.status as keyof typeof statusColors] || "bg-gray-100 text-gray-800";
+  const statusColor = statusColors[session.status as keyof typeof statusColors] || "bg-slate-700 text-gray-800";
 
   return (
     <Link
       href={`/workspaces/${session.workspaceId}/sessions/${session.id}`}
-      className="block p-6 bg-white border border-gray-200 rounded-lg hover:shadow-lg transition-shadow"
+      className="block p-6 bg-white border border-slate-700 rounded-lg hover:shadow-lg transition-shadow"
     >
       <div className="flex items-start justify-between">
         <div className="flex-1">
@@ -82,14 +82,14 @@ function SessionCard({ session }: { session: any }) {
             </span>
           </div>
 
-          <div className="flex items-center gap-4 text-sm text-gray-600 mb-3">
+          <div className="flex items-center gap-4 text-sm text-slate-400 mb-3">
             <span>
               👥 {session._count.players} {session._count.players === 1 ? "player" : "players"}
             </span>
             <span>✓ {session._count.answers} answers</span>
           </div>
 
-          <div className="flex items-center gap-4 text-xs text-gray-500">
+          <div className="flex items-center gap-4 text-xs text-slate-400">
             <span>Code: <strong>{session.code}</strong></span>
             <span>•</span>
             <span>Host: {session.host.name || session.host.email}</span>
@@ -110,10 +110,10 @@ function SessionCard({ session }: { session: any }) {
 
 function SessionsEmptyState() {
   return (
-    <div className="text-center py-12 bg-white border border-gray-200 rounded-lg">
+    <div className="text-center py-12 bg-white border border-slate-700 rounded-lg">
       <div className="text-6xl mb-4">🎮</div>
       <h3 className="text-lg font-medium text-gray-900 mb-2">No sessions yet</h3>
-      <p className="text-gray-600 mb-6">Create your first live session to get started.</p>
+      <p className="text-slate-400 mb-6">Create your first live session to get started.</p>
     </div>
   );
 }
@@ -138,7 +138,7 @@ function StatusFilter({ currentStatus }: { currentStatus?: string }) {
             className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
               isActive
                 ? "bg-blue-600 text-white"
-                : "bg-white text-gray-700 border border-gray-300 hover:bg-gray-50"
+                : "bg-white text-slate-300 border border-slate-600 hover:bg-slate-800/50"
             }`}
           >
             {status.label}
@@ -194,14 +194,14 @@ export default async function SessionsPage({ params, searchParams }: PageProps) 
   const canCreate = hasPermission(membership.role as WorkspaceRole, Permission.SESSION_CREATE);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-800/50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Live Sessions</h1>
-              <p className="text-gray-600 mt-1">Create and manage live quiz sessions</p>
+              <p className="text-slate-400 mt-1">Create and manage live quiz sessions</p>
             </div>
             {canCreate && (
               <Link
@@ -222,7 +222,7 @@ export default async function SessionsPage({ params, searchParams }: PageProps) 
           fallback={
             <div className="space-y-4">
               {[...Array(3)].map((_, i) => (
-                <div key={i} className="h-32 bg-white border border-gray-200 rounded-lg animate-pulse" />
+                <div key={i} className="h-32 bg-white border border-slate-700 rounded-lg animate-pulse" />
               ))}
             </div>
           }

@@ -158,7 +158,7 @@ export function FileUploader({
         className={`
           relative border-2 border-dashed rounded-lg p-8
           transition-colors cursor-pointer
-          ${dragActive ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-gray-400"}
+          ${dragActive ? "border-blue-500 bg-blue-50" : "border-slate-600 hover:border-slate-500"}
           ${uploading ? "pointer-events-none opacity-60" : ""}
         `}
       >
@@ -167,23 +167,23 @@ export function FileUploader({
             <>
               <Loader2 className="h-12 w-12 text-blue-500 animate-spin" />
               <div className="w-full max-w-xs">
-                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div className="h-2 bg-slate-600 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-blue-500 transition-all duration-300"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
-                <p className="text-sm text-gray-600 mt-2">Uploading... {progress}%</p>
+                <p className="text-sm text-slate-400 mt-2">Uploading... {progress}%</p>
               </div>
             </>
           ) : (
             <>
-              <Upload className="h-12 w-12 text-gray-400" />
+              <Upload className="h-12 w-12 text-slate-500" />
               <div>
-                <p className="text-lg font-medium text-gray-700">
+                <p className="text-lg font-medium text-slate-300">
                   Drop file here or click to browse
                 </p>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-sm text-slate-400 mt-1">
                   {accept === "image/*" && "Images only"}
                   {accept === "audio/*" && "Audio files only"}
                   {accept === "video/*" && "Video files only"}

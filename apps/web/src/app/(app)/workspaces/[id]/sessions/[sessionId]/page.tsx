@@ -82,14 +82,14 @@ function SessionInfo({ session }: { session: any }) {
     LOBBY: "bg-blue-100 text-blue-800 border-blue-200",
     ACTIVE: "bg-green-100 text-green-800 border-green-200",
     PAUSED: "bg-yellow-100 text-yellow-800 border-yellow-200",
-    ENDED: "bg-gray-100 text-gray-800 border-gray-200",
+    ENDED: "bg-slate-700 text-gray-800 border-slate-700",
   };
 
-  const statusColor = statusColors[session.status as keyof typeof statusColors] || "bg-gray-100 text-gray-800";
+  const statusColor = statusColors[session.status as keyof typeof statusColors] || "bg-slate-700 text-gray-800";
   const themeColor = session.workspace?.themeColor || "#3B82F6";
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-6">
+    <div className="bg-white border border-slate-700 rounded-lg p-6">
       {/* Workspace Logo */}
       {session.workspace?.logo && (
         <div className="flex justify-center mb-4 pb-4 border-b border-gray-100">
@@ -115,16 +115,16 @@ function SessionInfo({ session }: { session: any }) {
             >
               {session.status}
             </span>
-            <span className="text-sm text-gray-600">
+            <span className="text-sm text-slate-400">
               Host: {session.host.name || session.host.email}
             </span>
           </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-4 pt-4 border-t border-gray-200">
+      <div className="grid grid-cols-3 gap-4 pt-4 border-t border-slate-700">
         <div>
-          <p className="text-sm text-gray-600">Session Code</p>
+          <p className="text-sm text-slate-400">Session Code</p>
           <p 
             className="text-2xl font-bold mt-1"
             style={{ color: themeColor }}
@@ -133,22 +133,22 @@ function SessionInfo({ session }: { session: any }) {
           </p>
         </div>
         <div>
-          <p className="text-sm text-gray-600">Active Players</p>
+          <p className="text-sm text-slate-400">Active Players</p>
           <p className="text-2xl font-bold text-gray-900 mt-1">{session.players.length}</p>
         </div>
         <div>
-          <p className="text-sm text-gray-600">Total Answers</p>
+          <p className="text-sm text-slate-400">Total Answers</p>
           <p className="text-2xl font-bold text-gray-900 mt-1">{session._count.answers}</p>
         </div>
       </div>
 
       {session.startedAt && (
-        <p className="text-xs text-gray-500 mt-4">
+        <p className="text-xs text-slate-400 mt-4">
           Started {formatDistanceToNow(new Date(session.startedAt), { addSuffix: true })}
         </p>
       )}
       {session.endedAt && (
-        <p className="text-xs text-gray-500 mt-4">
+        <p className="text-xs text-slate-400 mt-4">
           Ended {formatDistanceToNow(new Date(session.endedAt), { addSuffix: true })}
         </p>
       )}
@@ -159,16 +159,16 @@ function SessionInfo({ session }: { session: any }) {
 function PlayersList({ players }: { players: any[] }) {
   if (players.length === 0) {
     return (
-      <div className="bg-white border border-gray-200 rounded-lg p-6 text-center">
+      <div className="bg-white border border-slate-700 rounded-lg p-6 text-center">
         <div className="text-4xl mb-2">👥</div>
-        <p className="text-gray-600">No players yet</p>
-        <p className="text-sm text-gray-500 mt-1">Players will appear here when they join</p>
+        <p className="text-slate-400">No players yet</p>
+        <p className="text-sm text-slate-400 mt-1">Players will appear here when they join</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-6">
+    <div className="bg-white border border-slate-700 rounded-lg p-6">
       <h3 className="font-semibold text-gray-900 mb-4">
         Players ({players.length})
       </h3>
@@ -176,7 +176,7 @@ function PlayersList({ players }: { players: any[] }) {
         {players.map((player: any) => (
           <div
             key={player.id}
-            className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg"
+            className="flex items-center gap-3 p-3 bg-slate-800/50 rounded-lg"
           >
             {player.avatar ? (
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white font-bold">
@@ -189,7 +189,7 @@ function PlayersList({ players }: { players: any[] }) {
             )}
             <div className="flex-1">
               <p className="font-medium text-gray-900">{player.name}</p>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-slate-400">
                 Joined {formatDistanceToNow(new Date(player.joinedAt), { addSuffix: true })}
               </p>
             </div>
@@ -204,22 +204,22 @@ function QuizContent({ quiz }: { quiz: any }) {
   const totalItems = quiz.rounds.reduce((sum: number, round: any) => sum + round.items.length, 0);
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-6">
+    <div className="bg-white border border-slate-700 rounded-lg p-6">
       <h3 className="font-semibold text-gray-900 mb-4">
         Quiz Content ({quiz.rounds.length} rounds, {totalItems} items)
       </h3>
       <div className="space-y-4">
         {quiz.rounds.map((round: any, roundIndex: number) => (
-          <div key={round.id} className="border border-gray-200 rounded-lg p-4">
+          <div key={round.id} className="border border-slate-700 rounded-lg p-4">
             <h4 className="font-medium text-gray-900 mb-2">
               Round {roundIndex + 1}: {round.title}
             </h4>
             <div className="space-y-2">
               {round.items.map((item: any, itemIndex: number) => (
-                <div key={item.id} className="flex items-center gap-2 text-sm text-gray-600 pl-4">
-                  <span className="text-gray-400">{itemIndex + 1}.</span>
+                <div key={item.id} className="flex items-center gap-2 text-sm text-slate-400 pl-4">
+                  <span className="text-slate-500">{itemIndex + 1}.</span>
                   <span>{item.question?.title || "Question"}</span>
-                  <span className="text-xs text-gray-400">
+                  <span className="text-xs text-slate-500">
                     ({item.question?.type || "UNKNOWN"})
                   </span>
                 </div>
@@ -289,7 +289,7 @@ export default async function SessionPage({ params }: PageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-800/50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
@@ -306,10 +306,10 @@ export default async function SessionPage({ params }: PageProps) {
         <Suspense
           fallback={
             <div className="space-y-6">
-              <div className="h-48 bg-white border border-gray-200 rounded-lg animate-pulse" />
+              <div className="h-48 bg-white border border-slate-700 rounded-lg animate-pulse" />
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="h-64 bg-white border border-gray-200 rounded-lg animate-pulse" />
-                <div className="h-64 bg-white border border-gray-200 rounded-lg animate-pulse" />
+                <div className="h-64 bg-white border border-slate-700 rounded-lg animate-pulse" />
+                <div className="h-64 bg-white border border-slate-700 rounded-lg animate-pulse" />
               </div>
             </div>
           }

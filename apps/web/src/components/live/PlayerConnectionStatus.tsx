@@ -77,7 +77,7 @@ export function PlayerConnectionStatus({ socket, sessionCode }: PlayerConnection
       </h3>
       <div className="space-y-2 max-h-[300px] overflow-y-auto">
         {connections.length === 0 ? (
-          <div className="text-center text-gray-500 py-8">
+          <div className="text-center text-slate-400 py-8">
             No players connected yet
           </div>
         ) : (
@@ -86,13 +86,13 @@ export function PlayerConnectionStatus({ socket, sessionCode }: PlayerConnection
             return (
               <div
                 key={connection.playerId}
-                className="flex items-center justify-between p-3 rounded-lg border bg-white"
+                className="flex items-center justify-between p-3 rounded-lg border bg-slate-800"
               >
                 <div className="flex items-center gap-3">
                   <div className={`w-3 h-3 rounded-full ${getConnectionColor(quality)}`} />
                   <div>
                     <p className="font-medium">{connection.playerName}</p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-slate-400">
                       Connected {getConnectionDuration(connection.connectedAt)}
                     </p>
                   </div>

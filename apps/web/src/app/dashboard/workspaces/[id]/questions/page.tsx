@@ -252,15 +252,15 @@ export default function QuestionsPage() {
   };
 
   const getDifficultyColor = (difficulty: Difficulty) => {
-    if (difficulty <= 2) return "text-green-700 bg-green-50 border-green-200";
-    if (difficulty === 3) return "text-yellow-700 bg-yellow-50 border-yellow-200";
-    return "text-red-700 bg-red-50 border-red-200";
+    if (difficulty <= 2) return "text-green-400 bg-green-900/30 border-green-700/50";
+    if (difficulty === 3) return "text-yellow-400 bg-yellow-900/30 border-yellow-700/50";
+    return "text-red-400 bg-red-900/30 border-red-700/50";
   };
 
   const getStatusColor = (status: Status) => {
     return status === "PUBLISHED"
-      ? "text-blue-700 bg-blue-50 border-blue-200"
-      : "text-gray-700 bg-gray-50 border-gray-200";
+      ? "text-blue-400 bg-blue-900/30 border-blue-700/50"
+      : "text-slate-400 bg-slate-800/50 border-slate-700/50";
   };
 
   return (
@@ -268,8 +268,8 @@ export default function QuestionsPage() {
       {/* Header */}
       <div className="mb-6 flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold mb-2">Question Bank</h1>
-          <p className="text-gray-600">Create and manage quiz questions</p>
+          <h1 className="text-3xl font-bold mb-2 text-white">Question Bank</h1>
+          <p className="text-slate-400">Create and manage quiz questions</p>
         </div>
         <div className="flex gap-2">
           {/* Import Button */}
@@ -307,7 +307,7 @@ export default function QuestionsPage() {
       </div>
 
       {/* Filters */}
-      <Card className="mb-6 p-4">
+      <div className="backdrop-blur-xl bg-slate-800/40 border border-slate-700/50 rounded-xl mb-6 p-4">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Search */}
           <div className="lg:col-span-2">
@@ -319,7 +319,7 @@ export default function QuestionsPage() {
                 setSearchQuery(e.target.value);
                 setPage(1);
               }}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="w-full px-4 py-2 bg-slate-900/50 border border-slate-600 text-white placeholder:text-slate-500 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
             />
           </div>
 
@@ -330,7 +330,7 @@ export default function QuestionsPage() {
               setTypeFilter(e.target.value as QuestionType | "ALL");
               setPage(1);
             }}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="px-4 py-2 bg-slate-900/50 border border-slate-600 text-white rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           >
             <option value="ALL">All Types</option>
             {Object.entries(QUESTION_TYPE_LABELS).map(([value, label]) => (
@@ -348,7 +348,7 @@ export default function QuestionsPage() {
               setDifficultyFilter(value === "ALL" ? "ALL" : parseInt(value) as Difficulty);
               setPage(1);
             }}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="px-4 py-2 bg-slate-900/50 border border-slate-600 text-white rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           >
             <option value="ALL">All Difficulties</option>
             <option value="1">Very Easy</option>
@@ -365,7 +365,7 @@ export default function QuestionsPage() {
               setStatusFilter(e.target.value as Status | "ALL");
               setPage(1);
             }}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            className="px-4 py-2 bg-slate-900/50 border border-slate-600 text-white rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
           >
             <option value="ALL">All Status</option>
             <option value="DRAFT">Draft</option>
@@ -376,7 +376,7 @@ export default function QuestionsPage() {
         {/* Tag Filter */}
         {availableTags.length > 0 && (
           <div className="mt-4 flex flex-wrap gap-2">
-            <span className="text-sm text-gray-600 py-1">Tags:</span>
+            <span className="text-sm text-slate-400 py-1">Tags:</span>
             <button
               onClick={() => {
                 setTagFilter("");
@@ -385,7 +385,7 @@ export default function QuestionsPage() {
               className={`px-3 py-1 text-sm rounded-full border transition-colors ${
                 !tagFilter
                   ? "bg-primary-600 text-white border-primary-600"
-                  : "bg-white text-gray-700 border-gray-300 hover:border-gray-400"
+                  : "bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500"
               }`}
             >
               All
@@ -400,7 +400,7 @@ export default function QuestionsPage() {
                 className={`px-3 py-1 text-sm rounded-full border transition-colors ${
                   tagFilter === tag
                     ? "bg-primary-600 text-white border-primary-600"
-                    : "bg-white text-gray-700 border-gray-300 hover:border-gray-400"
+                    : "bg-slate-800 text-slate-300 border-slate-600 hover:border-slate-500"
                 }`}
               >
                 {tag}
@@ -408,19 +408,19 @@ export default function QuestionsPage() {
             ))}
           </div>
         )}
-      </Card>
+      </div>
 
       {/* Questions List */}
       {loading ? (
         <div className="text-center py-12">
           <div className="spinner mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading questions...</p>
+          <p className="text-slate-400">Loading questions...</p>
         </div>
       ) : questions.length === 0 ? (
         <div className="text-center py-12">
           <div className="text-6xl mb-4">📝</div>
-          <h3 className="text-xl font-semibold mb-2">No questions found</h3>
-          <p className="text-gray-600 mb-6">
+          <h3 className="text-xl font-semibold mb-2 text-white">No questions found</h3>
+          <p className="text-slate-400 mb-6">
             {searchQuery || typeFilter !== "ALL" || statusFilter !== "ALL"
               ? "Try adjusting your filters"
               : "Create your first question to get started"}
@@ -433,7 +433,7 @@ export default function QuestionsPage() {
         <>
           <div className="space-y-3">
             {questions.map((question) => (
-              <Card key={question.id} className="p-4 hover:shadow-md transition-shadow">
+              <div key={question.id} className="backdrop-blur-xl bg-slate-800/40 border border-slate-700/50 rounded-xl p-4 hover:bg-slate-800/60 transition-all">
                 <div className="flex items-start gap-4">
                   {/* Icon */}
                   <div className="text-3xl flex-shrink-0">
@@ -443,16 +443,16 @@ export default function QuestionsPage() {
                   {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-4 mb-2">
-                      <h3 className="font-semibold text-lg">{question.title}</h3>
+                      <h3 className="font-semibold text-lg text-white">{question.title}</h3>
                       <div className="flex gap-2 flex-shrink-0">
                         <Link href={`/dashboard/workspaces/${workspaceId}/questions/${question.id}/edit`}>
-                          <button className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors">
+                          <button className="px-3 py-1.5 text-sm bg-slate-700 hover:bg-slate-600 text-slate-200 rounded transition-colors">
                             Edit
                           </button>
                         </Link>
                         <button
                           onClick={() => handleDelete(question.id)}
-                          className="px-3 py-1.5 text-sm bg-red-50 hover:bg-red-100 text-red-700 rounded transition-colors"
+                          className="px-3 py-1.5 text-sm bg-red-900/50 hover:bg-red-900/70 text-red-300 rounded transition-colors"
                         >
                           Delete
                         </button>
@@ -460,11 +460,11 @@ export default function QuestionsPage() {
                     </div>
 
                     {question.prompt && (
-                      <p className="text-sm text-gray-600 mb-2">{question.prompt}</p>
+                      <p className="text-sm text-slate-400 mb-2">{question.prompt}</p>
                     )}
 
                     <div className="flex flex-wrap items-center gap-3 text-sm mb-3">
-                      <span className="text-gray-600">{QUESTION_TYPE_LABELS[question.type]}</span>
+                      <span className="text-slate-400">{QUESTION_TYPE_LABELS[question.type]}</span>
                       <span className={`px-2 py-1 rounded border ${getDifficultyColor(question.difficulty)}`}>
                         {getDifficultyLabel(question.difficulty)}
                       </span>
@@ -472,10 +472,10 @@ export default function QuestionsPage() {
                         {question.status}
                       </span>
                       {question.options && question.options.length > 0 && (
-                        <span className="text-gray-600">📝 {question.options.length} options</span>
+                        <span className="text-slate-400">📝 {question.options.length} options</span>
                       )}
                       {question.media && question.media.length > 0 && (
-                        <span className="text-gray-600">📎 {question.media.length} media</span>
+                        <span className="text-slate-400">📎 {question.media.length} media</span>
                       )}
                     </div>
 
@@ -490,7 +490,7 @@ export default function QuestionsPage() {
                           {tags.map((tag: string) => (
                             <span
                               key={tag}
-                              className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded"
+                              className="px-2 py-1 text-xs bg-slate-700 text-slate-300 rounded"
                             >
                               #{tag}
                             </span>
@@ -499,12 +499,12 @@ export default function QuestionsPage() {
                       );
                     })()}
 
-                    <div className="text-xs text-gray-500">
+                    <div className="text-xs text-slate-500">
                       Created by {question.creator.name || question.creator.email}
                     </div>
                   </div>
                 </div>
-              </Card>
+              </div>
             ))}
           </div>
 
@@ -518,7 +518,7 @@ export default function QuestionsPage() {
               >
                 Previous
               </Button>
-              <span className="px-4 py-2 text-gray-700">
+              <span className="px-4 py-2 text-slate-300">
                 Page {page} of {totalPages}
               </span>
               <Button

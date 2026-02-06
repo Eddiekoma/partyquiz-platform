@@ -95,7 +95,7 @@ export function SpotifyConnectCard() {
           </div>
         ) : (
           <div className="space-y-4">
-            <p className="text-gray-600">
+            <p className="text-slate-400">
               Connect your Spotify account to search for tracks and create music-based questions.
             </p>
             <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
