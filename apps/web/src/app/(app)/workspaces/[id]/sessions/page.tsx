@@ -7,8 +7,8 @@ import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 
 interface PageProps {
-  params: { id: string };
-  searchParams: { status?: string };
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ status?: string }>;
 }
 
 async function getWorkspaceSessions(workspaceId: string, status?: string) {
@@ -166,6 +166,10 @@ async function SessionsList({ workspaceId, status }: { workspaceId: string; stat
 }
 
 export default async function SessionsPage({ params, searchParams }: PageProps) {
+  // Next.js 16: params and searchParams are Promises
+  const resolvedParams = await params;
+  const resolvedSearchParams = await searchParams;
+  
   const session = await auth();
   if (!session?.user?.id) {
     redirect("/auth/signin");
@@ -174,7 +178,7 @@ export default async function SessionsPage({ params, searchParams }: PageProps) 
   // Check workspace membership and permissions
   const membership = await prisma.workspaceMember.findFirst({
     where: {
-      workspaceId: params.id,
+      workspaceId: resolvedParams.id,
       userId: session.user.id,
     },
     include: {
@@ -201,7 +205,7 @@ export default async function SessionsPage({ params, searchParams }: PageProps) 
             </div>
             {canCreate && (
               <Link
-                href={`/workspaces/${params.id}/sessions/new`}
+                href={`/workspaces/${resolvedParams.id}/sessions/new`}
                 className="inline-flex items-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
               >
                 <span className="mr-2">▶️</span>
@@ -210,7 +214,7 @@ export default async function SessionsPage({ params, searchParams }: PageProps) 
             )}
           </div>
 
-          <StatusFilter currentStatus={searchParams.status} />
+          <StatusFilter currentStatus={resolvedSearchParams.status} />
         </div>
 
         {/* Sessions List */}
@@ -223,7 +227,7 @@ export default async function SessionsPage({ params, searchParams }: PageProps) 
             </div>
           }
         >
-          <SessionsList workspaceId={params.id} status={searchParams.status} />
+          <SessionsList workspaceId={resolvedParams.id} status={resolvedSearchParams.status} />
         </Suspense>
       </div>
     </div>

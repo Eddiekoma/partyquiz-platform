@@ -9,7 +9,7 @@ import SessionControl from "./SessionControl";
 import HostControlPanel from "./HostControlPanel";
 
 interface PageProps {
-  params: { id: string; sessionId: string };
+  params: Promise<{ id: string; sessionId: string }>;
 }
 
 async function getSession(workspaceId: string, sessionId: string) {
@@ -268,6 +268,9 @@ async function SessionDetails({ workspaceId, sessionId, userId }: { workspaceId:
 }
 
 export default async function SessionPage({ params }: PageProps) {
+  // Next.js 16: params is a Promise
+  const resolvedParams = await params;
+  
   const session = await auth();
   if (!session?.user?.id) {
     redirect("/auth/signin");
@@ -276,7 +279,7 @@ export default async function SessionPage({ params }: PageProps) {
   // Check workspace membership
   const membership = await prisma.workspaceMember.findFirst({
     where: {
-      workspaceId: params.id,
+      workspaceId: resolvedParams.id,
       userId: session.user.id,
     },
   });
@@ -291,7 +294,7 @@ export default async function SessionPage({ params }: PageProps) {
         {/* Header */}
         <div className="mb-8">
           <Link
-            href={`/workspaces/${params.id}/sessions`}
+            href={`/workspaces/${resolvedParams.id}/sessions`}
             className="text-blue-600 hover:text-blue-700 font-medium mb-4 inline-block"
           >
             ← Back to Sessions
@@ -311,7 +314,7 @@ export default async function SessionPage({ params }: PageProps) {
             </div>
           }
         >
-          <SessionDetails workspaceId={params.id} sessionId={params.sessionId} userId={session.user.id} />
+          <SessionDetails workspaceId={resolvedParams.id} sessionId={resolvedParams.sessionId} userId={session.user.id} />
         </Suspense>
       </div>
     </div>

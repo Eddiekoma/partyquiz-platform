@@ -3,11 +3,11 @@ import { auth } from "@/lib/auth";
 import { SignInForm } from "./SignInForm";
 
 type PageProps = {
-  searchParams?: {
+  searchParams: Promise<{
     callbackUrl?: string | string[];
     verified?: string | string[];
     error?: string | string[];
-  };
+  }>;
 };
 
 function firstParam(value: string | string[] | undefined) {
@@ -43,9 +43,12 @@ function sanitizeCallbackUrl(rawCallbackUrl: string | undefined) {
 }
 
 export default async function SignInPage({ searchParams }: PageProps) {
-  const callbackUrl = sanitizeCallbackUrl(firstParam(searchParams?.callbackUrl));
-  const verified = firstParam(searchParams?.verified) === "true";
-  const authError = firstParam(searchParams?.error) ?? null;
+  // Next.js 16: searchParams is a Promise
+  const params = await searchParams;
+  
+  const callbackUrl = sanitizeCallbackUrl(firstParam(params?.callbackUrl));
+  const verified = firstParam(params?.verified) === "true";
+  const authError = firstParam(params?.error) ?? null;
 
   const session = await auth();
   if (session?.user) {

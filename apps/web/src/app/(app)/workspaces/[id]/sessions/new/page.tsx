@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, use } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -14,10 +14,13 @@ interface Quiz {
 }
 
 interface NewSessionPageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }
 
 export default function NewSessionPage({ params }: NewSessionPageProps) {
+  // Next.js 16: use() hook to unwrap params Promise in client components
+  const resolvedParams = use(params);
+  
   const router = useRouter();
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [selectedQuizId, setSelectedQuizId] = useState<string>("");
@@ -29,7 +32,7 @@ export default function NewSessionPage({ params }: NewSessionPageProps) {
   useEffect(() => {
     async function loadQuizzes() {
       try {
-        const res = await fetch(`/api/workspaces/${params.id}/quizzes`);
+        const res = await fetch(`/api/workspaces/${resolvedParams.id}/quizzes`);
         if (!res.ok) throw new Error("Failed to load quizzes");
         const data = await res.json();
         setQuizzes(data);
@@ -40,7 +43,7 @@ export default function NewSessionPage({ params }: NewSessionPageProps) {
       }
     }
     loadQuizzes();
-  }, [params.id]);
+  }, [resolvedParams.id]);
 
   async function handleCreateSession(e: React.FormEvent) {
     e.preventDefault();
@@ -53,7 +56,7 @@ export default function NewSessionPage({ params }: NewSessionPageProps) {
     setError(null);
 
     try {
-      const res = await fetch(`/api/workspaces/${params.id}/sessions`, {
+      const res = await fetch(`/api/workspaces/${resolvedParams.id}/sessions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ quizId: selectedQuizId }),
@@ -67,7 +70,7 @@ export default function NewSessionPage({ params }: NewSessionPageProps) {
       const session = await res.json();
       
       // Redirect to session page
-      router.push(`/workspaces/${params.id}/sessions/${session.id}`);
+      router.push(`/workspaces/${resolvedParams.id}/sessions/${session.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create session");
       setCreating(false);
@@ -94,7 +97,7 @@ export default function NewSessionPage({ params }: NewSessionPageProps) {
             <h2 className="text-2xl font-bold text-gray-900 mb-2">No quizzes available</h2>
             <p className="text-gray-600 mb-6">You need to create a quiz before starting a session.</p>
             <Link
-              href={`/workspaces/${params.id}/quizzes/new`}
+              href={`/workspaces/${resolvedParams.id}/quizzes/new`}
               className="inline-flex items-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700"
             >
               Create Quiz
@@ -111,7 +114,7 @@ export default function NewSessionPage({ params }: NewSessionPageProps) {
         {/* Header */}
         <div className="mb-8">
           <Link
-            href={`/workspaces/${params.id}/sessions`}
+            href={`/workspaces/${resolvedParams.id}/sessions`}
             className="text-blue-600 hover:text-blue-700 font-medium mb-4 inline-block"
           >
             ← Back to Sessions
@@ -178,7 +181,7 @@ export default function NewSessionPage({ params }: NewSessionPageProps) {
               {creating ? "Creating..." : "Create Session"}
             </button>
             <Link
-              href={`/workspaces/${params.id}/sessions`}
+              href={`/workspaces/${resolvedParams.id}/sessions`}
               className="px-4 py-3 bg-white text-gray-700 font-medium rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors"
             >
               Cancel
