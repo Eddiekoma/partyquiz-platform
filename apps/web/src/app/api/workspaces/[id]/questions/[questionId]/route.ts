@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { auth } from "@/auth";
 import { hasPermission, WorkspaceRole, Permission, AuditAction, EntityType } from "@/lib/permissions";
 import { z } from "zod";
 

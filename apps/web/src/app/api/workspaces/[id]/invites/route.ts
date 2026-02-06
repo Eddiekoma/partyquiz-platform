@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
+import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, WorkspaceRole } from "@partyquiz/shared";
 import { z } from "zod";
@@ -9,6 +9,67 @@ const inviteMemberSchema = z.object({
   email: z.string().email(),
   role: z.enum(["ADMIN", "EDITOR", "VIEWER"]),
 });
+
+// GET /api/workspaces/[id]/invites - List pending invites for workspace
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id: workspaceId } = await params;
+
+  try {
+    // Check if user is a member with invite permissions
+    const member = await prisma.workspaceMember.findUnique({
+      where: {
+        workspaceId_userId: {
+          workspaceId,
+          userId: session.user.id,
+        },
+      },
+    });
+
+    if (!member || !hasPermission(member.role as WorkspaceRole, "MEMBER_INVITE")) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    // Get all pending (non-accepted, non-expired) invites
+    const invites = await prisma.workspaceInvite.findMany({
+      where: {
+        workspaceId,
+        acceptedAt: null,
+        expiresAt: {
+          gt: new Date(),
+        },
+      },
+      include: {
+        invitedBy: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+
+    return NextResponse.json(invites);
+  } catch (error) {
+    console.error("Failed to fetch invites:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch invites" },
+      { status: 500 }
+    );
+  }
+}
 
 // POST /api/workspaces/[id]/invites - Invite member to workspace
 export async function POST(

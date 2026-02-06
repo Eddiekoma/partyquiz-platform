@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 import { cookies, headers } from "next/headers";
 
 export async function GET() {
@@ -25,7 +24,7 @@ export async function GET() {
     console.log("[DEBUG-SESSION] Non-secure token present:", !!nonSecureToken);
     
     console.log("[DEBUG-SESSION] Calling getServerSession...");
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     console.log("[DEBUG-SESSION] Session result:", session);
     
     return NextResponse.json({

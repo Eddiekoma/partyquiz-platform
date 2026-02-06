@@ -1,65 +1,75 @@
-import NextAuth, { NextAuthOptions } from "next-auth";
-import { getServerSession } from "next-auth/next";
+import NextAuth from "next-auth";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import CredentialsProvider from "next-auth/providers/credentials";
-import GoogleProvider from "next-auth/providers/google";
-import EmailProvider from "next-auth/providers/email";
-import { cookies } from "next/headers";
+import Credentials from "next-auth/providers/credentials";
+import Google from "next-auth/providers/google";
+import Nodemailer from "next-auth/providers/nodemailer";
 import { prisma } from "./prisma";
 import { getEnv } from "./env";
 import { verifyPassword } from "./password";
-import { sendMagicLinkEmail } from "./email";
 
 const env = getEnv();
 
-// Credentials provider for email + password login
-const credentialsProvider = CredentialsProvider({
-  id: "credentials",
-  name: "Email & Wachtwoord",
-  credentials: {
-    email: { label: "Email", type: "email" },
-    password: { label: "Wachtwoord", type: "password" },
-  },
-  async authorize(credentials) {
-    if (!credentials?.email || !credentials?.password) {
-      throw new Error("Email en wachtwoord zijn verplicht");
-    }
+// Build providers array dynamically
+const providers: any[] = [
+  Credentials({
+    id: "credentials",
+    name: "Email & Wachtwoord",
+    credentials: {
+      email: { label: "Email", type: "email" },
+      password: { label: "Wachtwoord", type: "password" },
+    },
+    async authorize(credentials) {
+      if (!credentials?.email || !credentials?.password) {
+        throw new Error("Email en wachtwoord zijn verplicht");
+      }
 
-    const user = await prisma.user.findUnique({
-      where: { email: credentials.email.toLowerCase() },
-    });
+      const user = await prisma.user.findUnique({
+        where: { email: (credentials.email as string).toLowerCase() },
+      });
 
-    if (!user) {
-      throw new Error("Geen account gevonden met dit emailadres");
-    }
+      if (!user) {
+        throw new Error("Geen account gevonden met dit emailadres");
+      }
 
-    // Cast to any for local dev - Prisma types are regenerated in Docker with new fields
-    const userWithPassword = user as any;
-    if (!userWithPassword.passwordHash) {
-      throw new Error("Dit account gebruikt een andere inlogmethode (bijv. Google)");
-    }
+      const userWithPassword = user as any;
+      if (!userWithPassword.passwordHash) {
+        throw new Error("Dit account gebruikt een andere inlogmethode (bijv. Google)");
+      }
 
-    if (!user.emailVerified) {
-      throw new Error("Verifieer eerst je email voordat je kunt inloggen");
-    }
+      if (!user.emailVerified) {
+        throw new Error("Verifieer eerst je email voordat je kunt inloggen");
+      }
 
-    const isValid = await verifyPassword(credentials.password, userWithPassword.passwordHash);
-    if (!isValid) {
-      throw new Error("Ongeldig wachtwoord");
-    }
+      const isValid = await verifyPassword(credentials.password as string, userWithPassword.passwordHash);
+      if (!isValid) {
+        throw new Error("Ongeldig wachtwoord");
+      }
 
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      image: user.image,
-    };
-  },
-});
+      return {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        image: user.image,
+      };
+    },
+  }),
+];
 
-// Email provider for magic link (kept as fallback)
-const emailProvider = env.EMAIL_SMTP_HOST && env.EMAIL_SMTP_USER && env.EMAIL_SMTP_PASS && env.EMAIL_FROM
-  ? EmailProvider({
+// Add Google OAuth if configured
+if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
+  providers.push(
+    Google({
+      clientId: env.GOOGLE_CLIENT_ID,
+      clientSecret: env.GOOGLE_CLIENT_SECRET,
+      allowDangerousEmailAccountLinking: true,
+    })
+  );
+}
+
+// Add Nodemailer if configured
+if (env.EMAIL_SMTP_HOST && env.EMAIL_SMTP_USER && env.EMAIL_SMTP_PASS && env.EMAIL_FROM) {
+  providers.push(
+    Nodemailer({
       server: {
         host: env.EMAIL_SMTP_HOST,
         port: parseInt(env.EMAIL_SMTP_PORT || "587"),
@@ -69,29 +79,11 @@ const emailProvider = env.EMAIL_SMTP_HOST && env.EMAIL_SMTP_USER && env.EMAIL_SM
         },
       },
       from: env.EMAIL_FROM,
-      sendVerificationRequest: async ({ identifier: email, url }) => {
-        await sendMagicLinkEmail(email, url);
-      },
     })
-  : null;
+  );
+}
 
-// Google OAuth provider
-const googleProvider = env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
-  ? GoogleProvider({
-      clientId: env.GOOGLE_CLIENT_ID,
-      clientSecret: env.GOOGLE_CLIENT_SECRET,
-      allowDangerousEmailAccountLinking: true, // Allow linking with existing accounts
-    })
-  : null;
-
-// Build providers array
-const providers = [
-  credentialsProvider,
-  ...(emailProvider ? [emailProvider] : []),
-  ...(googleProvider ? [googleProvider] : []),
-];
-
-export const authOptions: NextAuthOptions = {
+export const authConfig = {
   adapter: PrismaAdapter(prisma),
   providers,
   pages: {
@@ -101,27 +93,27 @@ export const authOptions: NextAuthOptions = {
     newUser: "/dashboard", // Redirect new users to dashboard
   },
   session: {
-    strategy: "jwt", // Use JWT strategy - required for CredentialsProvider
+    strategy: "jwt" as const, // Use JWT strategy - required for CredentialsProvider
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   callbacks: {
-    async jwt({ token, user, account }) {
+    jwt({ token, user }: any) {
       // Initial sign in - add user id to token
       if (user) {
         token.id = user.id;
       }
       return token;
     },
-    async session({ session, token }) {
+    session({ session, token }: any) {
       // Add user id from token to session
       if (session.user && token.id) {
-        session.user.id = token.id as string;
+        (session.user as any).id = token.id as string;
       }
       return session;
     },
-    async signIn({ user, account }) {
+    async signIn({ user, account }: any) {
       // For OAuth providers, auto-verify email
-      if (account?.provider === "google" && user.email) {
+      if (account?.provider === "google" && user?.email) {
         const existingUser = await prisma.user.findUnique({
           where: { email: user.email },
         });
@@ -139,18 +131,8 @@ export const authOptions: NextAuthOptions = {
   secret: env.NEXTAUTH_SECRET || "temp-build-secret-change-in-production",
 };
 
-const handler = NextAuth(authOptions);
-export { handler as GET, handler as POST };
+// NextAuth v5 export
+export const { handlers, auth, signIn, signOut } = NextAuth(authConfig);
 
-// Helper function to get session in server components
-export async function auth() {
-  // Access cookies to ensure they're available in the request context
-  const cookieStore = await cookies();
-  const sessionToken = cookieStore.get("__Secure-next-auth.session-token")?.value;
-  console.log("[AUTH] Session token present:", !!sessionToken);
-  
-  const session = await getServerSession(authOptions);
-  console.log("[AUTH] getServerSession result:", session ? `User: ${session.user?.email}` : "null");
-  return session;
-}
-
+// Export handlers for API route
+export const { GET, POST } = handlers;

@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Card, CardHeader, CardTitle, CardContent, Button } from "@/components/ui";
 import Link from "next/link";
 
 interface WorkspaceMember {
@@ -80,7 +79,10 @@ export default function WorkspaceDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-gray-600">Loading workspace...</div>
+        <div className="text-slate-400 flex items-center gap-3">
+          <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+          Workspace laden...
+        </div>
       </div>
     );
   }
@@ -92,125 +94,209 @@ export default function WorkspaceDetailPage() {
   const canInvite = ["OWNER", "ADMIN"].includes(workspace.role);
   const canDelete = workspace.role === "OWNER";
 
+  const getRoleBadge = (role: string) => {
+    const styles: Record<string, string> = {
+      OWNER: "from-yellow-500 to-orange-500",
+      ADMIN: "from-purple-500 to-pink-500",
+      EDITOR: "from-blue-500 to-cyan-500",
+      VIEWER: "from-slate-500 to-slate-600",
+    };
+    return styles[role] || styles.VIEWER;
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
+      {/* Header */}
       <div className="flex justify-between items-start">
         <div>
-          <div className="flex items-center space-x-3">
-            <h1 className="text-3xl font-bold text-gray-900">{workspace.name}</h1>
-            <span className="text-sm bg-primary-100 text-primary-700 px-3 py-1 rounded-full">
+          <Link 
+            href="/dashboard/workspaces"
+            className="text-slate-400 hover:text-white text-sm flex items-center gap-1 mb-2"
+          >
+            ← Alle workspaces
+          </Link>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+              {workspace.name}
+            </h1>
+            <span className={`text-xs px-2 py-1 rounded-full text-white bg-gradient-to-r ${getRoleBadge(workspace.role)}`}>
               {workspace.role}
             </span>
           </div>
           {workspace.description && (
-            <p className="mt-2 text-gray-600">{workspace.description}</p>
+            <p className="mt-2 text-slate-400">{workspace.description}</p>
           )}
         </div>
-        <div className="flex space-x-3">
-          <Link href={`/dashboard/workspaces/${workspace.id}/questions`}>
-            <Button>View Questions</Button>
-          </Link>
+        <div className="flex gap-3">
           {canDelete && (
-            <Button variant="danger" onClick={handleDelete}>
-              Delete
-            </Button>
+            <button
+              onClick={handleDelete}
+              className="px-4 py-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl transition-all duration-200"
+            >
+              Verwijderen
+            </button>
           )}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Questions</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-bold text-primary-600">
-              {workspace._count.questions}
-            </div>
-            <p className="text-gray-600 mt-2">questions in this workspace</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Quizzes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-bold text-secondary-600">
-              {workspace._count.quizzes}
-            </div>
-            <p className="text-gray-600 mt-2">quizzes ready to play</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Members</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-4xl font-bold text-green-600">
-              {workspace.members.length}
-            </div>
-            <p className="text-gray-600 mt-2">team members</p>
-          </CardContent>
-        </Card>
+      {/* Navigation Tabs */}
+      <div className="flex gap-2 flex-wrap">
+        <Link 
+          href={`/dashboard/workspaces/${workspace.id}/questions`}
+          className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-all duration-200 flex items-center gap-2"
+        >
+          <span>📝</span> Vragen
+        </Link>
+        <Link 
+          href={`/dashboard/workspaces/${workspace.id}/quizzes`}
+          className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-all duration-200 flex items-center gap-2"
+        >
+          <span>🎯</span> Quizzen
+        </Link>
+        <Link 
+          href={`/dashboard/workspaces/${workspace.id}/members`}
+          className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-all duration-200 flex items-center gap-2"
+        >
+          <span>👥</span> Team
+        </Link>
+        <Link 
+          href={`/dashboard/workspaces/${workspace.id}/media`}
+          className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-all duration-200 flex items-center gap-2"
+        >
+          <span>🎵</span> Media
+        </Link>
+        <Link 
+          href={`/dashboard/workspaces/${workspace.id}/branding`}
+          className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-all duration-200 flex items-center gap-2"
+        >
+          <span>🎨</span> Branding
+        </Link>
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle>Team Members</CardTitle>
-            {canInvite && (
-              <Button size="sm" onClick={() => setShowInviteModal(true)}>
-                + Invite Member
-              </Button>
-            )}
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="glass-card p-6 group hover:border-blue-500/30 transition-all duration-300">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
+              <span className="text-lg">📝</span>
+            </div>
+            <h3 className="text-sm font-medium text-slate-400">Vragen</h3>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {workspace.members.map((member) => (
-              <div
-                key={member.id}
-                className="flex justify-between items-center p-3 bg-gray-50 rounded-lg"
+          <div className="text-4xl font-bold text-white">{workspace._count.questions}</div>
+          <p className="text-slate-500 text-sm mt-1">in de vragenbank</p>
+        </div>
+
+        <div className="glass-card p-6 group hover:border-purple-500/30 transition-all duration-300">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+              <span className="text-lg">🎯</span>
+            </div>
+            <h3 className="text-sm font-medium text-slate-400">Quizzen</h3>
+          </div>
+          <div className="text-4xl font-bold text-white">{workspace._count.quizzes}</div>
+          <p className="text-slate-500 text-sm mt-1">klaar om te spelen</p>
+        </div>
+
+        <div className="glass-card p-6 group hover:border-green-500/30 transition-all duration-300">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
+              <span className="text-lg">👥</span>
+            </div>
+            <h3 className="text-sm font-medium text-slate-400">Team</h3>
+          </div>
+          <div className="text-4xl font-bold text-white">{workspace.members.length}</div>
+          <p className="text-slate-500 text-sm mt-1">teamleden</p>
+        </div>
+      </div>
+
+      {/* Team Members Preview */}
+      <div className="glass-card p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+            <span>👥</span> Team Leden
+          </h3>
+          <div className="flex gap-2">
+            {canInvite && (
+              <button
+                onClick={() => setShowInviteModal(true)}
+                className="px-3 py-1.5 text-sm bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:from-blue-600 hover:to-cyan-600 transition-all duration-200"
               >
+                + Uitnodigen
+              </button>
+            )}
+            <Link 
+              href={`/dashboard/workspaces/${workspace.id}/members`}
+              className="px-3 py-1.5 text-sm text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-200"
+            >
+              Alle bekijken →
+            </Link>
+          </div>
+        </div>
+        
+        <div className="space-y-2">
+          {workspace.members.slice(0, 5).map((member) => (
+            <div
+              key={member.id}
+              className="flex justify-between items-center p-3 rounded-xl bg-white/5"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-sm font-semibold">
+                  {member.user.name?.[0]?.toUpperCase() || member.user.email[0].toUpperCase()}
+                </div>
                 <div>
-                  <div className="font-semibold text-gray-900">
-                    {member.user.name || member.user.email}
+                  <div className="font-medium text-white text-sm">
+                    {member.user.name || member.user.email.split("@")[0]}
                   </div>
                   {member.user.name && (
-                    <div className="text-sm text-gray-600">{member.user.email}</div>
-                  )}
-                </div>
-                <div className="flex items-center space-x-3">
-                  <span className="text-sm bg-gray-200 text-gray-700 px-3 py-1 rounded-full">
-                    {member.role}
-                  </span>
-                  {member.role !== "OWNER" && canInvite && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={async () => {
-                        if (confirm("Remove this member from the workspace?")) {
-                          const res = await fetch(
-                            `/api/workspaces/${workspace.id}/members/${member.userId}`,
-                            { method: "DELETE" }
-                          );
-                          if (res.ok) {
-                            fetchWorkspace();
-                          }
-                        }
-                      }}
-                    >
-                      Remove
-                    </Button>
+                    <div className="text-xs text-slate-500">{member.user.email}</div>
                   )}
                 </div>
               </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+              <span className={`text-xs px-2 py-1 rounded-full text-white bg-gradient-to-r ${getRoleBadge(member.role)}`}>
+                {member.role}
+              </span>
+            </div>
+          ))}
+          {workspace.members.length > 5 && (
+            <p className="text-center text-sm text-slate-500 pt-2">
+              En {workspace.members.length - 5} meer...
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="glass-card p-6">
+        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <span>⚡</span> Snelle Acties
+        </h3>
+        <div className="grid md:grid-cols-3 gap-4">
+          <Link 
+            href={`/dashboard/workspaces/${workspace.id}/questions/new`}
+            className="p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors group"
+          >
+            <div className="text-2xl mb-2">➕</div>
+            <h4 className="font-medium text-white group-hover:text-blue-400 transition-colors">Nieuwe Vraag</h4>
+            <p className="text-xs text-slate-500">Voeg een vraag toe aan de bank</p>
+          </Link>
+          <Link 
+            href={`/dashboard/workspaces/${workspace.id}/quizzes/new`}
+            className="p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors group"
+          >
+            <div className="text-2xl mb-2">🎯</div>
+            <h4 className="font-medium text-white group-hover:text-purple-400 transition-colors">Nieuwe Quiz</h4>
+            <p className="text-xs text-slate-500">Maak een quiz van je vragen</p>
+          </Link>
+          <Link 
+            href={`/(app)/workspaces/${workspace.id}/sessions`}
+            className="p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors group"
+          >
+            <div className="text-2xl mb-2">🚀</div>
+            <h4 className="font-medium text-white group-hover:text-green-400 transition-colors">Live Sessie</h4>
+            <p className="text-xs text-slate-500">Start een live quiz sessie</p>
+          </Link>
+        </div>
+      </div>
 
       {showInviteModal && (
         <InviteMemberModal
@@ -218,7 +304,7 @@ export default function WorkspaceDetailPage() {
           onClose={() => setShowInviteModal(false)}
           onInvited={() => {
             setShowInviteModal(false);
-            // Optionally refresh workspace
+            fetchWorkspace();
           }}
         />
       )}
@@ -266,15 +352,15 @@ function InviteMemberModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <Card className="max-w-md w-full" padding="lg">
-        <CardHeader>
-          <CardTitle>Invite Team Member</CardTitle>
-        </CardHeader>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+      <div className="glass-card max-w-md w-full p-6">
+        <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
+          <span>✉️</span> Team Lid Uitnodigen
+        </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-              Email Address *
+            <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">
+              Email Adres *
             </label>
             <input
               id="email"
@@ -282,37 +368,52 @@ function InviteMemberModal({
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              placeholder="colleague@example.com"
+              className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-500"
+              placeholder="collega@voorbeeld.com"
             />
           </div>
 
           <div>
-            <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-1">
-              Role *
+            <label htmlFor="role" className="block text-sm font-medium text-slate-300 mb-2">
+              Rol *
             </label>
             <select
               id="role"
               value={role}
-              onChange={(e) => setRole(e.target.value as any)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              onChange={(e) => setRole(e.target.value as "ADMIN" | "EDITOR" | "VIEWER")}
+              className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
             >
-              <option value="VIEWER">Viewer - Can view questions and quizzes</option>
-              <option value="EDITOR">Editor - Can create and edit content</option>
-              <option value="ADMIN">Admin - Can manage members and settings</option>
+              <option value="VIEWER" className="bg-slate-900">Viewer - Kan vragen en quizzen bekijken</option>
+              <option value="EDITOR" className="bg-slate-900">Editor - Kan content maken en bewerken</option>
+              <option value="ADMIN" className="bg-slate-900">Admin - Kan leden en settings beheren</option>
             </select>
           </div>
 
-          <div className="flex space-x-3">
-            <Button type="button" variant="ghost" onClick={onClose} className="flex-1">
-              Cancel
-            </Button>
-            <Button type="submit" loading={loading} disabled={!email || loading} className="flex-1">
-              Send Invite
-            </Button>
+          <div className="flex gap-3 pt-2">
+            <button 
+              type="button" 
+              onClick={onClose} 
+              className="flex-1 px-4 py-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-200"
+            >
+              Annuleren
+            </button>
+            <button 
+              type="submit" 
+              disabled={!email || loading}
+              className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl hover:from-blue-600 hover:to-cyan-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Versturen...
+                </>
+              ) : (
+                "Uitnodiging Versturen"
+              )}
+            </button>
           </div>
         </form>
-      </Card>
+      </div>
     </div>
   );
 }

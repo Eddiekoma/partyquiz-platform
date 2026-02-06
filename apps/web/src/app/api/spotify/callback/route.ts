@@ -6,8 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { exchangeCodeForToken } from "@partyquiz/shared";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { auth } from "@/lib/auth";
 
 const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID!;
 const SPOTIFY_REDIRECT_URI = process.env.NEXT_PUBLIC_APP_URL + "/api/spotify/callback";
@@ -59,7 +58,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Get current user session
-    const session = await getServerSession(authOptions);
+    const session = await auth();
     if (!session?.user?.id) {
       return NextResponse.redirect(
         new URL("/dashboard?spotify_error=not_authenticated", request.url)
