@@ -80,8 +80,13 @@ function AuthErrorContent() {
   const errorInfo = errorMessages[error] || errorMessages.Default;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4">
-      <Card className="max-w-md w-full bg-slate-900/80 border border-slate-700/50 backdrop-blur-md" padding="lg">
+    <div className="min-h-screen flex items-center justify-center bg-[#020617] p-4 relative overflow-hidden">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-red-500/20 rounded-full blur-[128px]" />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-[128px]" />
+      </div>
+      
+      <Card className="max-w-md w-full glass-elevated relative z-10" padding="lg">
         <div className="text-center space-y-4">
           <div className="text-6xl">{errorInfo.icon}</div>
           <h1 className="text-3xl font-bold text-slate-100 font-display">
@@ -100,7 +105,7 @@ function AuthErrorContent() {
           <div className="pt-6 space-y-3">
             <Link
               href="/auth/signin"
-              className="block w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-semibold py-3 px-6 rounded-full text-center transition"
+              className="block w-full btn btn-primary text-center"
             >
               Terug naar Inloggen
             </Link>
@@ -108,7 +113,7 @@ function AuthErrorContent() {
             {error === "Verification" && (
               <Link
                 href="/auth/signin"
-                className="block w-full bg-slate-800/50 hover:bg-slate-700/50 text-slate-200 font-medium py-3 px-6 rounded-full border border-slate-600/50 text-center transition"
+                className="block w-full btn btn-secondary text-center"
               >
                 Nieuwe Link Aanvragen
               </Link>
@@ -117,7 +122,7 @@ function AuthErrorContent() {
             {error === "EmailSignin" && (
               <Link
                 href="/auth/forgot-password"
-                className="block w-full bg-slate-800/50 hover:bg-slate-700/50 text-slate-200 font-medium py-3 px-6 rounded-full border border-slate-600/50 text-center transition"
+                className="block w-full btn btn-secondary text-center"
               >
                 Wachtwoord Vergeten?
               </Link>
@@ -132,8 +137,8 @@ function AuthErrorContent() {
 export default function AuthErrorPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-slate-950">
-        <div className="animate-pulse text-slate-400">Laden...</div>
+      <div className="min-h-screen flex items-center justify-center bg-[#020617]">
+        <div className="spinner"></div>
       </div>
     }>
       <AuthErrorContent />

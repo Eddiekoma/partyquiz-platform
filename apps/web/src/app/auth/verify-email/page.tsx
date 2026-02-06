@@ -128,8 +128,12 @@ function VerifyEmailForm() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4">
-        <Card className="max-w-md w-full bg-slate-900/80 border border-slate-700/50 backdrop-blur-md" padding="lg">
+      <div className="min-h-screen flex items-center justify-center bg-[#020617] p-4 relative overflow-hidden">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-green-500/20 rounded-full blur-[128px]" />
+          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-cyan-500/20 rounded-full blur-[128px]" />
+        </div>
+        <Card className="max-w-md w-full glass-elevated relative z-10" padding="lg">
           <div className="text-center space-y-4">
             <div className="text-6xl">✅</div>
             <h1 className="text-3xl font-bold text-slate-100 font-display">
@@ -138,7 +142,7 @@ function VerifyEmailForm() {
             <p className="text-slate-400">
               Je account is geactiveerd. Je wordt doorgestuurd naar de login pagina...
             </p>
-            <div className="animate-pulse text-blue-400">Doorsturen...</div>
+            <div className="spinner mx-auto"></div>
           </div>
         </Card>
       </div>
@@ -146,10 +150,19 @@ function VerifyEmailForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4">
-      <Card className="max-w-md w-full bg-slate-900/80 border border-slate-700/50 backdrop-blur-md" padding="lg">
+    <div className="min-h-screen flex items-center justify-center bg-[#020617] p-4 relative overflow-hidden">
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-[128px] animate-pulse" />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-cyan-500/20 rounded-full blur-[128px] animate-pulse" style={{ animationDelay: '1s' }} />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-purple-500/10 rounded-full blur-[128px]" />
+      </div>
+      
+      <Card className="max-w-md w-full glass-elevated relative z-10" padding="lg">
         <div className="text-center space-y-2 mb-8">
-          <div className="text-5xl mb-4">✉️</div>
+          <div className="mb-4">
+            <span className="font-display text-2xl font-bold gradient-text">PartyQuiz</span>
+            <span className="ml-2 text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-1 rounded-md">by Databridge360</span>
+          </div>
           <h1 className="text-3xl font-bold text-slate-100 font-display">
             Verifieer je Email
           </h1>
@@ -160,8 +173,11 @@ function VerifyEmailForm() {
         </div>
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-xl mb-6 text-sm text-center">
-            {error}
+          <div className="alert alert-error mb-6">
+            <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{error}</span>
           </div>
         )}
 
@@ -177,14 +193,14 @@ function VerifyEmailForm() {
               onChange={(e) => handleChange(index, e.target.value)}
               onKeyDown={(e) => handleKeyDown(index, e)}
               disabled={loading}
-              className="w-12 h-14 text-center text-2xl font-bold bg-slate-800/50 border-2 border-slate-600/50 rounded-xl text-slate-100 focus:border-blue-500 focus:outline-none transition disabled:opacity-50"
+              className="w-12 h-14 text-center text-2xl font-bold glass border-2 border-[rgba(148,163,184,0.2)] rounded-xl text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition disabled:opacity-50"
             />
           ))}
         </div>
 
         <Button
           onClick={() => handleSubmit()}
-          className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-semibold py-3 rounded-full"
+          className="w-full btn btn-primary btn-lg"
           loading={loading}
           disabled={loading || code.join("").length !== 6}
         >
@@ -196,14 +212,14 @@ function VerifyEmailForm() {
           <button
             onClick={handleResend}
             disabled={resending}
-            className="text-blue-400 hover:text-blue-300 font-medium disabled:opacity-50"
+            className="text-blue-400 hover:text-cyan-400 font-medium disabled:opacity-50 transition-colors"
           >
             {resending ? "Verzenden..." : "Opnieuw verzenden"}
           </button>
         </div>
 
         <div className="text-center text-sm text-slate-500 mt-4">
-          <Link href="/auth/signin" className="hover:text-slate-400">
+          <Link href="/auth/signin" className="hover:text-cyan-400 transition-colors">
             ← Terug naar inloggen
           </Link>
         </div>
@@ -215,8 +231,8 @@ function VerifyEmailForm() {
 export default function VerifyEmailPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-slate-950">
-        <div className="animate-pulse text-slate-400">Laden...</div>
+      <div className="min-h-screen flex items-center justify-center bg-[#020617]">
+        <div className="spinner"></div>
       </div>
     }>
       <VerifyEmailForm />

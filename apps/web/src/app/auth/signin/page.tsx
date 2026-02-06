@@ -77,8 +77,14 @@ function SignInForm() {
 
   if (magicLinkSent) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4">
-        <Card className="max-w-md w-full bg-slate-900/80 border border-slate-700/50 backdrop-blur-md" padding="lg">
+      <div className="min-h-screen flex items-center justify-center bg-[#020617] p-4 relative overflow-hidden">
+        {/* Background gradient effects */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-[128px] animate-pulse" />
+          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-cyan-500/20 rounded-full blur-[128px] animate-pulse" style={{ animationDelay: '1s' }} />
+        </div>
+
+        <Card className="max-w-md w-full glass-elevated relative z-10" padding="lg">
           <div className="text-center space-y-4">
             <div className="text-6xl">✉️</div>
             <h1 className="text-3xl font-bold text-slate-100 font-display">
@@ -94,7 +100,7 @@ function SignInForm() {
             <Button
               variant="ghost"
               onClick={() => setMagicLinkSent(false)}
-              className="mt-4 text-slate-400 hover:text-slate-200"
+              className="mt-4 btn btn-ghost"
             >
               Ander email proberen
             </Button>
@@ -105,10 +111,20 @@ function SignInForm() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4">
-      <Card className="max-w-md w-full bg-slate-900/80 border border-slate-700/50 backdrop-blur-md" padding="lg">
+    <div className="min-h-screen flex items-center justify-center bg-[#020617] p-4 relative overflow-hidden">
+      {/* Background gradient effects */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-[128px] animate-pulse" />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-cyan-500/20 rounded-full blur-[128px] animate-pulse" style={{ animationDelay: '1s' }} />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-purple-500/10 rounded-full blur-[128px]" />
+      </div>
+
+      <Card className="max-w-md w-full glass-elevated relative z-10" padding="lg">
         <div className="text-center space-y-2 mb-8">
-          <div className="text-5xl mb-4">🎉</div>
+          <div className="mb-4">
+            <span className="font-display text-2xl font-bold gradient-text">PartyQuiz</span>
+            <span className="ml-2 text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-1 rounded-md">by Databridge360</span>
+          </div>
           <h1 className="text-3xl font-bold text-slate-100 font-display">
             Welkom Terug!
           </h1>
@@ -118,14 +134,20 @@ function SignInForm() {
         </div>
 
         {verified && (
-          <div className="bg-green-500/10 border border-green-500/50 text-green-400 px-4 py-3 rounded-xl mb-6 text-sm text-center">
-            ✅ Email geverifieerd! Je kunt nu inloggen.
+          <div className="alert alert-success mb-6">
+            <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            <span>Email geverifieerd! Je kunt nu inloggen.</span>
           </div>
         )}
 
         {(error || authError) && (
-          <div className="bg-red-500/10 border border-red-500/50 text-red-400 px-4 py-3 rounded-xl mb-6 text-sm">
-            {error || authError}
+          <div className="alert alert-error mb-6">
+            <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{error || authError}</span>
           </div>
         )}
 
@@ -140,7 +162,7 @@ function SignInForm() {
             onChange={handleChange}
             required
             autoComplete="email"
-            className="bg-slate-800/50 border-slate-600/50 text-slate-100 placeholder:text-slate-500"
+            className="input"
           />
 
           <div>
@@ -154,12 +176,12 @@ function SignInForm() {
               onChange={handleChange}
               required
               autoComplete="current-password"
-              className="bg-slate-800/50 border-slate-600/50 text-slate-100 placeholder:text-slate-500"
+              className="input"
             />
             <div className="flex justify-end mt-1">
               <Link
                 href="/auth/forgot-password"
-                className="text-sm text-blue-400 hover:text-blue-300"
+                className="text-sm text-blue-400 hover:text-cyan-400 transition-colors"
               >
                 Wachtwoord vergeten?
               </Link>
@@ -168,7 +190,7 @@ function SignInForm() {
 
           <Button
             type="submit"
-            className="w-full bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-semibold py-3 rounded-full"
+            className="w-full btn btn-primary btn-lg"
             loading={loading}
             disabled={loading}
           >
@@ -178,10 +200,10 @@ function SignInForm() {
 
         <div className="relative my-6">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-slate-700/50"></div>
+            <div className="divider w-full"></div>
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="px-4 bg-slate-900/80 text-slate-500">of</span>
+            <span className="px-4 bg-[rgba(15,23,42,0.8)] text-slate-500">of</span>
           </div>
         </div>
 
@@ -189,7 +211,7 @@ function SignInForm() {
           <button
             type="button"
             onClick={handleGoogleSignIn}
-            className="w-full flex items-center justify-center gap-3 bg-white hover:bg-slate-100 text-slate-800 font-medium py-3 px-4 rounded-full transition"
+            className="w-full btn btn-secondary flex items-center justify-center gap-3"
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -204,7 +226,7 @@ function SignInForm() {
             <button
               type="button"
               onClick={() => setShowMagicLink(true)}
-              className="w-full text-center text-sm text-slate-400 hover:text-slate-300 py-2"
+              className="w-full text-center text-sm text-slate-400 hover:text-cyan-400 py-2 transition-colors"
             >
               Liever een magic link? →
             </button>
@@ -213,7 +235,7 @@ function SignInForm() {
               type="button"
               onClick={handleMagicLink}
               disabled={!formData.email || loading}
-              className="w-full flex items-center justify-center gap-2 bg-slate-800/50 hover:bg-slate-700/50 text-slate-200 font-medium py-3 px-4 rounded-full border border-slate-600/50 transition disabled:opacity-50"
+              className="w-full btn btn-secondary flex items-center justify-center gap-2 disabled:opacity-50"
             >
               <span>✉️</span>
               Magic Link Versturen
@@ -223,7 +245,7 @@ function SignInForm() {
 
         <div className="text-center text-sm text-slate-400 mt-6">
           Nog geen account?{" "}
-          <Link href="/auth/signup" className="text-blue-400 hover:text-blue-300 font-medium">
+          <Link href="/auth/signup" className="text-blue-400 hover:text-cyan-400 font-medium transition-colors">
             Registreren
           </Link>
         </div>
@@ -235,8 +257,8 @@ function SignInForm() {
 export default function SignInPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-slate-950">
-        <div className="animate-pulse text-slate-400">Laden...</div>
+      <div className="min-h-screen flex items-center justify-center bg-[#020617]">
+        <div className="spinner"></div>
       </div>
     }>
       <SignInForm />

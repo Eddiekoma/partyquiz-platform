@@ -92,9 +92,29 @@ const emailStyles = {
     line-height: 1.6;
   `,
   logo: `
-    font-size: 32px;
     text-align: center;
     margin-bottom: 24px;
+  `,
+  logoText: `
+    font-family: 'Space Grotesk', 'Inter', sans-serif;
+    font-size: 24px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #3b82f6, #06b6d4);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin: 0;
+  `,
+  logoBadge: `
+    display: inline-block;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(6, 182, 212, 0.2));
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 8px;
+    padding: 4px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #60a5fa;
+    margin-left: 8px;
   `,
 };
 
@@ -105,17 +125,20 @@ function createEmailTemplate(content: string): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PartyQuiz</title>
+  <title>PartyQuiz - Databridge360</title>
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <body style="margin: 0; padding: 0; background-color: #020617;">
   <div style="${emailStyles.container}">
-    <div style="${emailStyles.logo}">🎉</div>
+    <div style="${emailStyles.logo}">
+      <span style="${emailStyles.logoText}">PartyQuiz</span>
+      <span style="${emailStyles.logoBadge}">by Databridge360</span>
+    </div>
     <div style="${emailStyles.card}">
       ${content}
     </div>
     <div style="${emailStyles.footer}">
-      © ${new Date().getFullYear()} PartyQuiz by Databridge360<br>
+      © ${new Date().getFullYear()} <strong>Databridge360</strong> — PartyQuiz Platform<br>
       <span style="color: #475569;">Deze email is automatisch verzonden. Niet beantwoorden.</span>
     </div>
   </div>
