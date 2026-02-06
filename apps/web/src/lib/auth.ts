@@ -153,6 +153,7 @@ export const authOptions: NextAuthOptions = {
     },
   },
   secret: env.NEXTAUTH_SECRET || "temp-build-secret-change-in-production",
+  debug: true, // Enable debug mode for more logging
 };
 
 const handler = NextAuth(authOptions);
@@ -160,13 +161,23 @@ export { handler as GET, handler as POST };
 
 // Helper function to get session in server components
 export async function auth() {
-  // Debug: log cookies
+  // Debug: log ALL cookies
   const cookieStore = await cookies();
-  const sessionCookie = cookieStore.get("__Secure-next-auth.session-token");
-  console.log("[AUTH] auth() called, session cookie present:", !!sessionCookie?.value);
+  const allCookies = cookieStore.getAll();
+  console.log("[AUTH] auth() called, all cookies:", allCookies.map(c => `${c.name}=${c.value?.substring(0, 20)}...`));
   
-  const session = await getServerSession(authOptions);
-  console.log("[AUTH] auth() session result:", session ? { userId: session.user?.id, email: session.user?.email } : null);
-  return session;
+  const sessionCookieSecure = cookieStore.get("__Secure-next-auth.session-token");
+  const sessionCookieNonSecure = cookieStore.get("next-auth.session-token");
+  console.log("[AUTH] session cookie (secure):", sessionCookieSecure?.value?.substring(0, 20));
+  console.log("[AUTH] session cookie (non-secure):", sessionCookieNonSecure?.value?.substring(0, 20));
+  
+  try {
+    const session = await getServerSession(authOptions);
+    console.log("[AUTH] auth() session result:", session ? { userId: session.user?.id, email: session.user?.email } : null);
+    return session;
+  } catch (error) {
+    console.error("[AUTH] auth() error:", error);
+    return null;
+  }
 }
 
