@@ -143,7 +143,9 @@ export async function PUT(
 
     // Parse and validate request
     const body = await request.json();
+    console.log("[API] PUT question - Incoming body:", JSON.stringify(body, null, 2));
     const { tags, options, settingsJson, ...rest } = updateQuestionSchema.parse(body);
+    console.log("[API] PUT question - Parsed rest:", JSON.stringify(rest, null, 2));
 
     // Build update data
     const updateData: any = {
@@ -160,6 +162,8 @@ export async function PUT(
     if (settingsJson !== undefined) {
       updateData.settingsJson = settingsJson;
     }
+
+    console.log("[API] PUT question - Update data:", JSON.stringify(updateData, null, 2));
 
     // Update question with options
     const question = await prisma.question.update({

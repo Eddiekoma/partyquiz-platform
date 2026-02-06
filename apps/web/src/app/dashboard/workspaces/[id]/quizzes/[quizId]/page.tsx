@@ -737,8 +737,8 @@ export default function QuizDetailPage() {
                     <div className="flex gap-4 text-sm text-slate-400">
                       <span>{question.type.replace(/_/g, " ")}</span>
                       <span>{getDifficultyLabel(question.difficulty)}</span>
-                      <span>{question.options.length} options</span>
-                      {question.media.length > 0 && <span>📎 Has media</span>}
+                      <span>{question.options?.length || 0} options</span>
+                      {(question.media?.length || 0) > 0 && <span>📎 Has media</span>}
                     </div>
                   </div>
                 ))}

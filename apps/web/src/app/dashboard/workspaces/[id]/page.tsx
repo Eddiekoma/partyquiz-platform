@@ -175,7 +175,10 @@ export default function WorkspaceDetailPage() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="glass-card p-6 group hover:border-blue-500/30 transition-all duration-300">
+        <Link 
+          href={`/dashboard/workspaces/${workspace.id}/questions`}
+          className="glass-card p-6 group hover:border-blue-500/30 transition-all duration-300 cursor-pointer"
+        >
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
               <span className="text-lg">📝</span>
@@ -184,9 +187,12 @@ export default function WorkspaceDetailPage() {
           </div>
           <div className="text-4xl font-bold text-white">{workspace._count.questions}</div>
           <p className="text-slate-500 text-sm mt-1">in de vragenbank</p>
-        </div>
+        </Link>
 
-        <div className="glass-card p-6 group hover:border-purple-500/30 transition-all duration-300">
+        <Link 
+          href={`/dashboard/workspaces/${workspace.id}/quizzes`}
+          className="glass-card p-6 group hover:border-purple-500/30 transition-all duration-300 cursor-pointer"
+        >
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
               <span className="text-lg">🎯</span>
@@ -195,9 +201,12 @@ export default function WorkspaceDetailPage() {
           </div>
           <div className="text-4xl font-bold text-white">{workspace._count.quizzes}</div>
           <p className="text-slate-500 text-sm mt-1">klaar om te spelen</p>
-        </div>
+        </Link>
 
-        <div className="glass-card p-6 group hover:border-green-500/30 transition-all duration-300">
+        <Link 
+          href={`/dashboard/workspaces/${workspace.id}/members`}
+          className="glass-card p-6 group hover:border-green-500/30 transition-all duration-300 cursor-pointer"
+        >
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
               <span className="text-lg">👥</span>
@@ -206,7 +215,7 @@ export default function WorkspaceDetailPage() {
           </div>
           <div className="text-4xl font-bold text-white">{workspace.members.length}</div>
           <p className="text-slate-500 text-sm mt-1">teamleden</p>
-        </div>
+        </Link>
       </div>
 
       {/* Team Members Preview */}
