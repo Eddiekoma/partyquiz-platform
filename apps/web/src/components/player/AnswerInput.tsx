@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { QuestionType } from "@partyquiz/shared";
 
 interface AnswerInputProps {
-  questionType: QuestionType;
+  questionType: QuestionType | string; // Allow string for database types
   options?: Array<{ id: string; text: string }>;
   settingsJson?: any;
   onSubmit: (answer: any) => void;
@@ -25,9 +25,9 @@ export function AnswerInput({
     onSubmit(answer);
   };
 
-  // Multiple Choice Question
-  if (questionType === "MCQ") {
-    const isMultiple = settingsJson?.allowMultiple || false;
+  // Multiple Choice Question (handles both MCQ and MC_SINGLE/MC_MULTIPLE from database)
+  if (questionType === "MCQ" || questionType === "MC_SINGLE" || questionType === "MC_MULTIPLE") {
+    const isMultiple = settingsJson?.allowMultiple || questionType === "MC_MULTIPLE";
 
     if (isMultiple) {
       return (
@@ -86,8 +86,8 @@ export function AnswerInput({
     );
   }
 
-  // Open Text Question
-  if (questionType === "OPEN") {
+  // Open Text Question (handles both OPEN and OPEN_TEXT from database)
+  if (questionType === "OPEN" || questionType === "OPEN_TEXT") {
     return (
       <div className="space-y-4">
         <input
@@ -110,8 +110,8 @@ export function AnswerInput({
     );
   }
 
-  // Ordering Question
-  if (questionType === "ORDERING") {
+  // Ordering Question (handles both ORDERING and ORDER from database)
+  if (questionType === "ORDERING" || questionType === "ORDER") {
     return (
       <OrderingInput
         options={options || []}
@@ -121,10 +121,12 @@ export function AnswerInput({
     );
   }
 
-  // Photo questions (all use text input)
+  // Photo questions (all use text input) - handles database types too
   if (
     questionType === "PHOTO_GUESS" ||
-    questionType === "PHOTO_ZOOM_REVEAL"
+    questionType === "PHOTO_ZOOM_REVEAL" ||
+    questionType === "PHOTO_QUESTION" ||
+    questionType === "PHOTO_OPEN"
   ) {
     return (
       <div className="space-y-4">
@@ -190,8 +192,8 @@ export function AnswerInput({
     );
   }
 
-  // Music Year (number input)
-  if (questionType === "MUSIC_GUESS_YEAR") {
+  // Music Year or Estimation (number input)
+  if (questionType === "MUSIC_GUESS_YEAR" || questionType === "ESTIMATION") {
     return (
       <div className="space-y-4">
         <input
@@ -343,10 +345,12 @@ export function AnswerInput({
     );
   }
 
-  // Default fallback
+  // Default fallback - show the type for debugging
+  console.warn("[AnswerInput] Unsupported question type:", questionType);
   return (
     <div className="text-center text-white/60 py-8">
-      Question type not supported yet
+      <p>Question type not supported yet</p>
+      <p className="text-xs opacity-50 mt-2">Type: {questionType}</p>
     </div>
   );
 }

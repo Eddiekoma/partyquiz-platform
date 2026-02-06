@@ -1,3 +1,6 @@
+// Load environment variables FIRST before any other imports that use them
+import "dotenv/config";
+
 import { Server, Socket } from "socket.io";
 import { createServer } from "http";
 import { pino } from "pino";
@@ -16,7 +19,6 @@ import {
   checkRateLimit,
 } from "@partyquiz/shared/server";
 import { prisma } from "./lib/prisma";
-import "dotenv/config";
 
 // Swan Race Game State
 interface SwanRaceState {
@@ -325,13 +327,190 @@ io.on("connection", (socket: Socket) => {
     }
   );
 
-  // Host starts a quiz item (question)
+  // Host joins session room to receive updates
+  socket.on(
+    WSMessageType.HOST_JOIN_SESSION,
+    async (data: { sessionCode: string }) => {
+      try {
+        const { sessionCode } = data;
+        logger.info({ sessionCode, socketId: socket.id }, "Host joining session room");
+
+        // Validate session exists
+        const session = await prisma.liveSession.findUnique({
+          where: { code: sessionCode },
+          include: {
+            players: {
+              where: { leftAt: null },
+              orderBy: { joinedAt: "asc" },
+            },
+          },
+        });
+
+        if (!session) {
+          logger.warn({ sessionCode }, "Session not found for host");
+          socket.emit(WSMessageType.ERROR, {
+            message: "Session not found",
+            code: "SESSION_NOT_FOUND",
+          });
+          return;
+        }
+
+        // Join socket room
+        socket.join(sessionCode);
+        
+        // Store session info in socket data
+        socket.data.sessionCode = sessionCode;
+        socket.data.sessionId = session.id;
+        socket.data.isHost = true;
+
+        // Send current session state to host
+        socket.emit(WSMessageType.SESSION_STATE, {
+          sessionId: session.id,
+          sessionCode: session.code,
+          status: session.status,
+          isHost: true,
+          players: session.players.map((p) => ({
+            id: p.id,
+            name: p.name,
+            avatar: p.avatar,
+            score: 0,
+            isOnline: true,
+          })),
+        });
+
+        logger.info({ sessionCode }, "Host joined session room successfully");
+      } catch (error) {
+        logger.error({ error }, "Error joining session as host");
+        socket.emit("error", { message: "Failed to join session as host" });
+      }
+    }
+  );
+
+  // Player rejoins session (after page navigation/reconnect)
+  socket.on(
+    WSMessageType.PLAYER_REJOIN,
+    async (data: { sessionCode: string; playerId: string }) => {
+      try {
+        const { sessionCode, playerId } = data;
+        logger.info({ sessionCode, playerId, socketId: socket.id }, "Player attempting to rejoin session");
+
+        // Validate session exists
+        const session = await prisma.liveSession.findUnique({
+          where: { code: sessionCode },
+        });
+
+        if (!session) {
+          logger.warn({ sessionCode }, "Session not found for rejoin");
+          socket.emit(WSMessageType.ERROR, {
+            message: "Session not found",
+            code: "SESSION_NOT_FOUND",
+          });
+          return;
+        }
+
+        // Validate player exists and belongs to this session
+        const player = await prisma.livePlayer.findFirst({
+          where: {
+            id: playerId,
+            sessionId: session.id,
+          },
+        });
+
+        if (!player) {
+          logger.warn({ sessionCode, playerId }, "Player not found for rejoin");
+          socket.emit(WSMessageType.ERROR, {
+            message: "Player not found",
+            code: "PLAYER_NOT_FOUND",
+          });
+          return;
+        }
+
+        // If player was marked as left, unmark them
+        if (player.leftAt) {
+          await prisma.livePlayer.update({
+            where: { id: playerId },
+            data: { leftAt: null },
+          });
+          logger.info({ playerId }, "Player re-activated after rejoin");
+        }
+
+        // Join socket room
+        socket.join(sessionCode);
+
+        // Store player info in socket data
+        socket.data.playerId = playerId;
+        socket.data.sessionCode = sessionCode;
+        socket.data.sessionId = session.id;
+
+        // Track connection status
+        trackPlayerConnection(sessionCode, playerId, player.name, socket.id);
+
+        // Get current item from Redis (if any)
+        const currentItemId = await redis.get(`session:${sessionCode}:currentItem`);
+
+        // Send current state to rejoining player
+        socket.emit(WSMessageType.SESSION_STATE, {
+          sessionId: session.id,
+          sessionCode: session.code,
+          status: session.status,
+          playerId: playerId,
+          currentItemId: currentItemId || null,
+        });
+
+        // If there's an active item, send it to the player
+        if (currentItemId) {
+          const itemStartedAt = await redis.get(`session:${sessionCode}:itemStartedAt`);
+          const timerDuration = await redis.get(`session:${sessionCode}:itemTimerDuration`);
+          
+          // Fetch the item data to send to the player
+          const item = await prisma.quizItem.findUnique({
+            where: { id: currentItemId },
+            include: {
+              question: {
+                include: {
+                  options: { orderBy: { order: "asc" } },
+                  media: { orderBy: { order: "asc" } },
+                },
+              },
+            },
+          });
+
+          if (item?.question) {
+            const elapsedMs = itemStartedAt ? Date.now() - parseInt(itemStartedAt) : 0;
+            const remainingMs = timerDuration ? Math.max(0, parseInt(timerDuration) * 1000 - elapsedMs) : 0;
+
+            socket.emit(WSMessageType.ITEM_STARTED, {
+              itemId: item.id,
+              itemType: item.itemType,
+              prompt: item.question.prompt,
+              questionType: item.question.type,
+              options: item.question.options.map((opt) => ({
+                id: opt.id,
+                text: opt.text,
+              })),
+              mediaUrl: item.question.media?.[0]?.reference || null,
+              timerDuration: Math.ceil(remainingMs / 1000), // Remaining seconds
+            });
+
+            logger.info({ playerId, currentItemId, remainingMs }, "Sent current item to rejoining player");
+          }
+        }
+
+        logger.info({ playerId, sessionCode }, "Player rejoined session successfully");
+      } catch (error) {
+        logger.error({ error }, "Error rejoining session");
+        socket.emit("error", { message: "Failed to rejoin session" });
+      }
+    }
+  );
+
+  // Host starts a quiz item (question/minigame/break)
   socket.on(
     WSMessageType.START_ITEM,
-    async (data: { sessionCode: string; itemId: string; timerDuration?: number }) => {
+    async (data: { sessionCode: string; itemId: string }) => {
       try {
-        const { sessionCode, itemId, timerDuration } = data;
-        logger.info({ sessionCode, itemId, timerDuration }, "Host starting item");
+        const { sessionCode, itemId } = data;
+        logger.info({ sessionCode, itemId }, "Host starting item");
 
         // Verify session exists
         const session = await prisma.liveSession.findUnique({
@@ -339,31 +518,151 @@ io.on("connection", (socket: Socket) => {
         });
 
         if (!session) {
-          socket.emit("error", { message: "Session not found" });
+          socket.emit(WSMessageType.ERROR, { message: "Session not found" });
+          return;
+        }
+
+        // Get QuizItem with full question data including options and media
+        const quizItem = await prisma.quizItem.findUnique({
+          where: { id: itemId },
+          include: {
+            question: {
+              include: {
+                options: {
+                  orderBy: { order: "asc" },
+                },
+                media: {
+                  orderBy: { order: "asc" },
+                },
+              },
+            },
+          },
+        });
+
+        if (!quizItem) {
+          socket.emit(WSMessageType.ERROR, { message: "Quiz item not found" });
           return;
         }
 
         const startedAt = Date.now();
+        const settingsJson = (quizItem.settingsJson as any) || {};
+        
+        // Get timer duration from settings, default to 30 seconds
+        const timerDuration = settingsJson.timer || settingsJson.timerDuration || 30;
+        
+        // Get points from settings, default to 1000
+        const basePoints = settingsJson.points || settingsJson.basePoints || 1000;
 
-        // Broadcast to all players
-        io.to(sessionCode).emit(WSMessageType.ITEM_STARTED, {
+        // Store item start time in Redis for scoring calculations
+        await redis.set(`session:${sessionCode}:currentItem`, itemId);
+        await redis.set(`session:${sessionCode}:itemStartedAt`, startedAt.toString());
+        await redis.set(`session:${sessionCode}:itemTimerDuration`, timerDuration.toString());
+        await redis.set(`session:${sessionCode}:itemBasePoints`, basePoints.toString());
+
+        // Build the event payload based on item type
+        let eventPayload: any = {
           itemId,
+          itemType: quizItem.itemType,
           startedAt,
-          timerDuration: timerDuration || null,
-        });
+          timerDuration,
+          basePoints,
+        };
 
-        logger.info({ sessionCode, itemId, timerDuration }, "Item started");
+        // Add question data if this is a QUESTION item
+        if (quizItem.itemType === "QUESTION" && quizItem.question) {
+          const question = quizItem.question;
+          
+          // Process media - resolve URLs for different providers
+          const mediaItems = question.media.map((m) => {
+            const reference = m.reference as any;
+            let url: string | null = null;
+            let previewUrl: string | null = null;
+
+            switch (m.provider) {
+              case "UPLOAD":
+                url = reference?.url || reference?.assetUrl || null;
+                previewUrl = reference?.thumbnailUrl || url;
+                break;
+              case "SPOTIFY":
+                url = reference?.previewUrl || null;
+                previewUrl = reference?.albumArt || reference?.imageUrl || null;
+                break;
+              case "YOUTUBE":
+                url = reference?.videoId ? `https://www.youtube.com/watch?v=${reference.videoId}` : null;
+                previewUrl = reference?.thumbnailUrl || (reference?.videoId ? `https://img.youtube.com/vi/${reference.videoId}/hqdefault.jpg` : null);
+                break;
+              default:
+                url = reference?.url || null;
+            }
+
+            return {
+              id: m.id,
+              provider: m.provider,
+              mediaType: m.mediaType,
+              url,
+              previewUrl,
+              metadata: m.metadata,
+            };
+          });
+
+          eventPayload = {
+            ...eventPayload,
+            questionType: question.type,
+            prompt: question.prompt,
+            title: question.title,
+            // Send options WITHOUT isCorrect flag - that's secret!
+            options: question.options.map((opt) => ({
+              id: opt.id,
+              text: opt.text,
+              order: opt.order,
+            })),
+            media: mediaItems,
+            // Primary media for backward compatibility
+            mediaUrl: mediaItems[0]?.url || null,
+            mediaType: mediaItems[0]?.mediaType || null,
+            mediaProvider: mediaItems[0]?.provider || null,
+          };
+        } else if (quizItem.itemType === "MINIGAME") {
+          eventPayload = {
+            ...eventPayload,
+            minigameType: quizItem.minigameType,
+            minigameSettings: settingsJson,
+          };
+        } else if (quizItem.itemType === "BREAK" || quizItem.itemType === "SCOREBOARD") {
+          eventPayload = {
+            ...eventPayload,
+            breakSettings: settingsJson,
+          };
+        }
+
+        // Broadcast to all players in the session
+        io.to(sessionCode).emit(WSMessageType.ITEM_STARTED, eventPayload);
+
+        logger.info(
+          { 
+            sessionCode, 
+            itemId, 
+            itemType: quizItem.itemType,
+            timerDuration,
+            hasQuestion: !!quizItem.question,
+            optionCount: quizItem.question?.options.length || 0,
+            mediaCount: quizItem.question?.media.length || 0,
+          }, 
+          "Item started successfully"
+        );
       } catch (error) {
         logger.error({ error }, "Error starting item");
-        socket.emit("error", { message: "Failed to start item" });
+        socket.emit(WSMessageType.ERROR, { message: "Failed to start item" });
       }
     }
   );
 
   // Host locks item (no more answers)
-  socket.on(WSMessageType.LOCK_ITEM, async (data: { sessionCode: string; itemId: string }) => {
+  socket.on(WSMessageType.LOCK_ITEM, async (data: { sessionCode: string; itemId?: string }) => {
     try {
-      const { sessionCode, itemId } = data;
+      const { sessionCode } = data;
+      // Get current item from Redis if not provided
+      const itemId = data.itemId || await redis.get(`session:${sessionCode}:currentItem`);
       logger.info({ sessionCode, itemId }, "Host locking item");
 
       // Verify session exists
@@ -551,15 +850,36 @@ io.on("connection", (socket: Socket) => {
           correctAnswer = settingsJson?.correctAnswer || question.options[0]?.text || "";
         }
 
-        // Get scoring settings from quizItem.settingsJson
+        // Get scoring settings from quizItem.settingsJson and Redis
         const settingsJson = quizItem.settingsJson as any;
-        const basePoints = settingsJson?.points || 1000;
-        const timeLimitMs = settingsJson?.timeLimit ? settingsJson.timeLimit * 1000 : undefined;
+        
+        // Get base points from Redis (set when item started) or settings
+        const redisBasePoints = await redis.get(`session:${sessionCode}:itemBasePoints`);
+        const basePoints = redisBasePoints ? parseInt(redisBasePoints) : (settingsJson?.points || 1000);
+        
+        // Get timer duration from Redis or settings
+        const redisTimerDuration = await redis.get(`session:${sessionCode}:itemTimerDuration`);
+        const timerDurationSec = redisTimerDuration ? parseInt(redisTimerDuration) : (settingsJson?.timer || 30);
+        const timeLimitMs = timerDurationSec * 1000;
 
-        // Calculate time spent (if item was started with timestamp tracking)
+        // Calculate time spent using Redis startedAt timestamp
+        const redisStartedAt = await redis.get(`session:${sessionCode}:itemStartedAt`);
         let timeSpentMs: number | undefined;
-        if (submittedAtMs && settingsJson?.itemStartedAtMs) {
-          timeSpentMs = submittedAtMs - settingsJson.itemStartedAtMs;
+        
+        if (redisStartedAt) {
+          const itemStartedAtMs = parseInt(redisStartedAt);
+          const answerTime = submittedAtMs || Date.now();
+          timeSpentMs = answerTime - itemStartedAtMs;
+          
+          // Check if answer is within time limit
+          if (timeSpentMs > timeLimitMs) {
+            socket.emit(WSMessageType.ERROR, {
+              message: "Time is up! Answer not accepted.",
+              code: "TIME_EXPIRED",
+            });
+            logger.warn({ playerId, timeSpentMs, timeLimitMs }, "Answer submitted after time limit");
+            return;
+          }
         }
 
         // Get current streak for this player
@@ -822,6 +1142,79 @@ io.on("connection", (socket: Socket) => {
     } catch (error) {
       logger.error({ error }, "Error ending session");
       socket.emit("error", { message: "Failed to end session" });
+    }
+  });
+
+  // Host resets session (restart from beginning)
+  socket.on(WSMessageType.RESET_SESSION, async (data: { sessionCode: string }) => {
+    try {
+      const { sessionCode } = data;
+      logger.info({ sessionCode }, "Host resetting session");
+
+      // Verify session exists
+      const session = await prisma.liveSession.findUnique({
+        where: { code: sessionCode },
+      });
+
+      if (!session) {
+        socket.emit("error", { message: "Session not found" });
+        return;
+      }
+
+      // Reset session status to LOBBY
+      await prisma.liveSession.update({
+        where: { id: session.id },
+        data: {
+          status: "LOBBY",
+          endedAt: null,
+        },
+      });
+
+      // Clear all answers for this session
+      await prisma.liveAnswer.deleteMany({
+        where: { sessionId: session.id },
+      });
+
+      // Reset all players (clear leftAt so they're active again)
+      await prisma.livePlayer.updateMany({
+        where: { sessionId: session.id },
+        data: { leftAt: null },
+      });
+
+      // Clear Redis session state
+      await redis.del(`session:${sessionCode}:currentItem`);
+      await redis.del(`session:${sessionCode}:itemStartedAt`);
+      await redis.del(`session:${sessionCode}:itemTimerDuration`);
+      await redis.del(`session:${sessionCode}:itemBasePoints`);
+      await redis.del(`session:${sessionCode}:paused`);
+      await redis.del(`session:${sessionCode}:pausedAt`);
+
+      // Get updated player list
+      const players = await prisma.livePlayer.findMany({
+        where: { 
+          sessionId: session.id,
+          leftAt: null,
+        },
+        orderBy: { joinedAt: "asc" },
+      });
+
+      // Notify all clients that session was reset
+      io.to(sessionCode).emit(WSMessageType.SESSION_RESET, {
+        sessionId: session.id,
+        status: "LOBBY",
+        players: players.map(p => ({
+          id: p.id,
+          name: p.name,
+          avatar: p.avatar,
+          score: 0,
+          isOnline: true,
+        })),
+      });
+
+      logger.info({ sessionCode, playerCount: players.length }, "Session reset to LOBBY");
+    } catch (error) {
+      logger.error({ error }, "Error resetting session");
+      socket.emit("error", { message: "Failed to reset session" });
     }
   });
 

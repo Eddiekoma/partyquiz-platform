@@ -20,20 +20,41 @@ interface UseWebSocketReturn {
   disconnect: () => void;
 }
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080";
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:8080";
 
 export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketReturn {
-  const { sessionCode, onMessage, onConnect, onDisconnect, onError } = options;
+  const { sessionCode } = options;
+  
+  // Store callbacks in refs to avoid re-creating socket on callback changes
+  const onMessageRef = useRef(options.onMessage);
+  const onConnectRef = useRef(options.onConnect);
+  const onDisconnectRef = useRef(options.onDisconnect);
+  const onErrorRef = useRef(options.onError);
+  
+  // Update refs when callbacks change
+  useEffect(() => {
+    onMessageRef.current = options.onMessage;
+    onConnectRef.current = options.onConnect;
+    onDisconnectRef.current = options.onDisconnect;
+    onErrorRef.current = options.onError;
+  }, [options.onMessage, options.onConnect, options.onDisconnect, options.onError]);
   
   const socketRef = useRef<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
+    // Prevent multiple connections
+    if (socketRef.current) {
+      return;
+    }
+    
+    console.log("[WS] Connecting to:", WS_URL);
+    
     // Create socket connection
     const socket = io(WS_URL, {
       path: "/ws",
-      transports: ["websocket"],
+      transports: ["websocket", "polling"], // Allow fallback to polling
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionAttempts: 5,
@@ -43,37 +64,37 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
 
     // Connection handlers
     socket.on("connect", () => {
-      console.log("[WS] Connected to WebSocket server");
+      console.log("[WS] Connected to WebSocket server, socket id:", socket.id);
       setIsConnected(true);
       setError(null);
-      onConnect?.();
+      onConnectRef.current?.();
     });
 
     socket.on("disconnect", (reason) => {
       console.log("[WS] Disconnected:", reason);
       setIsConnected(false);
-      onDisconnect?.();
+      onDisconnectRef.current?.();
     });
 
     socket.on("connect_error", (err) => {
-      console.error("[WS] Connection error:", err);
+      console.error("[WS] Connection error:", err.message);
       const error = new Error(`WebSocket connection failed: ${err.message}`);
       setError(error);
-      onError?.(error);
+      onErrorRef.current?.(error);
     });
 
     // Message handler
     socket.on("message", (message: WSMessage) => {
       console.log("[WS] Received message:", message.type);
-      onMessage?.(message);
+      onMessageRef.current?.(message);
     });
 
-    // Heartbeat mechanism - send heartbeat every 3 seconds
+    // Heartbeat mechanism - send heartbeat every 30 seconds (not 3!)
     const heartbeatInterval = setInterval(() => {
       if (socket.connected) {
         socket.emit("HEARTBEAT");
       }
-    }, 3000);
+    }, 30000);
 
     // Cleanup on unmount
     return () => {
@@ -82,17 +103,18 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       socket.disconnect();
       socketRef.current = null;
     };
-  }, [onMessage, onConnect, onDisconnect, onError]);
+  }, [sessionCode]); // Only reconnect when sessionCode changes
 
-  // Send message function
+  // Send message function - emits the message type directly as the event name
   const send = useCallback((message: WSMessage) => {
     if (!socketRef.current?.connected) {
       console.warn("[WS] Cannot send message: not connected");
       return;
     }
     
-    console.log("[WS] Sending message:", message.type);
-    socketRef.current.emit("message", message);
+    console.log("[WS] Sending message:", message.type, message.payload);
+    // Emit the message type as the event name, with payload as data
+    socketRef.current.emit(message.type, message.payload || {});
   }, []);
 
   // Disconnect function

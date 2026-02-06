@@ -46,6 +46,8 @@ interface QuizItem {
   order: number;
   itemType: string;
   questionId: string | null;
+  minigameType: string | null;
+  settingsJson: Record<string, any> | null;
   question: Question | null;
 }
 
@@ -74,7 +76,10 @@ function SortableRound({
   round,
   index,
   onAddQuestion,
+  onAddScoreboard,
+  onAddMinigame,
   onRemoveItem,
+  onEditSettings,
   onDeleteRound,
   getDifficultyLabel,
   workspaceId,
@@ -84,13 +89,17 @@ function SortableRound({
   round: QuizRound;
   index: number;
   onAddQuestion: (roundId: string) => void;
+  onAddScoreboard: (roundId: string, displayType: string) => void;
+  onAddMinigame: (roundId: string, minigameType: string) => void;
   onRemoveItem: (roundId: string, itemId: string) => void;
+  onEditSettings: (roundId: string, item: QuizItem) => void;
   onDeleteRound: (roundId: string) => void;
   getDifficultyLabel: (difficulty: number) => string;
   workspaceId: string;
   quizId: string;
   onDragEnd: (event: DragEndEvent) => void;
 }) {
+  const [showAddMenu, setShowAddMenu] = useState(false);
   const {
     attributes,
     listeners,
@@ -136,9 +145,57 @@ function SortableRound({
           </h2>
         </div>
         <div className="flex gap-2">
-          <Button onClick={() => onAddQuestion(round.id)} variant="secondary" size="sm">
-            + Add Question
-          </Button>
+          <div className="relative">
+            <Button onClick={() => setShowAddMenu(!showAddMenu)} variant="secondary" size="sm">
+              + Add Item ▼
+            </Button>
+            {showAddMenu && (
+              <div className="absolute top-full left-0 mt-1 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-10 min-w-[200px]">
+                <button
+                  onClick={() => { onAddQuestion(round.id); setShowAddMenu(false); }}
+                  className="w-full text-left px-4 py-3 hover:bg-slate-700 flex items-center gap-3 rounded-t-lg"
+                >
+                  <span>📝</span> Add Question
+                </button>
+                <div className="border-t border-slate-700">
+                  <p className="px-4 py-2 text-xs text-slate-500 uppercase">Scoreboard</p>
+                  <button
+                    onClick={() => { onAddScoreboard(round.id, "TOP_3"); setShowAddMenu(false); }}
+                    className="w-full text-left px-4 py-2 hover:bg-slate-700 flex items-center gap-3 pl-8"
+                  >
+                    🏆 Top 3
+                  </button>
+                  <button
+                    onClick={() => { onAddScoreboard(round.id, "TOP_5"); setShowAddMenu(false); }}
+                    className="w-full text-left px-4 py-2 hover:bg-slate-700 flex items-center gap-3 pl-8"
+                  >
+                    🎯 Top 5
+                  </button>
+                  <button
+                    onClick={() => { onAddScoreboard(round.id, "TOP_10"); setShowAddMenu(false); }}
+                    className="w-full text-left px-4 py-2 hover:bg-slate-700 flex items-center gap-3 pl-8"
+                  >
+                    📋 Top 10
+                  </button>
+                  <button
+                    onClick={() => { onAddScoreboard(round.id, "ALL"); setShowAddMenu(false); }}
+                    className="w-full text-left px-4 py-2 hover:bg-slate-700 flex items-center gap-3 pl-8"
+                  >
+                    👥 All Players
+                  </button>
+                </div>
+                <div className="border-t border-slate-700">
+                  <p className="px-4 py-2 text-xs text-slate-500 uppercase">Minigames</p>
+                  <button
+                    onClick={() => { onAddMinigame(round.id, "SWAN_RACE"); setShowAddMenu(false); }}
+                    className="w-full text-left px-4 py-2 hover:bg-slate-700 flex items-center gap-3 pl-8 rounded-b-lg"
+                  >
+                    🦢 Swan Race
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
           <Button
             onClick={() => onDeleteRound(round.id)}
             variant="secondary"
@@ -173,6 +230,7 @@ function SortableRound({
                     itemIndex={itemIndex}
                     roundId={round.id}
                     onRemove={onRemoveItem}
+                    onEditSettings={onEditSettings}
                     getDifficultyLabel={getDifficultyLabel}
                   />
                 ))}
@@ -191,12 +249,14 @@ function SortableItem({
   itemIndex,
   roundId,
   onRemove,
+  onEditSettings,
   getDifficultyLabel,
 }: {
   item: QuizItem;
   itemIndex: number;
   roundId: string;
   onRemove: (roundId: string, itemId: string) => void;
+  onEditSettings: (roundId: string, item: QuizItem) => void;
   getDifficultyLabel: (difficulty: number) => string;
 }) {
   const {
@@ -214,6 +274,85 @@ function SortableItem({
     opacity: isDragging ? 0.5 : 1,
   };
 
+  // Get timer and points from settings
+  const settings = item.settingsJson as { timer?: number; points?: number } | null;
+  const timer = settings?.timer || 30;
+  const points = settings?.points || 1000;
+
+  // Render content based on item type
+  const renderItemContent = () => {
+    if (item.itemType === "SCOREBOARD") {
+      const settings = item.settingsJson as { displayType?: string } | null;
+      const displayType = settings?.displayType || "TOP_10";
+      const displayLabels: Record<string, string> = {
+        TOP_3: "Top 3",
+        TOP_5: "Top 5", 
+        TOP_10: "Top 10",
+        ALL: "All Players"
+      };
+      return (
+        <div className="flex-1">
+          <h3 className="font-semibold flex items-center gap-2">
+            <span className="text-2xl">📊</span>
+            Scoreboard: {displayLabels[displayType] || displayType}
+          </h3>
+          <div className="text-sm text-slate-400 mt-1">
+            Shows current standings to players
+          </div>
+        </div>
+      );
+    }
+    
+    if (item.itemType === "MINIGAME") {
+      const minigameLabels: Record<string, { icon: string; name: string }> = {
+        SWAN_RACE: { icon: "🦢", name: "Swan Race" },
+      };
+      const minigame = minigameLabels[item.minigameType || ""] || { icon: "🎮", name: item.minigameType || "Unknown" };
+      return (
+        <div className="flex-1">
+          <h3 className="font-semibold flex items-center gap-2">
+            <span className="text-2xl">{minigame.icon}</span>
+            Minigame: {minigame.name}
+          </h3>
+          <div className="text-sm text-slate-400 mt-1">
+            Interactive minigame for all players
+          </div>
+        </div>
+      );
+    }
+    
+    if (item.itemType === "BREAK") {
+      return (
+        <div className="flex-1">
+          <h3 className="font-semibold flex items-center gap-2">
+            <span className="text-2xl">☕</span>
+            Break
+          </h3>
+          <div className="text-sm text-slate-400 mt-1">
+            Pause in the quiz
+          </div>
+        </div>
+      );
+    }
+    
+    // Default: QUESTION type
+    return (
+      <div className="flex-1">
+        <h3 className="font-semibold">{item.question?.title}</h3>
+        <div className="flex gap-4 text-sm text-slate-400 mt-1">
+          <span>{item.question?.type.replace(/_/g, " ")}</span>
+          <span>{getDifficultyLabel(item.question?.difficulty || 3)}</span>
+          <span>{item.question?.options.length || 0} options</span>
+          {item.question?.media && item.question.media.length > 0 && (
+            <span>📎 Has media</span>
+          )}
+          <span className="text-blue-400">⏱️ {timer}s</span>
+          <span className="text-yellow-400">⭐ {points}pts</span>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div
       ref={setNodeRef}
@@ -224,7 +363,7 @@ function SortableItem({
         {...attributes}
         {...listeners}
         className="cursor-grab active:cursor-grabbing p-1 hover:bg-slate-600 rounded"
-        aria-label="Drag to reorder question"
+        aria-label="Drag to reorder item"
       >
         <svg
           className="w-4 h-4 text-slate-500"
@@ -241,17 +380,18 @@ function SortableItem({
         </svg>
       </button>
       <span className="text-slate-400 font-mono w-8">{itemIndex + 1}.</span>
-      <div className="flex-1">
-        <h3 className="font-semibold">{item.question?.title}</h3>
-        <div className="flex gap-4 text-sm text-slate-400 mt-1">
-          <span>{item.question?.type.replace(/_/g, " ")}</span>
-          <span>{getDifficultyLabel(item.question?.difficulty || 3)}</span>
-          <span>{item.question?.options.length || 0} options</span>
-          {item.question?.media && item.question.media.length > 0 && (
-            <span>📎 Has media</span>
-          )}
-        </div>
-      </div>
+      {renderItemContent()}
+      {/* Edit settings button - only for questions */}
+      {item.itemType === "QUESTION" && (
+        <Button
+          onClick={() => onEditSettings(roundId, item)}
+          variant="secondary"
+          size="sm"
+          title="Edit timer and points"
+        >
+          ⚙️
+        </Button>
+      )}
       <Button
         onClick={() => onRemove(roundId, item.id)}
         variant="secondary"
@@ -273,6 +413,7 @@ export default function QuizDetailPage() {
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [startingSession, setStartingSession] = useState(false);
   
   // Edit mode
   const [editMode, setEditMode] = useState(false);
@@ -287,6 +428,12 @@ export default function QuizDetailPage() {
   const [selectedRoundId, setSelectedRoundId] = useState<string | null>(null);
   const [showQuestionSelector, setShowQuestionSelector] = useState(false);
   const [availableQuestions, setAvailableQuestions] = useState<Question[]>([]);
+
+  // Edit item settings
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [editingItem, setEditingItem] = useState<{ roundId: string; item: QuizItem } | null>(null);
+  const [editTimer, setEditTimer] = useState(30);
+  const [editPoints, setEditPoints] = useState(1000);
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -395,6 +542,51 @@ export default function QuizDetailPage() {
     }
   };
 
+  const handleAddScoreboard = async (roundId: string, displayType: string = "TOP_10") => {
+    try {
+      const response = await fetch(
+        `/api/workspaces/${workspaceId}/quizzes/${quizId}/rounds/${roundId}/items`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            itemType: "SCOREBOARD",
+            settingsJson: { displayType }
+          }),
+        }
+      );
+
+      if (!response.ok) throw new Error("Failed to add scoreboard");
+      await loadQuiz();
+    } catch (error) {
+      console.error("Failed to add scoreboard:", error);
+      alert("Failed to add scoreboard");
+    }
+  };
+
+  const handleAddMinigame = async (roundId: string, minigameType: string = "SWAN_RACE") => {
+    try {
+      const response = await fetch(
+        `/api/workspaces/${workspaceId}/quizzes/${quizId}/rounds/${roundId}/items`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            itemType: "MINIGAME",
+            minigameType,
+            settingsJson: { duration: 60 }
+          }),
+        }
+      );
+
+      if (!response.ok) throw new Error("Failed to add minigame");
+      await loadQuiz();
+    } catch (error) {
+      console.error("Failed to add minigame:", error);
+      alert("Failed to add minigame");
+    }
+  };
+
   const handleSelectQuestion = async (questionId: string) => {
     if (!selectedRoundId) return;
 
@@ -434,6 +626,44 @@ export default function QuizDetailPage() {
     } catch (error) {
       console.error("Failed to remove item:", error);
       alert("Failed to remove item");
+    }
+  };
+
+  const handleEditSettings = (roundId: string, item: QuizItem) => {
+    const settings = item.settingsJson as { timer?: number; points?: number } | null;
+    setEditingItem({ roundId, item });
+    setEditTimer(settings?.timer || 30);
+    setEditPoints(settings?.points || 1000);
+    setShowSettingsModal(true);
+  };
+
+  const handleSaveSettings = async () => {
+    if (!editingItem) return;
+
+    try {
+      const response = await fetch(
+        `/api/workspaces/${workspaceId}/quizzes/${quizId}/rounds/${editingItem.roundId}/items`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            itemId: editingItem.item.id,
+            settingsJson: {
+              timer: editTimer,
+              points: editPoints,
+            },
+          }),
+        }
+      );
+
+      if (!response.ok) throw new Error("Failed to update settings");
+
+      setShowSettingsModal(false);
+      setEditingItem(null);
+      await loadQuiz();
+    } catch (error) {
+      console.error("Failed to update settings:", error);
+      alert("Failed to update settings");
     }
   };
 
@@ -564,6 +794,41 @@ export default function QuizDetailPage() {
     return labels[difficulty] || "Medium";
   };
 
+  const handleStartSession = async () => {
+    const totalQuestions = quiz?.rounds.reduce((sum, round) => sum + round.items.length, 0) || 0;
+    
+    if (totalQuestions === 0) {
+      alert("Add at least one question to the quiz before starting a session.");
+      return;
+    }
+
+    setStartingSession(true);
+    try {
+      const response = await fetch(
+        `/api/workspaces/${workspaceId}/quizzes/${quizId}/sessions`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Failed to start session");
+      }
+
+      const { session, hostUrl } = await response.json();
+      
+      // Navigate to host page
+      router.push(hostUrl);
+    } catch (error) {
+      console.error("Failed to start session:", error);
+      alert(error instanceof Error ? error.message : "Failed to start session");
+    } finally {
+      setStartingSession(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -605,6 +870,13 @@ export default function QuizDetailPage() {
               </>
             ) : (
               <>
+                <Button 
+                  onClick={handleStartSession} 
+                  disabled={startingSession || totalQuestions === 0}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  {startingSession ? "Starting..." : "🎮 Start Session"}
+                </Button>
                 <Button onClick={() => setEditMode(true)} variant="secondary">
                   Edit Details
                 </Button>
@@ -671,7 +943,10 @@ export default function QuizDetailPage() {
                 round={round}
                 index={index}
                 onAddQuestion={handleAddQuestion}
+                onAddScoreboard={handleAddScoreboard}
+                onAddMinigame={handleAddMinigame}
                 onRemoveItem={handleRemoveItem}
+                onEditSettings={handleEditSettings}
                 onDeleteRound={handleDeleteRound}
                 getDifficultyLabel={getDifficultyLabel}
                 workspaceId={workspaceId}
@@ -744,6 +1019,75 @@ export default function QuizDetailPage() {
                 ))}
               </div>
             )}
+          </Card>
+        </div>
+      )}
+
+      {/* Settings Modal */}
+      {showSettingsModal && editingItem && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md p-6">
+            <h3 className="font-bold text-xl mb-4">Question Settings</h3>
+            <p className="text-slate-400 mb-6">{editingItem.item.question?.title}</p>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  ⏱️ Timer Duration (seconds)
+                </label>
+                <div className="flex items-center gap-4">
+                  <input
+                    type="range"
+                    min="5"
+                    max="120"
+                    step="5"
+                    value={editTimer}
+                    onChange={(e) => setEditTimer(parseInt(e.target.value))}
+                    className="flex-1"
+                  />
+                  <span className="font-mono w-16 text-right">{editTimer}s</span>
+                </div>
+                <p className="text-xs text-slate-400 mt-1">How long players have to answer</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  ⭐ Base Points
+                </label>
+                <div className="flex gap-2">
+                  {[500, 1000, 1500, 2000].map((pts) => (
+                    <button
+                      key={pts}
+                      onClick={() => setEditPoints(pts)}
+                      className={`flex-1 py-2 rounded-lg border transition-colors ${
+                        editPoints === pts
+                          ? "bg-blue-600 border-blue-500 text-white"
+                          : "border-slate-600 hover:bg-slate-700"
+                      }`}
+                    >
+                      {pts}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-slate-400 mt-1">Points for correct answers (with time bonus)</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <Button onClick={handleSaveSettings} className="flex-1">
+                Save Settings
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowSettingsModal(false);
+                  setEditingItem(null);
+                }}
+                variant="secondary"
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+            </div>
           </Card>
         </div>
       )}

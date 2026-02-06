@@ -143,14 +143,42 @@ export default function QuestionsPage() {
   };
 
   const handleDelete = async (questionId: string) => {
-    if (!confirm("Are you sure you want to delete this question?")) return;
-
     try {
+      // First check if the question is used in any quizzes
+      const checkResponse = await fetch(
+        `/api/workspaces/${workspaceId}/questions/${questionId}?check=true`,
+        { method: "DELETE" }
+      );
+
+      if (!checkResponse.ok) {
+        throw new Error("Failed to check question usage");
+      }
+
+      const usage = await checkResponse.json();
+      
+      let confirmMessage = "Are you sure you want to delete this question?";
+      
+      if (usage.usedInQuizzes && usage.usedInQuizzes.length > 0) {
+        const quizNames = usage.usedInQuizzes.map((q: { title: string }) => `• ${q.title}`).join("\n");
+        confirmMessage = `⚠️ This question is used in ${usage.usedInQuizzes.length} quiz(zes):\n\n${quizNames}\n\nDeleting this question will also remove it from these quizzes.\n\nAre you sure you want to continue?`;
+      }
+
+      if (!confirm(confirmMessage)) return;
+
+      // Proceed with delete
       const response = await fetch(`/api/workspaces/${workspaceId}/questions/${questionId}`, {
         method: "DELETE",
       });
 
       if (!response.ok) throw new Error("Failed to delete question");
+      
+      const result = await response.json();
+      
+      // Show success message if removed from quizzes
+      if (result.removedFromQuizzes?.length > 0) {
+        alert(`Question deleted and removed from ${result.removedFromQuizzes.length} quiz(zes).`);
+      }
+      
       loadQuestions();
     } catch (error) {
       console.error("Failed to delete question:", error);

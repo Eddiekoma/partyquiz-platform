@@ -245,6 +245,10 @@ export async function DELETE(
     const workspaceId = (await params).id;
     const questionId = (await params).questionId;
 
+    // Check if this is just a usage check
+    const { searchParams } = new URL(request.url);
+    const checkOnly = searchParams.get("check") === "true";
+
     // Check membership and permissions
     const member = await prisma.workspaceMember.findUnique({
       where: {
@@ -259,13 +263,55 @@ export async function DELETE(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // Check if question exists
+    // Check if question exists and get quiz usage
     const question = await prisma.question.findUnique({
       where: { id: questionId },
+      include: {
+        quizItems: {
+          include: {
+            round: {
+              include: {
+                quiz: {
+                  select: {
+                    id: true,
+                    title: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     });
 
     if (!question || question.workspaceId !== workspaceId) {
       return NextResponse.json({ error: "Question not found" }, { status: 404 });
+    }
+
+    // Get unique quizzes that use this question
+    const quizzesUsingQuestion = question.quizItems.reduce((acc, item) => {
+      const quiz = item.round.quiz;
+      if (!acc.find(q => q.id === quiz.id)) {
+        acc.push({ id: quiz.id, title: quiz.title });
+      }
+      return acc;
+    }, [] as { id: string; title: string }[]);
+
+    // If check only, return the usage info
+    if (checkOnly) {
+      return NextResponse.json({
+        questionId,
+        title: question.title,
+        usedInQuizzes: quizzesUsingQuestion,
+        quizItemCount: question.quizItems.length,
+      });
+    }
+
+    // Delete QuizItems first (to avoid orphaned items with null questionId)
+    if (question.quizItems.length > 0) {
+      await prisma.quizItem.deleteMany({
+        where: { questionId },
+      });
     }
 
     // Delete question
@@ -284,11 +330,15 @@ export async function DELETE(
         payloadJson: JSON.stringify({
           type: question.type,
           title: question.title.substring(0, 100),
+          removedFromQuizzes: quizzesUsingQuestion.map(q => q.title),
         }),
       },
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ 
+      success: true,
+      removedFromQuizzes: quizzesUsingQuestion,
+    });
   } catch (error) {
     console.error("Failed to delete question:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

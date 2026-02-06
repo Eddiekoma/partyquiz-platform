@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import type { QuestionType, WSMessageType } from "@partyquiz/shared";
+import { QuestionType, WSMessageType } from "@partyquiz/shared";
 import { QuestionDisplay } from "@/components/player/QuestionDisplay";
 import { AnswerInput } from "@/components/player/AnswerInput";
 import { Timer } from "@/components/player/Timer";
@@ -40,16 +40,37 @@ export default function GamePage() {
 
   const { socket, isConnected } = useWebSocket();
 
+  // Track if we've already rejoined the session
+  const hasRejoinedRef = useRef(false);
+
+  // Rejoin session when socket connects
   useEffect(() => {
     if (!socket || !isConnected) return;
+    if (hasRejoinedRef.current) return;
 
-    // Get player info from localStorage
-    const storedPlayer = localStorage.getItem(`player-${code}`);
+    // Get player info from localStorage (use uppercase code for consistency)
+    const storedPlayer = localStorage.getItem(`player-${code.toUpperCase()}`);
     if (storedPlayer) {
       const player = JSON.parse(storedPlayer);
       setPlayerId(player.id);
       setPlayerName(player.name);
+
+      // Rejoin the session room
+      console.log("[Player Game] Rejoining session with player:", player.id);
+      hasRejoinedRef.current = true;
+      socket.emit(WSMessageType.PLAYER_REJOIN, {
+        sessionCode: code.toUpperCase(),
+        playerId: player.id,
+      });
+    } else {
+      // No stored player - redirect back to join
+      console.log("[Player Game] No stored player found, redirecting to join");
+      router.push(`/play/${code}`);
     }
+  }, [socket, isConnected, code, router]);
+
+  useEffect(() => {
+    if (!socket || !isConnected) return;
 
     // Listen for Swan Race started
     socket.on("SWAN_RACE_STARTED", (data: any) => {

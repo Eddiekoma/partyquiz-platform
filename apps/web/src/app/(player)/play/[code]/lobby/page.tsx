@@ -24,6 +24,7 @@ export default function LobbyPage() {
   const [sessionState, setSessionState] = useState<"waiting" | "starting" | "playing">("waiting");
   const [error, setError] = useState("");
   const [branding, setBranding] = useState<WorkspaceBranding>({ logo: null, themeColor: null });
+  const [myPlayer, setMyPlayer] = useState<{ name: string; avatar: string } | null>(null);
 
   const { socket, isConnected } = useWebSocket();
 
@@ -72,6 +73,9 @@ export default function LobbyPage() {
       return;
     }
 
+    // Store own player info for display
+    setMyPlayer({ name: playerName, avatar: playerAvatar });
+
     // Join session when socket connects
     if (socket && isConnected) {
       socket.emit("JOIN_SESSION", {
@@ -88,6 +92,14 @@ export default function LobbyPage() {
         }
         if (data.status === "in_progress") {
           setSessionState("starting");
+        }
+        // Store player ID in localStorage for game page rejoin
+        if (data.playerId) {
+          localStorage.setItem(`player-${code.toUpperCase()}`, JSON.stringify({
+            id: data.playerId,
+            name: playerName,
+            avatar: playerAvatar,
+          }));
         }
       });
 
@@ -108,6 +120,13 @@ export default function LobbyPage() {
           setPlayers((prev) => [...prev, data.player]);
         }
       });
+
+      // Listen for player left
+      socket.on("PLAYER_LEFT", (data: any) => {
+        if (data.playerId) {
+          setPlayers((prev) => prev.filter((p) => p.id !== data.playerId));
+        }
+      });
     }
 
     return () => {
@@ -116,6 +135,7 @@ export default function LobbyPage() {
         socket.off("ITEM_STARTED");
         socket.off("ERROR");
         socket.off("PLAYER_JOINED");
+        socket.off("PLAYER_LEFT");
       }
     };
   }, [socket, isConnected, code, router]);
@@ -165,22 +185,33 @@ export default function LobbyPage() {
 
   return (
     <div 
-      className="flex-1 flex flex-col items-center justify-center p-4"
+      className="flex-1 flex flex-col p-4 relative"
       style={{
         background: `linear-gradient(135deg, ${themeColor} 0%, ${themeColor}dd 100%)`,
       }}
     >
-      <div className="w-full max-w-2xl">
-        {/* Workspace Logo */}
-        {branding.logo && (
-          <div className="flex justify-center mb-6">
-            <img
-              src={branding.logo}
-              alt="Workspace logo"
-              className="h-20 object-contain bg-white/10 p-3 rounded-xl backdrop-blur-sm"
-            />
+      {/* My Player Badge - Top Left */}
+      {myPlayer && (
+        <div className="absolute top-4 left-4 z-10">
+          <div className="flex items-center gap-3 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full shadow-lg">
+            <span className="text-2xl">{myPlayer.avatar}</span>
+            <span className="font-bold text-white text-lg">{myPlayer.name}</span>
           </div>
-        )}
+        </div>
+      )}
+
+      <div className="flex-1 flex flex-col items-center justify-center">
+        <div className="w-full max-w-2xl">
+          {/* Workspace Logo */}
+          {branding.logo && (
+            <div className="flex justify-center mb-6">
+              <img
+                src={branding.logo}
+                alt="Workspace logo"
+                className="h-20 object-contain bg-white/10 p-3 rounded-xl backdrop-blur-sm"
+              />
+            </div>
+          )}
 
         {/* Session Code */}
         <div className="text-center mb-8">
@@ -240,6 +271,7 @@ export default function LobbyPage() {
               ))
             )}
           </div>
+        </div>
         </div>
       </div>
 
