@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, Suspense } from "react";
-import { signIn } from "next-auth/react";
+import { useState, Suspense, useEffect } from "react";
+import { signIn, useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button, Input, Card } from "@/components/ui";
@@ -9,6 +9,7 @@ import { Button, Input, Card } from "@/components/ui";
 function SignInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { data: session, status } = useSession();
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
   const verified = searchParams.get("verified") === "true";
   const authError = searchParams.get("error");
@@ -18,6 +19,13 @@ function SignInForm() {
   const [error, setError] = useState("");
   const [showMagicLink, setShowMagicLink] = useState(false);
   const [magicLinkSent, setMagicLinkSent] = useState(false);
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (status === "authenticated" && session) {
+      router.push(callbackUrl);
+    }
+  }, [status, session, router, callbackUrl]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -47,6 +55,15 @@ function SignInForm() {
       setLoading(false);
     }
   };
+
+  // Show loading while checking session
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#020617]">
+        <div className="spinner"></div>
+      </div>
+    );
+  }
 
   const handleMagicLink = async () => {
     setLoading(true);
