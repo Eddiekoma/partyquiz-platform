@@ -4,7 +4,6 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import EmailProvider from "next-auth/providers/email";
-import { cookies } from "next/headers";
 import { prisma } from "./prisma";
 import { getEnv } from "./env";
 import { verifyPassword } from "./password";
@@ -106,54 +105,29 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async session({ session, user }) {
-      console.log("[AUTH] session callback:", { userId: user?.id, email: user?.email });
-      if (session.user && user) {
+      if (session.user) {
         session.user.id = user.id;
       }
       return session;
     },
     async signIn({ user, account }) {
-      console.log("[AUTH] signIn callback:", { 
-        provider: account?.provider, 
-        email: user.email,
-        userId: user.id 
-      });
-      
-      try {
-        // For OAuth providers, auto-verify email
-        if (account?.provider === "google" && user.email) {
-          const existingUser = await prisma.user.findUnique({
-            where: { email: user.email },
+      // For OAuth providers, auto-verify email
+      if (account?.provider === "google" && user.email) {
+        const existingUser = await prisma.user.findUnique({
+          where: { email: user.email },
+        });
+        
+        if (existingUser && !existingUser.emailVerified) {
+          await prisma.user.update({
+            where: { id: existingUser.id },
+            data: { emailVerified: new Date() },
           });
-          
-          console.log("[AUTH] Existing user check:", { found: !!existingUser });
-          
-          if (existingUser && !existingUser.emailVerified) {
-            await prisma.user.update({
-              where: { id: existingUser.id },
-              data: { emailVerified: new Date() },
-            });
-            console.log("[AUTH] Updated emailVerified for user");
-          }
         }
-        console.log("[AUTH] signIn returning true");
-        return true;
-      } catch (error) {
-        console.error("[AUTH] signIn error:", error);
-        return true; // Still allow sign in even if update fails
       }
-    },
-    async redirect({ url, baseUrl }) {
-      console.log("[AUTH] redirect callback:", { url, baseUrl });
-      // Allows relative callback URLs
-      if (url.startsWith("/")) return `${baseUrl}${url}`;
-      // Allows callback URLs on the same origin
-      else if (new URL(url).origin === baseUrl) return url;
-      return baseUrl + "/dashboard";
+      return true;
     },
   },
   secret: env.NEXTAUTH_SECRET || "temp-build-secret-change-in-production",
-  debug: process.env.NODE_ENV !== "production",
 };
 
 const handler = NextAuth(authOptions);
@@ -161,29 +135,6 @@ export { handler as GET, handler as POST };
 
 // Helper function to get session in server components
 export async function auth() {
-  const cookieStore = await cookies();
-  const isDebug = process.env.NODE_ENV !== "production";
-
-  const secureSessionTokenPresent = !!cookieStore.get("__Secure-next-auth.session-token")?.value;
-  const nonSecureSessionTokenPresent = !!cookieStore.get("next-auth.session-token")?.value;
-
-  if (isDebug) {
-    const cookieNames = cookieStore.getAll().map((cookie) => cookie.name);
-    console.log("[AUTH] auth() cookies:", {
-      secureSessionTokenPresent,
-      nonSecureSessionTokenPresent,
-      cookieNames,
-    });
-  }
-  
-  try {
-    const session = await getServerSession(authOptions);
-    if (isDebug) {
-      console.log("[AUTH] auth() session result:", session ? { userId: session.user?.id, email: session.user?.email } : null);
-    }
-    return session;
-  } catch (error) {
-    console.error("[AUTH] auth() error:", error);
-    return null;
-  }
+  return getServerSession(authOptions);
 }
+
