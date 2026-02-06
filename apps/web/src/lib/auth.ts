@@ -100,13 +100,21 @@ export const authOptions: NextAuthOptions = {
     newUser: "/dashboard", // Redirect new users to dashboard
   },
   session: {
-    strategy: "database",
+    strategy: "jwt", // Use JWT strategy - required for CredentialsProvider
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   callbacks: {
-    async session({ session, user }) {
-      if (session.user) {
-        session.user.id = user.id;
+    async jwt({ token, user, account }) {
+      // Initial sign in - add user id to token
+      if (user) {
+        token.id = user.id;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      // Add user id from token to session
+      if (session.user && token.id) {
+        session.user.id = token.id as string;
       }
       return session;
     },
