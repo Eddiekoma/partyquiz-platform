@@ -8,6 +8,18 @@ import { verifyPassword } from "@/lib/password"
 import authConfig from "./auth.config"
 
 /**
+ * Custom error codes for credentials signin
+ * These codes are passed to the error query parameter and can be mapped to user-friendly messages
+ */
+const AUTH_ERROR = {
+  MISSING_CREDENTIALS: "email_password_required",
+  USER_NOT_FOUND: "user_not_found", 
+  NO_PASSWORD_SET: "no_password_set", // Account exists but has no password (needs to set one first)
+  EMAIL_NOT_VERIFIED: "email_not_verified",
+  INVALID_PASSWORD: "invalid_password",
+} as const
+
+/**
  * Full NextAuth configuration with database adapter
  * 
  * This file is used in server-side code (NOT in middleware/edge).
@@ -46,32 +58,49 @@ providers.push(
     },
     async authorize(credentials) {
       if (!credentials?.email || !credentials?.password) {
-        throw new Error("Email en wachtwoord zijn verplicht")
+        throw new Error(AUTH_ERROR.MISSING_CREDENTIALS)
       }
 
       const email = (credentials.email as string).toLowerCase()
       const password = credentials.password as string
 
+      // Explicitly select passwordHash since it's needed for authentication
       const user = await prisma.user.findUnique({
         where: { email },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          image: true,
+          emailVerified: true,
+          passwordHash: true,
+          accounts: {
+            select: { provider: true }
+          }
+        }
       })
 
       if (!user) {
-        throw new Error("Geen account gevonden met dit emailadres")
+        throw new Error(AUTH_ERROR.USER_NOT_FOUND)
       }
 
-      const userWithPassword = user as any
-      if (!userWithPassword.passwordHash) {
-        throw new Error("Dit account gebruikt een andere inlogmethode (bijv. Google)")
+      // Check if user has a password set
+      if (!user.passwordHash) {
+        // User exists but has no password (e.g., signed up via Google)
+        // They need to set a password first via account settings
+        throw new Error(AUTH_ERROR.NO_PASSWORD_SET)
       }
 
-      if (!user.emailVerified) {
-        throw new Error("Verifieer eerst je email voordat je kunt inloggen")
+      // For OAuth accounts, email is already verified via the provider
+      // For credentials-only accounts, check email verification
+      const hasOAuthAccount = user.accounts.length > 0
+      if (!hasOAuthAccount && !user.emailVerified) {
+        throw new Error(AUTH_ERROR.EMAIL_NOT_VERIFIED)
       }
 
-      const isValid = await verifyPassword(password, userWithPassword.passwordHash)
+      const isValid = await verifyPassword(password, user.passwordHash)
       if (!isValid) {
-        throw new Error("Ongeldig wachtwoord")
+        throw new Error(AUTH_ERROR.INVALID_PASSWORD)
       }
 
       return {

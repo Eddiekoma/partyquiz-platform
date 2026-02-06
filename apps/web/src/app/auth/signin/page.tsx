@@ -6,6 +6,37 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button, Input, Card } from "@/components/ui";
 
+// Map NextAuth error codes to user-friendly Dutch messages
+function getErrorMessage(error: string | null): string {
+  if (!error) return "";
+  
+  const errorMessages: Record<string, string> = {
+    // NextAuth built-in errors
+    "Configuration": "Er is een probleem met de login configuratie. Neem contact op met support.",
+    "AccessDenied": "Toegang geweigerd. Je hebt geen toestemming om in te loggen.",
+    "Verification": "De verificatielink is verlopen of al gebruikt.",
+    "OAuthSignin": "Fout bij het starten van de Google login.",
+    "OAuthCallback": "Fout bij het verwerken van de Google login.",
+    "OAuthCreateAccount": "Kon geen account aanmaken met Google.",
+    "EmailCreateAccount": "Kon geen account aanmaken met dit emailadres.",
+    "Callback": "Er ging iets mis bij het inloggen.",
+    "OAuthAccountNotLinked": "Dit emailadres is al in gebruik met een andere inlogmethode.",
+    "EmailSignin": "Kon geen magic link verzenden.",
+    "CredentialsSignin": "Onjuiste email of wachtwoord.",
+    "SessionRequired": "Je moet ingelogd zijn om deze pagina te bekijken.",
+    "Default": "Er ging iets mis. Probeer het opnieuw.",
+    
+    // Custom error codes from our credentials provider
+    "email_password_required": "Email en wachtwoord zijn verplicht.",
+    "user_not_found": "Geen account gevonden met dit emailadres.",
+    "no_password_set": "Dit account heeft nog geen wachtwoord. Stel eerst een wachtwoord in via je accountinstellingen, of log in via Google.",
+    "email_not_verified": "Verifieer eerst je email. Check je inbox voor de verificatielink.",
+    "invalid_password": "Het wachtwoord is onjuist. Probeer het opnieuw.",
+  };
+
+  return errorMessages[error] || `Er ging iets mis: ${error}`;
+}
+
 function SignInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -164,7 +195,17 @@ function SignInForm() {
             <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <span>{error || authError}</span>
+            <div className="flex flex-col gap-2">
+              <span>{getErrorMessage(error || authError)}</span>
+              {(error === "no_password_set" || authError === "no_password_set") && (
+                <Link 
+                  href="/auth/set-password" 
+                  className="text-sm underline hover:text-red-200 transition-colors"
+                >
+                  → Wachtwoord instellen
+                </Link>
+              )}
+            </div>
           </div>
         )}
 

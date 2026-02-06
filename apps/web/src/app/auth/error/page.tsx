@@ -66,6 +66,32 @@ const errorMessages: Record<string, { title: string; description: string; icon: 
     description: "Je moet ingelogd zijn om deze pagina te bekijken.",
     icon: "🔒",
   },
+  // Custom error codes from credentials provider
+  email_password_required: {
+    title: "Gegevens Ontbreken",
+    description: "Vul zowel je email als wachtwoord in om in te loggen.",
+    icon: "📝",
+  },
+  user_not_found: {
+    title: "Account Niet Gevonden",
+    description: "Er is geen account met dit emailadres. Maak eerst een account aan of gebruik een ander emailadres.",
+    icon: "🔍",
+  },
+  no_password_set: {
+    title: "Geen Wachtwoord Ingesteld",
+    description: "Dit account heeft nog geen wachtwoord. Stel een wachtwoord in via je accountinstellingen, of log in via Google.",
+    icon: "�",
+  },
+  email_not_verified: {
+    title: "Email Niet Geverifieerd",
+    description: "Verifieer eerst je email voordat je kunt inloggen. Check je inbox voor de verificatielink.",
+    icon: "✉️",
+  },
+  invalid_password: {
+    title: "Onjuist Wachtwoord",
+    description: "Het wachtwoord is onjuist. Probeer het opnieuw of gebruik 'Wachtwoord vergeten'.",
+    icon: "🔑",
+  },
   Default: {
     title: "Er Ging Iets Mis",
     description: "Er is een onverwachte fout opgetreden. Probeer het opnieuw.",
@@ -119,12 +145,39 @@ function AuthErrorContent() {
               </Link>
             )}
             
-            {error === "EmailSignin" && (
+            {(error === "EmailSignin" || error === "invalid_password") && (
               <Link
                 href="/auth/forgot-password"
                 className="block w-full btn btn-secondary text-center"
               >
                 Wachtwoord Vergeten?
+              </Link>
+            )}
+
+            {error === "user_not_found" && (
+              <Link
+                href="/auth/signup"
+                className="block w-full btn btn-secondary text-center"
+              >
+                Account Aanmaken
+              </Link>
+            )}
+
+            {error === "email_not_verified" && (
+              <Link
+                href="/auth/signin"
+                className="block w-full btn btn-secondary text-center"
+              >
+                Verificatie Email Opnieuw Verzenden
+              </Link>
+            )}
+
+            {error === "no_password_set" && (
+              <Link
+                href="/auth/set-password"
+                className="block w-full btn btn-secondary text-center"
+              >
+                Wachtwoord Instellen
               </Link>
             )}
           </div>

@@ -8,14 +8,19 @@ echo "🔐 Setting up SSH tunnels to Coolify databases..."
 # SSH Host from ~/.ssh/config
 SSH_HOST="Hetzner"
 
-# Database container names (from Coolify)
-POSTGRES_CONTAINER="r00oss4cggks40c48c0kg8o8"
-REDIS_CONTAINER="zwgsko8kc4kg4csgg440co08"
+# Database container IPs (internal Docker network IPs on Hetzner)
+# These are more reliable than container names for SSH tunneling
+# Get with: docker inspect <container> --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'
+POSTGRES_IP="10.0.1.11"
+REDIS_IP="10.0.1.14"
+
+# Fallback to localhost with exposed port if internal IPs don't work
+# PostgreSQL proxy exposes port 54320
 
 echo ""
 echo "Setting up tunnels via SSH host: ${SSH_HOST}"
-echo "  PostgreSQL: localhost:5432 -> ${POSTGRES_CONTAINER}:5432"
-echo "  Redis:      localhost:6379 -> ${REDIS_CONTAINER}:6379"
+echo "  PostgreSQL: localhost:5432 -> ${POSTGRES_IP}:5432"
+echo "  Redis:      localhost:6379 -> ${REDIS_IP}:6379"
 echo ""
 
 # Check if tunnels already exist
@@ -32,8 +37,8 @@ if lsof -Pi :6379 -sTCP:LISTEN -t >/dev/null ; then
 fi
 
 # Start SSH tunnels in background using SSH config host
-ssh -f -N -L 5432:${POSTGRES_CONTAINER}:5432 ${SSH_HOST}
-ssh -f -N -L 6379:${REDIS_CONTAINER}:6379 ${SSH_HOST}
+ssh -f -N -L 5432:${POSTGRES_IP}:5432 ${SSH_HOST}
+ssh -f -N -L 6379:${REDIS_IP}:6379 ${SSH_HOST}
 
 # Verify tunnels
 sleep 2
