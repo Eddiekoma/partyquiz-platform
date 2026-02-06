@@ -17,10 +17,16 @@ const updateQuestionSchema = z.object({
     "VIDEO_QUESTION",
     "MUSIC_INTRO",
     "MUSIC_SNIPPET",
+    "MUSIC_GUESS_TITLE",
+    "MUSIC_GUESS_ARTIST",
+    "MUSIC_GUESS_YEAR",
     "POLL",
     "PHOTO_OPEN",
     "AUDIO_OPEN",
     "VIDEO_OPEN",
+    "YOUTUBE_SCENE_QUESTION",
+    "YOUTUBE_NEXT_LINE",
+    "YOUTUBE_WHO_SAID_IT",
   ]).optional(),
   title: z.string().min(1).optional(),
   prompt: z.string().optional(),
@@ -35,6 +41,7 @@ const updateQuestionSchema = z.object({
   })).optional(),
   spotifyTrackId: z.string().nullable().optional(),
   youtubeVideoId: z.string().nullable().optional(),
+  settingsJson: z.record(z.any()).optional(),
 });
 
 export async function GET(
@@ -136,16 +143,22 @@ export async function PUT(
 
     // Parse and validate request
     const body = await request.json();
-    const { tags, options, ...rest } = updateQuestionSchema.parse(body);
+    const { tags, options, settingsJson, ...rest } = updateQuestionSchema.parse(body);
 
     // Build update data
     const updateData: any = {
       ...rest,
-      updaterId: session.user.id,
+      updater: {
+        connect: { id: session.user.id }
+      },
     };
 
     if (tags) {
       updateData.tagsJson = JSON.stringify(tags);
+    }
+
+    if (settingsJson !== undefined) {
+      updateData.settingsJson = settingsJson;
     }
 
     // Update question with options
