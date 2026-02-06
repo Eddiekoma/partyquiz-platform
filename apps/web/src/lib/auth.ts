@@ -143,6 +143,8 @@ export { handler as GET, handler as POST };
 
 // Helper function to get session in server components
 export async function auth() {
-  return getServerSession(authOptions);
+  const session = await getServerSession(authOptions);
+  console.log("[AUTH] getServerSession result:", session ? `User: ${session.user?.email}` : "null");
+  return session;
 }
 
