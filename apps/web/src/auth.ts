@@ -14,13 +14,29 @@ import authConfig from "./auth.config"
  * It includes the Prisma adapter and all non-edge-compatible code.
  */
 
+// Validate Google OAuth credentials at startup
+const googleClientId = process.env.GOOGLE_CLIENT_ID || "";
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET || "";
+
+if (!googleClientId || !googleClientSecret) {
+  console.warn("[Auth] Google OAuth not configured - GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET missing");
+}
+
 // Build providers array with full authorize function
-const providers: any[] = [
-  Google({
-    clientId: process.env.GOOGLE_CLIENT_ID!,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    allowDangerousEmailAccountLinking: true,
-  }),
+const providers: any[] = [];
+
+// Only add Google provider if credentials are configured
+if (googleClientId && googleClientSecret) {
+  providers.push(
+    Google({
+      clientId: googleClientId,
+      clientSecret: googleClientSecret,
+      allowDangerousEmailAccountLinking: true,
+    })
+  );
+}
+
+providers.push(
   Credentials({
     id: "credentials",
     name: "Email & Wachtwoord",
@@ -65,8 +81,8 @@ const providers: any[] = [
         image: user.image,
       }
     },
-  }),
-]
+  })
+);
 
 // Add Nodemailer provider for magic links if configured
 if (process.env.EMAIL_SMTP_HOST && process.env.EMAIL_SMTP_USER && process.env.EMAIL_SMTP_PASS && process.env.EMAIL_FROM) {
