@@ -100,31 +100,61 @@ export const authOptions: NextAuthOptions = {
     newUser: "/dashboard", // Redirect new users to dashboard
   },
   session: {
-    strategy: "database",
+    strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   callbacks: {
-    async session({ session, user }) {
-      if (session.user) {
-        session.user.id = user.id;
+    async jwt({ token, user, account }) {
+      // Initial sign in
+      if (user) {
+        token.id = user.id;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (session.user && token) {
+        session.user.id = token.id as string;
       }
       return session;
     },
     async signIn({ user, account }) {
-      // For OAuth providers, auto-verify email
-      if (account?.provider === "google" && user.email) {
-        const existingUser = await prisma.user.findUnique({
-          where: { email: user.email },
-        });
-        
-        if (existingUser && !existingUser.emailVerified) {
-          await prisma.user.update({
-            where: { id: existingUser.id },
-            data: { emailVerified: new Date() },
+      console.log("[AUTH] signIn callback:", { 
+        provider: account?.provider, 
+        email: user.email,
+        userId: user.id 
+      });
+      
+      try {
+        // For OAuth providers, auto-verify email
+        if (account?.provider === "google" && user.email) {
+          const existingUser = await prisma.user.findUnique({
+            where: { email: user.email },
           });
+          
+          console.log("[AUTH] Existing user check:", { found: !!existingUser });
+          
+          if (existingUser && !existingUser.emailVerified) {
+            await prisma.user.update({
+              where: { id: existingUser.id },
+              data: { emailVerified: new Date() },
+            });
+            console.log("[AUTH] Updated emailVerified for user");
+          }
         }
+        console.log("[AUTH] signIn returning true");
+        return true;
+      } catch (error) {
+        console.error("[AUTH] signIn error:", error);
+        return true; // Still allow sign in even if update fails
       }
-      return true;
+    },
+    async redirect({ url, baseUrl }) {
+      console.log("[AUTH] redirect callback:", { url, baseUrl });
+      // Allows relative callback URLs
+      if (url.startsWith("/")) return `${baseUrl}${url}`;
+      // Allows callback URLs on the same origin
+      else if (new URL(url).origin === baseUrl) return url;
+      return baseUrl + "/dashboard";
     },
   },
   secret: env.NEXTAUTH_SECRET || "temp-build-secret-change-in-production",
