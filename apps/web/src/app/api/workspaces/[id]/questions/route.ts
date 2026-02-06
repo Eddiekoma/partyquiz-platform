@@ -24,7 +24,7 @@ const createQuestionSchema = z.object({
     "VIDEO_OPEN",
   ]),
   title: z.string().min(1, "Title is required"),
-  prompt: z.string().min(1, "Prompt is required"),
+  prompt: z.string().optional(), // Made optional since some question types may not need it
   explanation: z.string().optional(),
   difficulty: z.number().int().min(1).max(5).optional(),
   tags: z.array(z.string()).optional(),
@@ -32,7 +32,12 @@ const createQuestionSchema = z.object({
   options: z.array(z.object({
     text: z.string(),
     isCorrect: z.boolean(),
+    order: z.number().optional(),
   })).optional(),
+  // Media fields
+  spotifyTrackId: z.string().optional(),
+  youtubeVideoId: z.string().optional(),
+  mediaUrl: z.string().optional(),
 });
 
 export async function GET(
@@ -167,13 +172,54 @@ export async function POST(
     const body = await request.json();
     const data = createQuestionSchema.parse(body);
 
-    // Create question with options
+    // Build media entries if any media is provided
+    const mediaEntries: Array<{
+      provider: string;
+      mediaType: string;
+      reference: object;
+      order: number;
+      metadata?: object;
+    }> = [];
+
+    if (data.spotifyTrackId) {
+      mediaEntries.push({
+        provider: "SPOTIFY",
+        mediaType: "AUDIO",
+        reference: { trackId: data.spotifyTrackId },
+        order: mediaEntries.length,
+      });
+    }
+
+    if (data.youtubeVideoId) {
+      mediaEntries.push({
+        provider: "YOUTUBE",
+        mediaType: "VIDEO",
+        reference: { videoId: data.youtubeVideoId },
+        order: mediaEntries.length,
+      });
+    }
+
+    if (data.mediaUrl) {
+      // Determine media type based on question type
+      let mediaType = "IMAGE";
+      if (data.type.includes("AUDIO")) mediaType = "AUDIO";
+      if (data.type.includes("VIDEO")) mediaType = "VIDEO";
+      
+      mediaEntries.push({
+        provider: "UPLOAD",
+        mediaType,
+        reference: { storageKey: data.mediaUrl },
+        order: mediaEntries.length,
+      });
+    }
+
+    // Create question with options and media
     const question = await prisma.question.create({
       data: {
         workspaceId,
         type: data.type,
         title: data.title,
-        prompt: data.prompt,
+        prompt: data.prompt || "",
         explanation: data.explanation,
         difficulty: data.difficulty || 3,
         tagsJson: JSON.stringify(data.tags || []),
@@ -185,8 +231,13 @@ export async function POST(
               create: data.options.map((opt, index) => ({
                 text: opt.text,
                 isCorrect: opt.isCorrect,
-                order: index,
+                order: opt.order ?? index,
               })),
+            }
+          : undefined,
+        media: mediaEntries.length > 0
+          ? {
+              create: mediaEntries,
             }
           : undefined,
       },
@@ -199,6 +250,7 @@ export async function POST(
           },
         },
         options: true,
+        media: true,
       },
     });
 
