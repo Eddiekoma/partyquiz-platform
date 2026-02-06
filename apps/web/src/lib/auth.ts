@@ -4,13 +4,16 @@ import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import Nodemailer from "next-auth/providers/nodemailer";
 import { prisma } from "./prisma";
-import { getEnv } from "./env";
 import { verifyPassword } from "./password";
-
-const env = getEnv();
 
 // Build providers array dynamically
 const providers: any[] = [
+  // Google OAuth - always add (will fail gracefully if not configured)
+  Google({
+    clientId: process.env.GOOGLE_CLIENT_ID ?? "",
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+    allowDangerousEmailAccountLinking: true,
+  }),
   Credentials({
     id: "credentials",
     name: "Email & Wachtwoord",
@@ -55,30 +58,19 @@ const providers: any[] = [
   }),
 ];
 
-// Add Google OAuth if configured
-if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
-  providers.push(
-    Google({
-      clientId: env.GOOGLE_CLIENT_ID,
-      clientSecret: env.GOOGLE_CLIENT_SECRET,
-      allowDangerousEmailAccountLinking: true,
-    })
-  );
-}
-
 // Add Nodemailer if configured
-if (env.EMAIL_SMTP_HOST && env.EMAIL_SMTP_USER && env.EMAIL_SMTP_PASS && env.EMAIL_FROM) {
+if (process.env.EMAIL_SMTP_HOST && process.env.EMAIL_SMTP_USER && process.env.EMAIL_SMTP_PASS && process.env.EMAIL_FROM) {
   providers.push(
     Nodemailer({
       server: {
-        host: env.EMAIL_SMTP_HOST,
-        port: parseInt(env.EMAIL_SMTP_PORT || "587"),
+        host: process.env.EMAIL_SMTP_HOST,
+        port: parseInt(process.env.EMAIL_SMTP_PORT || "587"),
         auth: {
-          user: env.EMAIL_SMTP_USER,
-          pass: env.EMAIL_SMTP_PASS,
+          user: process.env.EMAIL_SMTP_USER,
+          pass: process.env.EMAIL_SMTP_PASS,
         },
       },
-      from: env.EMAIL_FROM,
+      from: process.env.EMAIL_FROM,
     })
   );
 }
@@ -128,7 +120,7 @@ export const authConfig = {
       return true;
     },
   },
-  secret: env.NEXTAUTH_SECRET || "temp-build-secret-change-in-production",
+  secret: process.env.NEXTAUTH_SECRET || "temp-build-secret-change-in-production",
 };
 
 // NextAuth v5 export
