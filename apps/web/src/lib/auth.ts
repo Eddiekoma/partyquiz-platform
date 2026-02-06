@@ -4,6 +4,7 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import EmailProvider from "next-auth/providers/email";
+import { cookies } from "next/headers";
 import { prisma } from "./prisma";
 import { getEnv } from "./env";
 import { verifyPassword } from "./password";
@@ -159,8 +160,13 @@ export { handler as GET, handler as POST };
 
 // Helper function to get session in server components
 export async function auth() {
+  // Debug: log cookies
+  const cookieStore = await cookies();
+  const sessionCookie = cookieStore.get("__Secure-next-auth.session-token");
+  console.log("[AUTH] auth() called, session cookie present:", !!sessionCookie?.value);
+  
   const session = await getServerSession(authOptions);
-  console.log("[AUTH] auth() called, session:", session ? { userId: session.user?.id, email: session.user?.email } : null);
+  console.log("[AUTH] auth() session result:", session ? { userId: session.user?.id, email: session.user?.email } : null);
   return session;
 }
 
