@@ -23,6 +23,13 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  // Password authentication (bcrypt hashed)
+  passwordHash       String?
+  
+  // Email verification with 6-digit code
+  emailVerifyCode    String?
+  emailVerifyExpires DateTime?
+
   // Spotify OAuth tokens (PKCE flow)
   spotifyAccessToken  String? @db.Text
   spotifyRefreshToken String? @db.Text
@@ -30,6 +37,7 @@ model User {
 
   accounts      Account[]
   sessions      Session[]
+  passwordResets PasswordResetToken[]
   ownedWorkspaces Workspace[] @relation("WorkspaceOwner")
   memberships   WorkspaceMember[]
   invitesSent   WorkspaceInvite[] @relation("WorkspaceInvitedBy")
@@ -78,6 +86,21 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  code      String   // 6-digit verification code
+  expires   DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
 }
 
 // ============================================

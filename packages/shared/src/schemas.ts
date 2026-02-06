@@ -23,6 +23,10 @@ export const envSchema = z.object({
   SPOTIFY_CLIENT_SECRET: z.string().optional(),
   SPOTIFY_REDIRECT_URI: z.string().url().optional(),
 
+  // Google OAuth
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+
   // Email
   EMAIL_SMTP_HOST: z.string().optional(),
   EMAIL_SMTP_PORT: z.string().optional(),
