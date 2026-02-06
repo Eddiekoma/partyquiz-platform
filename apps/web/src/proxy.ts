@@ -5,10 +5,13 @@ import type { NextRequest } from "next/server";
 // because nodemailer is not compatible with Edge Runtime.
 // Instead, we check for the session cookie directly.
 export function proxy(request: NextRequest) {
-  // Check for session cookie - NextAuth uses different names based on environment:
-  // - Production (HTTPS): __Secure-next-auth.session-token
-  // - Development (HTTP): next-auth.session-token
+  // Check for session cookie - Auth.js v5 (NextAuth v5) uses different names based on environment:
+  // - Production (HTTPS): __Secure-authjs.session-token
+  // - Development (HTTP): authjs.session-token
+  // Legacy NextAuth v4 names are also checked for backwards compatibility
   const sessionCookie = 
+    request.cookies.get("__Secure-authjs.session-token") ||
+    request.cookies.get("authjs.session-token") ||
     request.cookies.get("__Secure-next-auth.session-token") ||
     request.cookies.get("next-auth.session-token");
 

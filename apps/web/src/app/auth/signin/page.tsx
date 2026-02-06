@@ -75,10 +75,18 @@ function SignInForm() {
         redirect: false,
       });
 
+      console.log("[SignIn] Full result:", result);
+
       if (result?.error) {
-        setError(result.error);
-      } else {
-        router.push(callbackUrl);
+        // NextAuth v5 returns the error code in result.code for CredentialsSignin errors
+        // Fall back to result.error if code is not available
+        const errorCode = result.code || result.error;
+        console.log("[SignIn] Error code:", errorCode, "result.code:", result.code, "result.error:", result.error);
+        setError(errorCode);
+      } else if (result?.ok) {
+        // Use window.location for hard navigation to ensure session cookie is picked up
+        window.location.href = callbackUrl;
+        return; // Don't setLoading(false) since we're navigating away
       }
     } catch {
       setError("Er ging iets mis. Probeer het opnieuw.");

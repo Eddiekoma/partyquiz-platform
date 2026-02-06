@@ -1,4 +1,4 @@
-import NextAuth from "next-auth"
+import NextAuth, { CredentialsSignin } from "next-auth"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import Google from "next-auth/providers/google"
 import Credentials from "next-auth/providers/credentials"
@@ -6,6 +6,16 @@ import Nodemailer from "next-auth/providers/nodemailer"
 import { prisma } from "@/lib/prisma"
 import { verifyPassword } from "@/lib/password"
 import authConfig from "./auth.config"
+
+/**
+ * Custom error class for credentials signin that preserves the error code
+ */
+class CustomCredentialsError extends CredentialsSignin {
+  constructor(code: string) {
+    super()
+    this.code = code
+  }
+}
 
 /**
  * Custom error codes for credentials signin
@@ -58,7 +68,7 @@ providers.push(
     },
     async authorize(credentials) {
       if (!credentials?.email || !credentials?.password) {
-        throw new Error(AUTH_ERROR.MISSING_CREDENTIALS)
+        throw new CustomCredentialsError(AUTH_ERROR.MISSING_CREDENTIALS)
       }
 
       const email = (credentials.email as string).toLowerCase()
@@ -81,26 +91,26 @@ providers.push(
       })
 
       if (!user) {
-        throw new Error(AUTH_ERROR.USER_NOT_FOUND)
+        throw new CustomCredentialsError(AUTH_ERROR.USER_NOT_FOUND)
       }
 
       // Check if user has a password set
       if (!user.passwordHash) {
         // User exists but has no password (e.g., signed up via Google)
         // They need to set a password first via account settings
-        throw new Error(AUTH_ERROR.NO_PASSWORD_SET)
+        throw new CustomCredentialsError(AUTH_ERROR.NO_PASSWORD_SET)
       }
 
       // For OAuth accounts, email is already verified via the provider
       // For credentials-only accounts, check email verification
       const hasOAuthAccount = user.accounts.length > 0
       if (!hasOAuthAccount && !user.emailVerified) {
-        throw new Error(AUTH_ERROR.EMAIL_NOT_VERIFIED)
+        throw new CustomCredentialsError(AUTH_ERROR.EMAIL_NOT_VERIFIED)
       }
 
       const isValid = await verifyPassword(password, user.passwordHash)
       if (!isValid) {
-        throw new Error(AUTH_ERROR.INVALID_PASSWORD)
+        throw new CustomCredentialsError(AUTH_ERROR.INVALID_PASSWORD)
       }
 
       return {
@@ -134,10 +144,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   session: { strategy: "jwt" },
   secret: process.env.NEXTAUTH_SECRET || "temp-build-secret-change-in-production",
-  ...authConfig,
+  trustHost: true, // Required for localhost/reverse proxy
+  // Use pages from authConfig but NOT providers (we define our own with full authorize)
+  pages: authConfig.pages,
   providers,
+  cookies: {
+    // Explicit cookie configuration for localhost compatibility
+    sessionToken: {
+      name: process.env.NODE_ENV === "production" ? "__Secure-authjs.session-token" : "authjs.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
+  },
   callbacks: {
-    ...authConfig.callbacks,
+    // Don't spread authConfig.callbacks - the authorized callback belongs in middleware only
     async jwt({ token, user }) {
       // Initial sign in - add user id to token
       if (user) {
