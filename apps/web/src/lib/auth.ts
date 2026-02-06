@@ -100,20 +100,14 @@ export const authOptions: NextAuthOptions = {
     newUser: "/dashboard", // Redirect new users to dashboard
   },
   session: {
-    strategy: "jwt",
+    strategy: "database",
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   callbacks: {
-    async jwt({ token, user, account }) {
-      // Initial sign in
-      if (user) {
-        token.id = user.id;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      if (session.user && token) {
-        session.user.id = token.id as string;
+    async session({ session, user }) {
+      console.log("[AUTH] session callback:", { userId: user?.id, email: user?.email });
+      if (session.user && user) {
+        session.user.id = user.id;
       }
       return session;
     },
@@ -165,6 +159,8 @@ export { handler as GET, handler as POST };
 
 // Helper function to get session in server components
 export async function auth() {
-  return getServerSession(authOptions);
+  const session = await getServerSession(authOptions);
+  console.log("[AUTH] auth() called, session:", session ? { userId: session.user?.id, email: session.user?.email } : null);
+  return session;
 }
 
