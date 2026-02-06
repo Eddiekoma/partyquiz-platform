@@ -404,6 +404,21 @@
     color: var(--color-text-primary);
   }
   
+  .btn-danger {
+    background: linear-gradient(135deg, #dc2626, #ef4444);
+    color: white;
+    box-shadow: 0 4px 14px rgba(220, 38, 38, 0.4);
+  }
+  
+  .btn-danger:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(220, 38, 38, 0.5);
+  }
+  
+  .btn-danger:active {
+    transform: translateY(0);
+  }
+  
   .btn-glow {
     position: relative;
     overflow: hidden;
@@ -434,6 +449,13 @@
   .btn-sm {
     padding: 0.5rem 1rem;
     font-size: 0.875rem;
+  }
+  
+  .btn:disabled,
+  .btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
   }
   
   /* === CARDS === */

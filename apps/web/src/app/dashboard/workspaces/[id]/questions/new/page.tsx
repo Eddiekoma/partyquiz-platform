@@ -241,8 +241,8 @@ export default function NewQuestionPage() {
         throw new Error(error.error || "Failed to create question");
       }
 
-      const { question: createdQuestion } = await response.json();
-      router.push(`/dashboard/workspaces/${workspaceId}/questions/${createdQuestion.id}/edit`);
+      // Redirect back to questions overview after successful creation
+      router.push(`/dashboard/workspaces/${workspaceId}/questions`);
     } catch (error) {
       console.error("Failed to create question:", error);
       alert(error instanceof Error ? error.message : "Failed to create question");
