@@ -28,6 +28,7 @@ interface Question {
   type: string;
   title: string;
   prompt: string;
+  explanation: string | null;
   difficulty: number;
   options: Array<{
     id: string;
@@ -434,6 +435,7 @@ export default function QuizDetailPage() {
   const [editingItem, setEditingItem] = useState<{ roundId: string; item: QuizItem } | null>(null);
   const [editTimer, setEditTimer] = useState(30);
   const [editPoints, setEditPoints] = useState(1000);
+  const [editShowExplanation, setEditShowExplanation] = useState(false);
 
   // Drag and drop sensors
   const sensors = useSensors(
@@ -630,10 +632,11 @@ export default function QuizDetailPage() {
   };
 
   const handleEditSettings = (roundId: string, item: QuizItem) => {
-    const settings = item.settingsJson as { timer?: number; points?: number } | null;
+    const settings = item.settingsJson as { timer?: number; points?: number; showExplanation?: boolean } | null;
     setEditingItem({ roundId, item });
     setEditTimer(settings?.timer || 30);
     setEditPoints(settings?.points || 1000);
+    setEditShowExplanation(settings?.showExplanation ?? false);
     setShowSettingsModal(true);
   };
 
@@ -651,6 +654,7 @@ export default function QuizDetailPage() {
             settingsJson: {
               timer: editTimer,
               points: editPoints,
+              showExplanation: editShowExplanation,
             },
           }),
         }
@@ -1071,6 +1075,42 @@ export default function QuizDetailPage() {
                 </div>
                 <p className="text-xs text-slate-400 mt-1">Points for correct answers (with time bonus)</p>
               </div>
+
+              {/* Show Explanation Toggle */}
+              {editingItem?.item.question?.explanation && (
+                <div className="pt-4 border-t border-slate-700">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editShowExplanation}
+                      onChange={(e) => setEditShowExplanation(e.target.checked)}
+                      className="w-5 h-5 rounded border-slate-600 text-blue-600 focus:ring-blue-500"
+                    />
+                    <div>
+                      <span className="font-medium">💡 Show Explanation After Reveal</span>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Display the answer explanation on screen after revealing the correct answer
+                      </p>
+                    </div>
+                  </label>
+                  <div className="mt-2 p-3 bg-slate-700/50 rounded-lg text-sm text-slate-300">
+                    <strong>Explanation:</strong> {editingItem.item.question.explanation}
+                  </div>
+                </div>
+              )}
+              {editingItem?.item.question && !editingItem.item.question.explanation && (
+                <div className="pt-4 border-t border-slate-700">
+                  <p className="text-sm text-slate-400">
+                    💡 No explanation set for this question. 
+                    <a 
+                      href={`/dashboard/workspaces/${workspaceId}/questions/${editingItem.item.question.id}/edit`}
+                      className="text-blue-400 hover:underline ml-1"
+                    >
+                      Add one in the question editor
+                    </a>
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-3 mt-6">

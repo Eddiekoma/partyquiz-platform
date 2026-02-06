@@ -161,7 +161,12 @@ export default function NewQuestionPage() {
 
   const handleSubmit = async () => {
     if (!selectedType || !title.trim()) {
-      alert("Please select a question type and enter a title");
+      alert("Please select a question type and enter an internal name");
+      return;
+    }
+
+    if (!prompt.trim()) {
+      alert("Please enter the question text - this is what players will see");
       return;
     }
 
@@ -291,31 +296,33 @@ export default function NewQuestionPage() {
       </div>
 
       <div className="space-y-6">
-        {/* Title */}
+        {/* Title - Internal Name */}
         <Card className="p-6">
           <label className="block text-sm font-semibold mb-2">
-            Title <span className="text-red-500">*</span>
+            Internal Name <span className="text-red-500">*</span>
           </label>
           <Input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Enter question title..."
+            placeholder="Short name for question bank (e.g., 'Mona Lisa painting')"
             className="w-full"
           />
+          <p className="text-xs text-slate-400 mt-1">Used to identify this question in the question bank</p>
         </Card>
 
-        {/* Prompt */}
+        {/* Question Text (was Prompt) */}
         <Card className="p-6">
           <label className="block text-sm font-semibold mb-2">
-            Prompt
+            Question Text <span className="text-red-500">*</span>
           </label>
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Additional context or instructions (optional)..."
-            className="w-full px-4 py-3 border border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            placeholder="The actual question shown to players (e.g., 'Which painting is the most famous in the world?')"
+            className="w-full px-4 py-3 border border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-slate-800 text-white"
             rows={3}
           />
+          <p className="text-xs text-slate-400 mt-1">This is what players will see during the quiz</p>
         </Card>
 
         {/* Type-Specific Fields */}

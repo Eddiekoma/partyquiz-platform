@@ -50,6 +50,7 @@ export default function DisplayPage() {
   const [answeredCount, setAnsweredCount] = useState(0);
   const [scoreboardData, setScoreboardData] = useState<{ type: string; players: Player[] }>({ type: "top10", players: [] });
   const [minigameType, setMinigameType] = useState<string | null>(null);
+  const [explanation, setExplanation] = useState<string | null>(null);
 
   // Use WebSocket without onMessage - we'll set up direct listeners
   const { socket, isConnected } = useWebSocket({
@@ -119,6 +120,7 @@ export default function DisplayPage() {
       });
       setTimeRemaining(data.timerDuration);
       setAnsweredCount(0);
+      setExplanation(null); // Reset explanation for new question
       setDisplayState("question");
     });
 
@@ -140,6 +142,8 @@ export default function DisplayPage() {
           })),
         } : null);
       }
+      // Set explanation if provided
+      setExplanation(data.explanation || null);
       setDisplayState("reveal");
     });
 
@@ -370,6 +374,19 @@ export default function DisplayPage() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {/* Explanation - shown after reveal */}
+            {displayState === "reveal" && explanation && (
+              <div className="mt-8 p-6 bg-blue-900/50 border border-blue-500/30 rounded-2xl">
+                <div className="flex items-start gap-4">
+                  <span className="text-4xl">💡</span>
+                  <div>
+                    <h3 className="text-xl font-bold text-blue-300 mb-2">Explanation</h3>
+                    <p className="text-xl text-white leading-relaxed">{explanation}</p>
+                  </div>
+                </div>
               </div>
             )}
 

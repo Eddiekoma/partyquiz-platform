@@ -37,6 +37,8 @@ export default function GamePage() {
   const [showSwanRace, setShowSwanRace] = useState(false);
   const [playerId, setPlayerId] = useState<string>("");
   const [playerName, setPlayerName] = useState<string>("");
+  const [explanation, setExplanation] = useState<string | null>(null);
+  const [showReveal, setShowReveal] = useState(false);
 
   const { socket, isConnected } = useWebSocket();
 
@@ -96,6 +98,8 @@ export default function GamePage() {
       setTimeRemaining(data.timerDuration);
       setMyAnswer(null);
       setAnswerResult(null);
+      setExplanation(null); // Reset explanation
+      setShowReveal(false); // Reset reveal state
     });
 
     // Listen for item locked (time's up)
@@ -119,7 +123,9 @@ export default function GamePage() {
     // Listen for reveal answers (show correct answer)
     socket.on("REVEAL_ANSWERS", (data: any) => {
       console.log("[Player] Reveal answers:", data);
-      // Show correct answer feedback
+      // Show correct answer feedback and explanation if provided
+      setExplanation(data.explanation || null);
+      setShowReveal(true);
     });
 
     // Listen for session ended
@@ -268,6 +274,19 @@ export default function GamePage() {
                 +{answerResult.score} points
               </p>
             )}
+          </div>
+        )}
+
+        {/* Explanation - shown after reveal */}
+        {showReveal && explanation && (
+          <div className="mt-6 p-4 bg-blue-900/60 border border-blue-500/40 rounded-xl mx-4">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">💡</span>
+              <div>
+                <p className="text-sm font-semibold text-blue-300 mb-1">Explanation</p>
+                <p className="text-white">{explanation}</p>
+              </div>
+            </div>
           </div>
         )}
       </div>

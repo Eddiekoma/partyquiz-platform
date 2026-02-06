@@ -705,6 +705,18 @@ io.on("connection", (socket: Socket) => {
         return;
       }
 
+      // Get the quiz item with question and settings
+      const quizItem = await prisma.quizItem.findUnique({
+        where: { id: itemId },
+        include: {
+          question: {
+            include: {
+              options: true,
+            },
+          },
+        },
+      });
+
       // Get answers for current item from database
       const answers = await prisma.liveAnswer.findMany({
         where: {
@@ -724,8 +736,17 @@ io.on("connection", (socket: Socket) => {
         },
       });
 
+      // Get settings and check if explanation should be shown
+      const settings = (quizItem?.settingsJson as { showExplanation?: boolean } | null) || {};
+      const showExplanation = settings.showExplanation === true;
+
+      // Find correct option for multiple choice questions
+      const correctOption = quizItem?.question?.options.find((opt) => opt.isCorrect);
+
       io.to(sessionCode).emit(WSMessageType.REVEAL_ANSWERS, {
         itemId,
+        correctOptionId: correctOption?.id || null,
+        explanation: showExplanation ? quizItem?.question?.explanation : null,
         answers: answers.map((a) => ({
           playerId: a.playerId,
           playerName: a.player.name,
@@ -735,7 +756,7 @@ io.on("connection", (socket: Socket) => {
         })),
       });
 
-      logger.info({ sessionCode, itemId, answerCount: answers.length }, "Answers revealed");
+      logger.info({ sessionCode, itemId, answerCount: answers.length, showExplanation }, "Answers revealed");
     } catch (error) {
       logger.error({ error }, "Error revealing answers");
       socket.emit("error", { message: "Failed to reveal answers" });
