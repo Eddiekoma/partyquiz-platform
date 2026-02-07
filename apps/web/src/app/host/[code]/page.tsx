@@ -3,16 +3,17 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import { WSMessageType } from "@partyquiz/shared";
+import { WSMessageType, type Player as SharedPlayer, type ConnectionStatus } from "@partyquiz/shared";
 import Link from "next/link";
 import QRCode from "react-qr-code";
 
 interface Player {
   id: string;
   name: string;
-  avatar?: string;
+  avatar?: string | null;
   score: number;
-  isOnline: boolean;
+  isOnline?: boolean;
+  connectionQuality?: "good" | "poor" | "offline";
 }
 
 interface QuizItem {
@@ -97,13 +98,22 @@ export default function HostControlPage() {
       }
     };
 
-    // Listen for player joined
+    // Listen for player joined - handle both nested and flat structure
     const handlePlayerJoined = (data: any) => {
       console.log("[Host] PLAYER_JOINED received:", data);
-      if (data.player) {
+      // Support both { player: {...} } and flat { id, name, ... } format
+      const playerData = data.player || data;
+      if (playerData && (playerData.id || playerData.playerId)) {
+        const newPlayer: Player = {
+          id: playerData.id || playerData.playerId,
+          name: playerData.name,
+          avatar: playerData.avatar || null,
+          score: playerData.score || 0,
+          isOnline: true,
+        };
         setSession(prev => prev ? {
           ...prev,
-          players: [...prev.players.filter(p => p.id !== data.player.id), data.player]
+          players: [...prev.players.filter(p => p.id !== newPlayer.id), newPlayer]
         } : null);
       }
     };
@@ -116,6 +126,28 @@ export default function HostControlPage() {
           ...prev,
           players: prev.players.filter(p => p.id !== data.playerId)
         } : null);
+      }
+    };
+
+    // Listen for connection status updates (presence)
+    const handleConnectionStatus = (data: { connections: ConnectionStatus[] }) => {
+      console.log("[Host] CONNECTION_STATUS_UPDATE received:", data);
+      if (data.connections) {
+        setSession(prev => {
+          if (!prev) return null;
+          const updatedPlayers = prev.players.map(player => {
+            const connection = data.connections.find(c => c.playerId === player.id);
+            if (connection) {
+              return {
+                ...player,
+                isOnline: connection.isOnline,
+                connectionQuality: connection.connectionQuality,
+              };
+            }
+            return player;
+          });
+          return { ...prev, players: updatedPlayers };
+        });
       }
     };
 
@@ -156,6 +188,7 @@ export default function HostControlPage() {
     socket.on(WSMessageType.SESSION_STATE, handleSessionState);
     socket.on(WSMessageType.PLAYER_JOINED, handlePlayerJoined);
     socket.on(WSMessageType.PLAYER_LEFT, handlePlayerLeft);
+    socket.on("CONNECTION_STATUS_UPDATE", handleConnectionStatus);
     socket.on(WSMessageType.ANSWER_RECEIVED, handleAnswerReceived);
     socket.on(WSMessageType.SESSION_ENDED, handleSessionEnded);
     socket.on(WSMessageType.SESSION_RESET, handleSessionReset);
@@ -166,6 +199,7 @@ export default function HostControlPage() {
       socket.off(WSMessageType.SESSION_STATE, handleSessionState);
       socket.off(WSMessageType.PLAYER_JOINED, handlePlayerJoined);
       socket.off(WSMessageType.PLAYER_LEFT, handlePlayerLeft);
+      socket.off("CONNECTION_STATUS_UPDATE", handleConnectionStatus);
       socket.off(WSMessageType.ANSWER_RECEIVED, handleAnswerReceived);
       socket.off(WSMessageType.SESSION_ENDED, handleSessionEnded);
       socket.off(WSMessageType.SESSION_RESET, handleSessionReset);

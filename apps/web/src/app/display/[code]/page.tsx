@@ -83,13 +83,22 @@ export default function DisplayPage() {
       }
     });
 
-    // Listen for player joined
+    // Listen for player joined - handle both nested and flat structure
     socket.on(WSMessageType.PLAYER_JOINED, (data: any) => {
       console.log("[Display] PLAYER_JOINED received:", data);
-      if (data.player) {
+      // Support both { player: {...} } and flat { id, name, ... } format
+      const playerData = data.player || data;
+      if (playerData && (playerData.id || playerData.playerId)) {
+        const newPlayer = {
+          id: playerData.id || playerData.playerId,
+          name: playerData.name,
+          avatar: playerData.avatar || null,
+          score: playerData.score || 0,
+          isOnline: true,
+        };
         setSession(prev => prev ? {
           ...prev,
-          players: [...prev.players.filter(p => p.id !== data.player.id), data.player]
+          players: [...prev.players.filter(p => p.id !== newPlayer.id), newPlayer]
         } : null);
       }
     });

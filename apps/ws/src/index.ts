@@ -4,7 +4,29 @@ import "dotenv/config";
 import { Server, Socket } from "socket.io";
 import { createServer } from "http";
 import { pino } from "pino";
-import { WSMessageType, validateAndScore, QuestionType } from "@partyquiz/shared";
+import { 
+  WSMessageType, 
+  validateAndScore, 
+  QuestionType,
+  // WS Event schemas and types
+  validateCommand,
+  createEventPayload,
+  checkInputRateLimit,
+  clearInputRateLimit,
+  joinSessionCommandSchema,
+  playerRejoinCommandSchema,
+  hostJoinSessionCommandSchema,
+  submitAnswerCommandSchema,
+  gameInputCommandSchema,
+  startItemCommandSchema,
+  lockItemCommandSchema,
+  revealAnswersCommandSchema,
+  startSwanRaceCommandSchema,
+  type Player,
+  type PlayerJoinedEvent,
+  type SessionStateEvent,
+  type ConnectionStatusUpdateEvent,
+} from "@partyquiz/shared";
 import {
   redis,
   cacheSessionState,
@@ -50,12 +72,32 @@ interface PlayerConnection {
 
 const sessionConnections = new Map<string, Map<string, PlayerConnection>>();
 
-function trackPlayerConnection(sessionCode: string, playerId: string, playerName: string, socketId: string) {
+function trackPlayerConnection(sessionCode: string, playerId: string, playerName: string, socketId: string, io: Server) {
   if (!sessionConnections.has(sessionCode)) {
     sessionConnections.set(sessionCode, new Map());
   }
   
   const connections = sessionConnections.get(sessionCode)!;
+  
+  // Check if player already has a connection (single-socket-per-player)
+  const existingConnection = connections.get(playerId);
+  if (existingConnection && existingConnection.socketId !== socketId) {
+    // Disconnect the old socket
+    const oldSocket = io.sockets.sockets.get(existingConnection.socketId);
+    if (oldSocket) {
+      logger.info({ 
+        sessionCode, 
+        playerId, 
+        oldSocketId: existingConnection.socketId, 
+        newSocketId: socketId 
+      }, "Disconnecting old socket - single socket per player");
+      oldSocket.emit("SESSION_TAKEOVER", { 
+        message: "You've connected from another device/tab" 
+      });
+      oldSocket.disconnect(true);
+    }
+  }
+  
   connections.set(playerId, {
     playerId,
     playerName,
@@ -107,8 +149,9 @@ function getConnectionQuality(conn: PlayerConnection): 'good' | 'poor' | 'offlin
   if (!conn.isOnline) return 'offline';
   
   const timeSinceHeartbeat = Date.now() - conn.lastHeartbeat;
-  if (timeSinceHeartbeat > 10000) return 'offline';
-  if (timeSinceHeartbeat > 5000) return 'poor';
+  // Thresholds adjusted for 10-second heartbeat interval
+  if (timeSinceHeartbeat > 35000) return 'offline';  // 35s = missed 3+ heartbeats
+  if (timeSinceHeartbeat > 20000) return 'poor';     // 20s = missed 1-2 heartbeats
   return 'good';
 }
 
@@ -288,8 +331,8 @@ io.on("connection", (socket: Socket) => {
         socket.data.sessionCode = sessionCode;
         socket.data.sessionId = session.id;
 
-        // Track connection status
-        trackPlayerConnection(sessionCode, player.id, playerName, socket.id);
+        // Track connection status (disconnects old socket if player reconnects)
+        trackPlayerConnection(sessionCode, player.id, playerName, socket.id, io);
 
         // Send session state to player
         socket.emit(WSMessageType.SESSION_STATE, {
@@ -305,19 +348,23 @@ io.on("connection", (socket: Socket) => {
           })),
         });
 
-        // Notify others in the session
-        socket.to(sessionCode).emit(WSMessageType.PLAYER_JOINED, {
-          playerId: player.id,
+        // Notify others in the session - use consistent nested structure
+        const playerData: Player = {
+          id: player.id,
           name: playerName,
-          avatar,
+          avatar: avatar || null,
           score: 0,
-        });
+          isOnline: true,
+        };
+        socket.to(sessionCode).emit(WSMessageType.PLAYER_JOINED, {
+          player: playerData,
+        } satisfies PlayerJoinedEvent);
 
         // Send connection status update to host
         const connections = getSessionConnections(sessionCode);
         io.to(sessionCode).emit("CONNECTION_STATUS_UPDATE", {
           connections,
-        });
+        } satisfies ConnectionStatusUpdateEvent);
 
         logger.info({ playerId: player.id, sessionCode }, "Player joined successfully");
       } catch (error) {
@@ -442,8 +489,8 @@ io.on("connection", (socket: Socket) => {
         socket.data.sessionCode = sessionCode;
         socket.data.sessionId = session.id;
 
-        // Track connection status
-        trackPlayerConnection(sessionCode, playerId, player.name, socket.id);
+        // Track connection status (disconnects old socket if player reconnects)
+        trackPlayerConnection(sessionCode, playerId, player.name, socket.id, io);
 
         // Get current item from Redis (if any)
         const currentItemId = await redis.get(`session:${sessionCode}:currentItem`);

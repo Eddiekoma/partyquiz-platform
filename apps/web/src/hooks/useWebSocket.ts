@@ -89,12 +89,13 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
       onMessageRef.current?.(message);
     });
 
-    // Heartbeat mechanism - send heartbeat every 30 seconds (not 3!)
+    // Heartbeat mechanism - send heartbeat every 10 seconds
+    // Server thresholds: poor > 20s, offline > 35s
     const heartbeatInterval = setInterval(() => {
       if (socket.connected) {
         socket.emit("HEARTBEAT");
       }
-    }, 30000);
+    }, 10000);
 
     // Cleanup on unmount
     return () => {
