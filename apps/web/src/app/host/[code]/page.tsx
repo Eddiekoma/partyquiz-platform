@@ -70,17 +70,19 @@ export default function HostControlPage() {
   const [answeredCount, setAnsweredCount] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [hasJoinedRoom, setHasJoinedRoom] = useState(false);
+  const [liveConnectionStatus, setLiveConnectionStatus] = useState<Map<string, { isOnline: boolean; quality: string }>>(new Map());
 
   // Use WebSocket without onMessage - we'll set up direct listeners
   const { socket, isConnected, send } = useWebSocket({
     sessionCode: code,
   });
 
-  // Join session room and set up event listeners when socket connects
+  // Join session room when socket connects (ONE TIME ONLY)
   useEffect(() => {
     if (!socket || !isConnected || hasJoinedRoom) return;
 
-    console.log("[Host] Socket connected, joining session room...");
+    console.log("[Host] Socket connected, socket id:", socket.id);
+    console.log("[Host] Joining session room for code:", code);
     
     // Host joins the session room
     socket.emit(WSMessageType.HOST_JOIN_SESSION, {
@@ -89,6 +91,19 @@ export default function HostControlPage() {
     
     // Mark as joined to prevent re-joining
     setHasJoinedRoom(true);
+  }, [socket, isConnected, code, hasJoinedRoom]);
+
+  // Set up event listeners SEPARATELY (runs when socket changes)
+  useEffect(() => {
+    if (!socket) return;
+
+    console.log("[Host] Setting up event listeners on socket:", socket.id);
+    
+    // Debug: log ALL incoming events
+    const handleAny = (eventName: string, ...args: unknown[]) => {
+      console.log("[Host] Received event:", eventName, args);
+    };
+    socket.onAny(handleAny);
 
     // Listen for session state (sent after joining)
     const handleSessionState = (data: any) => {
@@ -126,6 +141,12 @@ export default function HostControlPage() {
           ...prev,
           players: prev.players.filter(p => p.id !== data.playerId)
         } : null);
+        // Also remove from live status
+        setLiveConnectionStatus(prev => {
+          const newMap = new Map(prev);
+          newMap.delete(data.playerId);
+          return newMap;
+        });
       }
     };
 
@@ -133,6 +154,19 @@ export default function HostControlPage() {
     const handleConnectionStatus = (data: { connections: ConnectionStatus[] }) => {
       console.log("[Host] CONNECTION_STATUS_UPDATE received:", data);
       if (data.connections) {
+        // Update the live connection status map
+        setLiveConnectionStatus(prev => {
+          const newMap = new Map(prev);
+          data.connections.forEach(conn => {
+            newMap.set(conn.playerId, {
+              isOnline: conn.isOnline,
+              quality: conn.connectionQuality || 'unknown',
+            });
+          });
+          return newMap;
+        });
+        
+        // Also update session players for backward compatibility
         setSession(prev => {
           if (!prev) return null;
           const updatedPlayers = prev.players.map(player => {
@@ -194,8 +228,12 @@ export default function HostControlPage() {
     socket.on(WSMessageType.SESSION_RESET, handleSessionReset);
     socket.on(WSMessageType.ERROR, handleError);
 
-    // Cleanup listeners on unmount
+    console.log("[Host] Event listeners registered successfully");
+
+    // Cleanup listeners on unmount or socket change
     return () => {
+      console.log("[Host] Cleaning up event listeners");
+      socket.offAny(handleAny);
       socket.off(WSMessageType.SESSION_STATE, handleSessionState);
       socket.off(WSMessageType.PLAYER_JOINED, handlePlayerJoined);
       socket.off(WSMessageType.PLAYER_LEFT, handlePlayerLeft);
@@ -205,7 +243,7 @@ export default function HostControlPage() {
       socket.off(WSMessageType.SESSION_RESET, handleSessionReset);
       socket.off(WSMessageType.ERROR, handleError);
     };
-  }, [socket, isConnected, code, router, hasJoinedRoom]);
+  }, [socket]); // Only depend on socket, not on isConnected or hasJoinedRoom
 
   // Fetch session data
   useEffect(() => {
@@ -505,6 +543,11 @@ export default function HostControlPage() {
           <div>
             <h3 className="text-sm font-semibold text-slate-400 uppercase mb-3">
               Players ({session.players.length})
+              {!isConnected && (
+                <span className="ml-2 text-xs text-yellow-500 normal-case">
+                  (offline mode)
+                </span>
+              )}
             </h3>
             
             {session.players.length === 0 ? (
@@ -515,26 +558,55 @@ export default function HostControlPage() {
               <div className="space-y-2">
                 {session.players
                   .sort((a, b) => b.score - a.score)
-                  .map((player, index) => (
-                    <div 
-                      key={player.id}
-                      className="flex items-center gap-3 bg-slate-700/50 rounded-lg px-3 py-2"
-                    >
-                      <span className="text-lg font-bold text-slate-500 w-6">
-                        {index + 1}
-                      </span>
-                      <span className="text-xl">{player.avatar || "👤"}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{player.name}</p>
+                  .map((player, index) => {
+                    // Use live connection status if available, otherwise show as unknown/offline
+                    const liveStatus = liveConnectionStatus.get(player.id);
+                    const isOnline = liveStatus?.isOnline ?? false;
+                    const quality = liveStatus?.quality || 'unknown';
+                    
+                    // Determine status color: green=online, yellow=poor, red=offline, gray=unknown
+                    let statusColor = "bg-slate-500"; // unknown/not connected
+                    let statusTitle = "Connection unknown";
+                    if (isConnected) {
+                      if (isOnline) {
+                        if (quality === 'good') {
+                          statusColor = "bg-green-400";
+                          statusTitle = "Online (good connection)";
+                        } else if (quality === 'poor') {
+                          statusColor = "bg-yellow-400";
+                          statusTitle = "Online (poor connection)";
+                        } else {
+                          statusColor = "bg-green-400";
+                          statusTitle = "Online";
+                        }
+                      } else {
+                        statusColor = "bg-red-500";
+                        statusTitle = "Offline";
+                      }
+                    }
+                    
+                    return (
+                      <div 
+                        key={player.id}
+                        className="flex items-center gap-3 bg-slate-700/50 rounded-lg px-3 py-2"
+                      >
+                        <span className="text-lg font-bold text-slate-500 w-6">
+                          {index + 1}
+                        </span>
+                        <span className="text-xl">{player.avatar || "👤"}</span>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{player.name}</p>
+                        </div>
+                        <span className="font-mono font-bold" style={{ color: themeColor }}>
+                          {player.score}
+                        </span>
+                        <span 
+                          className={`w-2 h-2 rounded-full ${statusColor}`}
+                          title={statusTitle}
+                        />
                       </div>
-                      <span className="font-mono font-bold" style={{ color: themeColor }}>
-                        {player.score}
-                      </span>
-                      <span className={`w-2 h-2 rounded-full ${
-                        player.isOnline ? "bg-green-400" : "bg-slate-500"
-                      }`} />
-                    </div>
-                  ))
+                    );
+                  })
                 }
               </div>
             )}

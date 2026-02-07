@@ -23,8 +23,6 @@ interface UseWebSocketReturn {
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:8080";
 
 export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketReturn {
-  const { sessionCode } = options;
-  
   // Store callbacks in refs to avoid re-creating socket on callback changes
   const onMessageRef = useRef(options.onMessage);
   const onConnectRef = useRef(options.onConnect);
@@ -39,61 +37,70 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     onErrorRef.current = options.onError;
   }, [options.onMessage, options.onConnect, options.onDisconnect, options.onError]);
   
-  const socketRef = useRef<Socket | null>(null);
+  // Use STATE for socket so changes trigger re-renders
+  const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  
+  // Ref to store socket instance (prevents re-connection on re-render)
+  const socketRef = useRef<Socket | null>(null);
 
+  // Connect to WebSocket on mount - EMPTY dependency array = runs once
   useEffect(() => {
-    // Prevent multiple connections
+    // Already connected
     if (socketRef.current) {
+      console.log("[WS] Already have socket, skipping connection");
       return;
     }
     
-    console.log("[WS] Connecting to:", WS_URL);
+    console.log("[WS] Creating new socket connection to:", WS_URL);
     
     // Create socket connection
-    const socket = io(WS_URL, {
+    const newSocket = io(WS_URL, {
       path: "/ws",
-      transports: ["websocket", "polling"], // Allow fallback to polling
+      transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionAttempts: 5,
     });
 
-    socketRef.current = socket;
+    // Store in ref immediately (prevents double connection)
+    socketRef.current = newSocket;
+    
+    // Set socket in state so components re-render
+    setSocket(newSocket);
 
     // Connection handlers
-    socket.on("connect", () => {
-      console.log("[WS] Connected to WebSocket server, socket id:", socket.id);
+    newSocket.on("connect", () => {
+      console.log("[WS] Connected to WebSocket server, socket id:", newSocket.id);
       setIsConnected(true);
       setError(null);
       onConnectRef.current?.();
     });
 
-    socket.on("disconnect", (reason) => {
+    newSocket.on("disconnect", (reason) => {
       console.log("[WS] Disconnected:", reason);
       setIsConnected(false);
       onDisconnectRef.current?.();
     });
 
-    socket.on("connect_error", (err) => {
+    newSocket.on("connect_error", (err) => {
       console.error("[WS] Connection error:", err.message);
-      const error = new Error(`WebSocket connection failed: ${err.message}`);
-      setError(error);
-      onErrorRef.current?.(error);
+      const wsError = new Error("WebSocket connection failed: " + err.message);
+      setError(wsError);
+      onErrorRef.current?.(wsError);
     });
 
-    // Message handler
-    socket.on("message", (message: WSMessage) => {
+    // Message handler (for generic "message" events)
+    newSocket.on("message", (message: WSMessage) => {
       console.log("[WS] Received message:", message.type);
       onMessageRef.current?.(message);
     });
 
     // Heartbeat mechanism - send heartbeat every 10 seconds
-    // Server thresholds: poor > 20s, offline > 35s
     const heartbeatInterval = setInterval(() => {
-      if (socket.connected) {
-        socket.emit("HEARTBEAT");
+      if (newSocket.connected) {
+        newSocket.emit("HEARTBEAT");
       }
     }, 10000);
 
@@ -101,33 +108,36 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     return () => {
       console.log("[WS] Cleaning up socket connection");
       clearInterval(heartbeatInterval);
-      socket.disconnect();
+      newSocket.disconnect();
       socketRef.current = null;
+      setSocket(null);
     };
-  }, [sessionCode]); // Only reconnect when sessionCode changes
+  }, []);
 
-  // Send message function - emits the message type directly as the event name
+  // Send message function
   const send = useCallback((message: WSMessage) => {
-    if (!socketRef.current?.connected) {
+    const currentSocket = socketRef.current;
+    if (!currentSocket?.connected) {
       console.warn("[WS] Cannot send message: not connected");
       return;
     }
     
     console.log("[WS] Sending message:", message.type, message.payload);
-    // Emit the message type as the event name, with payload as data
-    socketRef.current.emit(message.type, message.payload || {});
+    currentSocket.emit(message.type, message.payload || {});
   }, []);
 
   // Disconnect function
   const disconnect = useCallback(() => {
-    if (socketRef.current) {
-      socketRef.current.disconnect();
+    const currentSocket = socketRef.current;
+    if (currentSocket) {
+      currentSocket.disconnect();
       socketRef.current = null;
+      setSocket(null);
     }
   }, []);
 
   return {
-    socket: socketRef.current,
+    socket,
     isConnected,
     error,
     send,

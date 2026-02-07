@@ -10,8 +10,8 @@ const addItemSchema = z.union([
     questionId: z.string(),
     itemType: z.literal("QUESTION").optional(),
     settingsJson: z.object({
-      timer: z.number().min(5).max(120).optional(), // Timer in seconds (5-120s)
-      points: z.number().min(100).max(10000).optional(), // Base points (100-10000)
+      timer: z.number().min(1).max(120).optional(), // Timer in seconds (1-120s)
+      points: z.number().min(1).max(100).optional(), // Base points (1-100)
     }).optional(),
   }),
   // Add scoreboard item
@@ -112,7 +112,7 @@ export async function POST(
           order: nextOrder,
           itemType: "QUESTION",
           questionId: data.questionId,
-          settingsJson: data.settingsJson || { timer: 30, points: 1000 }, // Default: 30s, 1000 pts
+          settingsJson: data.settingsJson || { timer: 4, points: 10 }, // Default: 4s, 10 pts
         },
         include: {
           question: {
@@ -289,8 +289,8 @@ export async function DELETE(
 const updateItemSchema = z.object({
   itemId: z.string(),
   settingsJson: z.object({
-    timer: z.number().min(5).max(120).optional(),
-    points: z.number().min(100).max(10000).optional(),
+    timer: z.number().min(1).max(120).optional(),
+    points: z.number().min(1).max(100).optional(),
     displayType: z.enum(["TOP_3", "TOP_5", "TOP_10", "ALL"]).optional(),
     duration: z.number().optional(),
     message: z.string().optional(),

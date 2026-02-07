@@ -60,31 +60,41 @@ export default function DisplayPage() {
   // Track if we've already joined the room
   const hasJoinedRoom = useRef(false);
 
-  // Set up event listeners when socket connects
+  // Join session room when socket connects (ONE TIME ONLY)
   useEffect(() => {
-    if (!socket || !isConnected) return;
+    if (!socket || !isConnected || hasJoinedRoom.current) return;
     
-    // Prevent multiple join emissions
-    if (!hasJoinedRoom.current) {
-      hasJoinedRoom.current = true;
-      console.log("[Display] Socket connected, joining session room...");
-      
-      // Display joins the session room (as host-like viewer)
-      socket.emit(WSMessageType.HOST_JOIN_SESSION, {
-        sessionCode: code,
-      });
-    }
+    hasJoinedRoom.current = true;
+    console.log("[Display] Socket connected, joining session room...");
+    
+    // Display joins the session room (as host-like viewer)
+    socket.emit(WSMessageType.HOST_JOIN_SESSION, {
+      sessionCode: code,
+    });
+  }, [socket, isConnected, code]);
+
+  // Set up event listeners SEPARATELY
+  useEffect(() => {
+    if (!socket) return;
+
+    console.log("[Display] Setting up event listeners on socket:", socket.id);
+
+    // Debug: log ALL incoming events
+    const handleAny = (eventName: string, ...args: unknown[]) => {
+      console.log("[Display] Received event:", eventName, args);
+    };
+    socket.onAny(handleAny);
 
     // Listen for session state
-    socket.on(WSMessageType.SESSION_STATE, (data: any) => {
+    const handleSessionState = (data: any) => {
       console.log("[Display] SESSION_STATE received:", data);
       if (data.players) {
         setSession(prev => prev ? { ...prev, players: data.players } : null);
       }
-    });
+    };
 
     // Listen for player joined - handle both nested and flat structure
-    socket.on(WSMessageType.PLAYER_JOINED, (data: any) => {
+    const handlePlayerJoined = (data: any) => {
       console.log("[Display] PLAYER_JOINED received:", data);
       // Support both { player: {...} } and flat { id, name, ... } format
       const playerData = data.player || data;
@@ -101,10 +111,10 @@ export default function DisplayPage() {
           players: [...prev.players.filter(p => p.id !== newPlayer.id), newPlayer]
         } : null);
       }
-    });
+    };
 
     // Listen for player left
-    socket.on(WSMessageType.PLAYER_LEFT, (data: any) => {
+    const handlePlayerLeft = (data: any) => {
       console.log("[Display] PLAYER_LEFT received:", data);
       if (data.playerId) {
         setSession(prev => prev ? {
@@ -112,10 +122,10 @@ export default function DisplayPage() {
           players: prev.players.filter(p => p.id !== data.playerId)
         } : null);
       }
-    });
+    };
 
     // Listen for item started
-    socket.on(WSMessageType.ITEM_STARTED, (data: any) => {
+    const handleItemStarted = (data: any) => {
       console.log("[Display] ITEM_STARTED received:", data);
       setCurrentQuestion({
         id: data.itemId,
@@ -131,16 +141,16 @@ export default function DisplayPage() {
       setAnsweredCount(0);
       setExplanation(null); // Reset explanation for new question
       setDisplayState("question");
-    });
+    };
 
     // Listen for item locked
-    socket.on(WSMessageType.ITEM_LOCKED, () => {
+    const handleItemLocked = () => {
       console.log("[Display] ITEM_LOCKED");
       setDisplayState("locked");
-    });
+    };
 
     // Listen for answer reveal
-    socket.on(WSMessageType.REVEAL_ANSWERS, (data: any) => {
+    const handleRevealAnswers = (data: any) => {
       console.log("[Display] REVEAL_ANSWERS:", data);
       if (data.correctOptionId) {
         setCurrentQuestion(prev => prev ? {
@@ -154,63 +164,81 @@ export default function DisplayPage() {
       // Set explanation if provided
       setExplanation(data.explanation || null);
       setDisplayState("reveal");
-    });
+    };
 
     // Listen for answer received
-    socket.on(WSMessageType.ANSWER_RECEIVED, () => {
+    const handleAnswerReceived = () => {
       setAnsweredCount(prev => prev + 1);
-    });
+    };
 
     // Listen for scoreboard
-    socket.on("SHOW_SCOREBOARD", (data: any) => {
+    const handleShowScoreboard = (data: any) => {
       console.log("[Display] SHOW_SCOREBOARD:", data);
       setScoreboardData({
         type: data.displayType || "top10",
         players: session?.players.sort((a, b) => b.score - a.score) || [],
       });
       setDisplayState("scoreboard");
-    });
+    };
 
     // Listen for swan race
-    socket.on(WSMessageType.SWAN_RACE_STARTED, () => {
+    const handleSwanRaceStarted = () => {
       console.log("[Display] SWAN_RACE_STARTED");
       setMinigameType("SWAN_RACE");
       setDisplayState("minigame");
-    });
+    };
 
     // Listen for session pause/resume/end
-    socket.on(WSMessageType.SESSION_PAUSED, () => {
+    const handleSessionPaused = () => {
       setDisplayState("paused");
-    });
+    };
 
-    socket.on(WSMessageType.SESSION_RESUMED, () => {
+    const handleSessionResumed = () => {
       if (currentQuestion) {
         setDisplayState("question");
       } else {
         setDisplayState("lobby");
       }
-    });
+    };
 
-    socket.on(WSMessageType.SESSION_ENDED, () => {
+    const handleSessionEnded = () => {
       setDisplayState("ended");
-    });
+    };
+
+    // Set up all listeners
+    socket.on(WSMessageType.SESSION_STATE, handleSessionState);
+    socket.on(WSMessageType.PLAYER_JOINED, handlePlayerJoined);
+    socket.on(WSMessageType.PLAYER_LEFT, handlePlayerLeft);
+    socket.on(WSMessageType.ITEM_STARTED, handleItemStarted);
+    socket.on(WSMessageType.ITEM_LOCKED, handleItemLocked);
+    socket.on(WSMessageType.REVEAL_ANSWERS, handleRevealAnswers);
+    socket.on(WSMessageType.ANSWER_RECEIVED, handleAnswerReceived);
+    socket.on("SHOW_SCOREBOARD", handleShowScoreboard);
+    socket.on(WSMessageType.SWAN_RACE_STARTED, handleSwanRaceStarted);
+    socket.on(WSMessageType.SESSION_PAUSED, handleSessionPaused);
+    socket.on(WSMessageType.SESSION_RESUMED, handleSessionResumed);
+    socket.on(WSMessageType.SESSION_ENDED, handleSessionEnded);
+
+    console.log("[Display] Event listeners registered successfully");
 
     // Cleanup listeners
     return () => {
-      socket.off(WSMessageType.SESSION_STATE);
-      socket.off(WSMessageType.PLAYER_JOINED);
-      socket.off(WSMessageType.PLAYER_LEFT);
-      socket.off(WSMessageType.ITEM_STARTED);
-      socket.off(WSMessageType.ITEM_LOCKED);
-      socket.off(WSMessageType.REVEAL_ANSWERS);
-      socket.off(WSMessageType.ANSWER_RECEIVED);
-      socket.off("SHOW_SCOREBOARD");
-      socket.off(WSMessageType.SWAN_RACE_STARTED);
-      socket.off(WSMessageType.SESSION_PAUSED);
-      socket.off(WSMessageType.SESSION_RESUMED);
-      socket.off(WSMessageType.SESSION_ENDED);
+      console.log("[Display] Cleaning up event listeners");
+      socket.offAny(handleAny);
+      socket.off(WSMessageType.SESSION_STATE, handleSessionState);
+      socket.off(WSMessageType.PLAYER_JOINED, handlePlayerJoined);
+      socket.off(WSMessageType.PLAYER_LEFT, handlePlayerLeft);
+      socket.off(WSMessageType.ITEM_STARTED, handleItemStarted);
+      socket.off(WSMessageType.ITEM_LOCKED, handleItemLocked);
+      socket.off(WSMessageType.REVEAL_ANSWERS, handleRevealAnswers);
+      socket.off(WSMessageType.ANSWER_RECEIVED, handleAnswerReceived);
+      socket.off("SHOW_SCOREBOARD", handleShowScoreboard);
+      socket.off(WSMessageType.SWAN_RACE_STARTED, handleSwanRaceStarted);
+      socket.off(WSMessageType.SESSION_PAUSED, handleSessionPaused);
+      socket.off(WSMessageType.SESSION_RESUMED, handleSessionResumed);
+      socket.off(WSMessageType.SESSION_ENDED, handleSessionEnded);
     };
-  }, [socket, isConnected, code, session, currentQuestion, hasJoinedRoom]);
+  }, [socket, session, currentQuestion]);
 
   // Fetch session data
   useEffect(() => {

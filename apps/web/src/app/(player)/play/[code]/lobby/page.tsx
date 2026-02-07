@@ -25,6 +25,7 @@ export default function LobbyPage() {
   const [error, setError] = useState("");
   const [branding, setBranding] = useState<WorkspaceBranding>({ logo: null, themeColor: null });
   const [myPlayer, setMyPlayer] = useState<{ name: string; avatar: string } | null>(null);
+  const [hasJoined, setHasJoined] = useState(false);
 
   const { socket, isConnected } = useWebSocket();
 
@@ -63,8 +64,8 @@ export default function LobbyPage() {
     fetchBranding();
   }, [code]);
 
+  // Get player info on mount
   useEffect(() => {
-    // Get player info from sessionStorage
     const playerName = sessionStorage.getItem("playerName");
     const playerAvatar = sessionStorage.getItem("playerAvatar");
 
@@ -73,72 +74,108 @@ export default function LobbyPage() {
       return;
     }
 
-    // Store own player info for display
     setMyPlayer({ name: playerName, avatar: playerAvatar });
+  }, [code, router]);
 
-    // Join session when socket connects
-    if (socket && isConnected) {
-      socket.emit("JOIN_SESSION", {
-        sessionCode: code.toUpperCase(),
-        playerName,
-        avatar: playerAvatar,
-        deviceIdHash: getDeviceIdHash(),
-      });
+  // Join session when socket connects (ONE TIME ONLY)
+  useEffect(() => {
+    if (!socket || !isConnected || !myPlayer || hasJoined) return;
 
-      // Listen for session state updates
-      socket.on("SESSION_STATE", (data: any) => {
-        if (data.players) {
-          setPlayers(data.players);
-        }
-        if (data.status === "in_progress") {
-          setSessionState("starting");
-        }
-        // Store player ID in localStorage for game page rejoin
-        if (data.playerId) {
-          localStorage.setItem(`player-${code.toUpperCase()}`, JSON.stringify({
-            id: data.playerId,
-            name: playerName,
-            avatar: playerAvatar,
-          }));
-        }
-      });
+    console.log("[Lobby] Joining session:", code.toUpperCase());
+    socket.emit("JOIN_SESSION", {
+      sessionCode: code.toUpperCase(),
+      playerName: myPlayer.name,
+      avatar: myPlayer.avatar,
+      deviceIdHash: getDeviceIdHash(),
+    });
+    setHasJoined(true);
+  }, [socket, isConnected, code, myPlayer, hasJoined]);
 
-      // Listen for item started (question begins)
-      socket.on("ITEM_STARTED", (data: any) => {
-        setSessionState("playing");
-        router.push(`/play/${code}/game`);
-      });
+  // Set up event listeners SEPARATELY
+  useEffect(() => {
+    if (!socket) return;
 
-      // Listen for errors
-      socket.on("ERROR", (data: any) => {
-        setError(data.message || "Failed to join session");
-      });
+    console.log("[Lobby] Setting up event listeners on socket:", socket.id);
 
-      // Listen for player joined
-      socket.on("PLAYER_JOINED", (data: any) => {
-        if (data.player) {
-          setPlayers((prev) => [...prev, data.player]);
-        }
-      });
+    // Debug: log ALL incoming events
+    const handleAny = (eventName: string, ...args: unknown[]) => {
+      console.log("[Lobby] Received event:", eventName, args);
+    };
+    socket.onAny(handleAny);
 
-      // Listen for player left
-      socket.on("PLAYER_LEFT", (data: any) => {
-        if (data.playerId) {
-          setPlayers((prev) => prev.filter((p) => p.id !== data.playerId));
-        }
-      });
-    }
-
-    return () => {
-      if (socket) {
-        socket.off("SESSION_STATE");
-        socket.off("ITEM_STARTED");
-        socket.off("ERROR");
-        socket.off("PLAYER_JOINED");
-        socket.off("PLAYER_LEFT");
+    // Listen for session state updates
+    const handleSessionState = (data: any) => {
+      console.log("[Lobby] SESSION_STATE received:", data);
+      if (data.players) {
+        setPlayers(data.players);
+      }
+      if (data.status === "in_progress") {
+        setSessionState("starting");
+      }
+      // Store player ID in localStorage for game page rejoin
+      if (data.playerId) {
+        const playerName = sessionStorage.getItem("playerName");
+        const playerAvatar = sessionStorage.getItem("playerAvatar");
+        localStorage.setItem(`player-${code.toUpperCase()}`, JSON.stringify({
+          id: data.playerId,
+          name: playerName,
+          avatar: playerAvatar,
+        }));
       }
     };
-  }, [socket, isConnected, code, router]);
+
+    // Listen for item started (question begins)
+    const handleItemStarted = (data: any) => {
+      console.log("[Lobby] ITEM_STARTED received:", data);
+      setSessionState("playing");
+      router.push(`/play/${code}/game`);
+    };
+
+    // Listen for errors
+    const handleError = (data: any) => {
+      console.log("[Lobby] ERROR received:", data);
+      setError(data.message || "Failed to join session");
+    };
+
+    // Listen for player joined
+    const handlePlayerJoined = (data: any) => {
+      console.log("[Lobby] PLAYER_JOINED received:", data);
+      const playerData = data.player || data;
+      if (playerData && playerData.id) {
+        setPlayers((prev) => {
+          // Avoid duplicates
+          if (prev.some(p => p.id === playerData.id)) return prev;
+          return [...prev, playerData];
+        });
+      }
+    };
+
+    // Listen for player left
+    const handlePlayerLeft = (data: any) => {
+      console.log("[Lobby] PLAYER_LEFT received:", data);
+      if (data.playerId) {
+        setPlayers((prev) => prev.filter((p) => p.id !== data.playerId));
+      }
+    };
+
+    socket.on("SESSION_STATE", handleSessionState);
+    socket.on("ITEM_STARTED", handleItemStarted);
+    socket.on("ERROR", handleError);
+    socket.on("PLAYER_JOINED", handlePlayerJoined);
+    socket.on("PLAYER_LEFT", handlePlayerLeft);
+
+    console.log("[Lobby] Event listeners registered successfully");
+
+    return () => {
+      console.log("[Lobby] Cleaning up event listeners");
+      socket.offAny(handleAny);
+      socket.off("SESSION_STATE", handleSessionState);
+      socket.off("ITEM_STARTED", handleItemStarted);
+      socket.off("ERROR", handleError);
+      socket.off("PLAYER_JOINED", handlePlayerJoined);
+      socket.off("PLAYER_LEFT", handlePlayerLeft);
+    };
+  }, [socket, code, router]);
 
   if (error) {
     const themeColor = branding.themeColor || "#3B82F6";

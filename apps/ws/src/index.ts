@@ -42,6 +42,262 @@ import {
 } from "@partyquiz/shared/server";
 import { prisma } from "./lib/prisma";
 
+// =============================================================================
+// TIMER MANAGEMENT - Server-authoritative timers for quiz items
+// =============================================================================
+
+interface ItemTimer {
+  sessionCode: string;
+  itemId: string;
+  timerEndsAt: number;      // Absolute timestamp when timer expires
+  remainingMs: number;       // Remaining milliseconds (for pause/resume)
+  isPaused: boolean;
+  timeoutId: NodeJS.Timeout | null;
+}
+
+// Active timers per session
+const activeTimers = new Map<string, ItemTimer>();
+
+/**
+ * Start a timer for a quiz item - auto-locks when timer expires
+ */
+function startItemTimer(
+  sessionCode: string, 
+  itemId: string, 
+  durationSeconds: number,
+  io: Server
+): ItemTimer {
+  // Clear any existing timer for this session
+  clearItemTimer(sessionCode);
+  
+  const durationMs = durationSeconds * 1000;
+  const timerEndsAt = Date.now() + durationMs;
+  
+  const timeoutId = setTimeout(async () => {
+    logger.info({ sessionCode, itemId }, "Timer expired - auto-locking item");
+    await autoLockItem(sessionCode, itemId, io);
+  }, durationMs);
+  
+  const timer: ItemTimer = {
+    sessionCode,
+    itemId,
+    timerEndsAt,
+    remainingMs: durationMs,
+    isPaused: false,
+    timeoutId,
+  };
+  
+  activeTimers.set(sessionCode, timer);
+  return timer;
+}
+
+/**
+ * Pause the active timer for a session
+ */
+function pauseItemTimer(sessionCode: string): number | null {
+  const timer = activeTimers.get(sessionCode);
+  if (!timer || timer.isPaused) return null;
+  
+  // Clear the timeout
+  if (timer.timeoutId) {
+    clearTimeout(timer.timeoutId);
+    timer.timeoutId = null;
+  }
+  
+  // Calculate remaining time
+  timer.remainingMs = Math.max(0, timer.timerEndsAt - Date.now());
+  timer.isPaused = true;
+  
+  logger.info({ sessionCode, remainingMs: timer.remainingMs }, "Timer paused");
+  return timer.remainingMs;
+}
+
+/**
+ * Resume a paused timer
+ */
+function resumeItemTimer(sessionCode: string, io: Server): number | null {
+  const timer = activeTimers.get(sessionCode);
+  if (!timer || !timer.isPaused) return null;
+  
+  // Restart the timeout with remaining time
+  timer.timerEndsAt = Date.now() + timer.remainingMs;
+  timer.isPaused = false;
+  
+  timer.timeoutId = setTimeout(async () => {
+    logger.info({ sessionCode, itemId: timer.itemId }, "Timer expired after resume - auto-locking item");
+    await autoLockItem(sessionCode, timer.itemId, io);
+  }, timer.remainingMs);
+  
+  logger.info({ sessionCode, remainingMs: timer.remainingMs, timerEndsAt: timer.timerEndsAt }, "Timer resumed");
+  return timer.timerEndsAt;
+}
+
+/**
+ * Clear/cancel the timer for a session
+ */
+function clearItemTimer(sessionCode: string): void {
+  const timer = activeTimers.get(sessionCode);
+  if (timer?.timeoutId) {
+    clearTimeout(timer.timeoutId);
+  }
+  activeTimers.delete(sessionCode);
+}
+
+/**
+ * Get current timer state
+ */
+function getTimerState(sessionCode: string): { remaining: number; isPaused: boolean } | null {
+  const timer = activeTimers.get(sessionCode);
+  if (!timer) return null;
+  
+  const remaining = timer.isPaused 
+    ? timer.remainingMs 
+    : Math.max(0, timer.timerEndsAt - Date.now());
+    
+  return { remaining, isPaused: timer.isPaused };
+}
+
+/**
+ * Auto-lock item when timer expires
+ */
+async function autoLockItem(sessionCode: string, itemId: string, io: Server): Promise<void> {
+  const lockedAt = Date.now();
+  
+  // Store lock time in Redis
+  await redis.set(`session:${sessionCode}:itemLockedAt`, lockedAt.toString());
+  
+  // Clear the timer
+  activeTimers.delete(sessionCode);
+  
+  // Broadcast ITEM_LOCKED to all clients
+  io.to(sessionCode).emit(WSMessageType.ITEM_LOCKED, {
+    itemId,
+    lockedAt,
+    autoLocked: true,
+  });
+  
+  logger.info({ sessionCode, itemId, lockedAt }, "Item auto-locked by timer");
+}
+
+/**
+ * Check if item is locked (for validating late answers)
+ */
+async function isItemLocked(sessionCode: string): Promise<boolean> {
+  const lockedAt = await redis.get(`session:${sessionCode}:itemLockedAt`);
+  return lockedAt !== null;
+}
+
+// =============================================================================
+// STATE VALIDATION - Ensure actions are only allowed in correct state
+// =============================================================================
+
+type SessionPhase = "LOBBY" | "PLAYING" | "PAUSED" | "ENDED";
+type ItemPhase = "NONE" | "ANSWERING" | "LOCKED" | "REVEALING";
+
+interface SessionState {
+  phase: SessionPhase;
+  itemPhase: ItemPhase;
+  currentItemId: string | null;
+}
+
+/**
+ * Get current session state from Redis
+ */
+async function getSessionPhase(sessionCode: string): Promise<SessionState> {
+  const [paused, currentItem, lockedAt] = await Promise.all([
+    redis.get(`session:${sessionCode}:paused`),
+    redis.get(`session:${sessionCode}:currentItem`),
+    redis.get(`session:${sessionCode}:itemLockedAt`),
+  ]);
+  
+  // Determine session phase
+  let phase: SessionPhase = "LOBBY";
+  if (paused === "true") {
+    phase = "PAUSED";
+  } else if (currentItem) {
+    phase = "PLAYING";
+  }
+  
+  // Determine item phase
+  let itemPhase: ItemPhase = "NONE";
+  if (currentItem) {
+    if (lockedAt) {
+      itemPhase = "LOCKED";
+    } else {
+      itemPhase = "ANSWERING";
+    }
+  }
+  
+  return {
+    phase,
+    itemPhase,
+    currentItemId: currentItem,
+  };
+}
+
+/**
+ * Validate if an action is allowed in current state
+ */
+function isActionAllowed(
+  action: "START_ITEM" | "LOCK_ITEM" | "REVEAL" | "SUBMIT_ANSWER" | "PAUSE" | "RESUME",
+  state: SessionState
+): { allowed: boolean; reason?: string } {
+  switch (action) {
+    case "START_ITEM":
+      if (state.phase === "PAUSED") {
+        return { allowed: false, reason: "Cannot start item while paused" };
+      }
+      if (state.itemPhase === "ANSWERING") {
+        return { allowed: false, reason: "Another item is already active" };
+      }
+      return { allowed: true };
+      
+    case "LOCK_ITEM":
+      if (state.itemPhase !== "ANSWERING") {
+        return { allowed: false, reason: "No active item to lock" };
+      }
+      return { allowed: true };
+      
+    case "REVEAL":
+      if (state.itemPhase === "NONE") {
+        return { allowed: false, reason: "No item to reveal" };
+      }
+      return { allowed: true };
+      
+    case "SUBMIT_ANSWER":
+      if (state.phase === "PAUSED") {
+        return { allowed: false, reason: "Session is paused" };
+      }
+      if (state.itemPhase !== "ANSWERING") {
+        return { allowed: false, reason: "Answers not accepted" };
+      }
+      return { allowed: true };
+      
+    case "PAUSE":
+      if (state.phase !== "PLAYING") {
+        return { allowed: false, reason: "Session not active" };
+      }
+      return { allowed: true };
+      
+    case "RESUME":
+      if (state.phase !== "PAUSED") {
+        return { allowed: false, reason: "Session not paused" };
+      }
+      return { allowed: true };
+      
+    default:
+      return { allowed: true };
+  }
+}
+
+// =============================================================================
+// END STATE VALIDATION
+// =============================================================================
+
+// =============================================================================
+// END TIMER MANAGEMENT
+// =============================================================================
+
 // Swan Race Game State
 interface SwanRaceState {
   sessionCode: string;
@@ -356,9 +612,26 @@ io.on("connection", (socket: Socket) => {
           score: 0,
           isOnline: true,
         };
+        
+        // Debug: log room membership before emitting
+        const roomSockets = io.sockets.adapter.rooms.get(sessionCode);
+        logger.info({ 
+          sessionCode, 
+          roomSize: roomSockets?.size || 0,
+          roomMembers: roomSockets ? Array.from(roomSockets) : [],
+          currentSocketId: socket.id
+        }, "DEBUG: Room state before PLAYER_JOINED emit");
+        
         socket.to(sessionCode).emit(WSMessageType.PLAYER_JOINED, {
           player: playerData,
         } satisfies PlayerJoinedEvent);
+        
+        logger.info({ 
+          sessionCode, 
+          playerId: player.id,
+          playerName,
+          eventType: WSMessageType.PLAYER_JOINED 
+        }, "DEBUG: PLAYER_JOINED event emitted to room");
 
         // Send connection status update to host
         const connections = getSessionConnections(sessionCode);
@@ -416,13 +689,25 @@ io.on("connection", (socket: Socket) => {
           sessionCode: session.code,
           status: session.status,
           isHost: true,
-          players: session.players.map((p) => ({
-            id: p.id,
-            name: p.name,
-            avatar: p.avatar,
-            score: 0,
-            isOnline: true,
-          })),
+          players: session.players.map((p) => {
+            // Check if player has an active connection
+            const sessionConns = sessionConnections.get(sessionCode);
+            const connection = sessionConns?.get(p.id);
+            return {
+              id: p.id,
+              name: p.name,
+              avatar: p.avatar,
+              score: 0,
+              isOnline: connection?.isOnline ?? false,
+              connectionQuality: connection ? getConnectionQuality(connection) : 'unknown',
+            };
+          }),
+        });
+
+        // Also send the current connection status so host knows who's actually online
+        const connections = getSessionConnections(sessionCode);
+        socket.emit("CONNECTION_STATUS_UPDATE", {
+          connections,
         });
 
         logger.info({ sessionCode }, "Host joined session room successfully");
@@ -559,6 +844,18 @@ io.on("connection", (socket: Socket) => {
         const { sessionCode, itemId } = data;
         logger.info({ sessionCode, itemId }, "Host starting item");
 
+        // STATE VALIDATION: Check if action is allowed
+        const state = await getSessionPhase(sessionCode);
+        const validation = isActionAllowed("START_ITEM", state);
+        if (!validation.allowed) {
+          socket.emit(WSMessageType.ERROR, { 
+            message: validation.reason,
+            code: "INVALID_STATE" 
+          });
+          logger.warn({ sessionCode, state, reason: validation.reason }, "START_ITEM rejected");
+          return;
+        }
+
         // Verify session exists
         const session = await prisma.liveSession.findUnique({
           where: { code: sessionCode },
@@ -594,17 +891,24 @@ io.on("connection", (socket: Socket) => {
         const startedAt = Date.now();
         const settingsJson = (quizItem.settingsJson as any) || {};
         
-        // Get timer duration from settings, default to 30 seconds
-        const timerDuration = settingsJson.timer || settingsJson.timerDuration || 30;
+        // Get timer duration from settings, default to 4 seconds
+        const timerDuration = settingsJson.timer || settingsJson.timerDuration || 4;
         
         // Get points from settings, default to 1000
-        const basePoints = settingsJson.points || settingsJson.basePoints || 1000;
+        const basePoints = settingsJson.points || settingsJson.basePoints || 10;
 
         // Store item start time in Redis for scoring calculations
         await redis.set(`session:${sessionCode}:currentItem`, itemId);
         await redis.set(`session:${sessionCode}:itemStartedAt`, startedAt.toString());
         await redis.set(`session:${sessionCode}:itemTimerDuration`, timerDuration.toString());
         await redis.set(`session:${sessionCode}:itemBasePoints`, basePoints.toString());
+        
+        // CLEAR any previous lock state - new item starts unlocked
+        await redis.del(`session:${sessionCode}:itemLockedAt`);
+        
+        // START SERVER-SIDE TIMER - auto-locks when timer expires
+        const timer = startItemTimer(sessionCode, itemId, timerDuration, io);
+        const timerEndsAt = timer.timerEndsAt;
 
         // Build the event payload based on item type
         let eventPayload: any = {
@@ -612,6 +916,7 @@ io.on("connection", (socket: Socket) => {
           itemType: quizItem.itemType,
           startedAt,
           timerDuration,
+          timerEndsAt,  // Absolute timestamp for client sync
           basePoints,
         };
 
@@ -710,7 +1015,7 @@ io.on("connection", (socket: Socket) => {
       const { sessionCode } = data;
       // Get current item from Redis if not provided
       const itemId = data.itemId || await redis.get(`session:${sessionCode}:currentItem`);
-      logger.info({ sessionCode, itemId }, "Host locking item");
+      logger.info({ sessionCode, itemId }, "Host locking item manually");
 
       // Verify session exists
       const session = await prisma.liveSession.findUnique({
@@ -723,13 +1028,20 @@ io.on("connection", (socket: Socket) => {
       }
 
       const lockedAt = Date.now();
+      
+      // Store lock time in Redis (blocks late answers)
+      await redis.set(`session:${sessionCode}:itemLockedAt`, lockedAt.toString());
+      
+      // Clear the auto-lock timer (host locked manually)
+      clearItemTimer(sessionCode);
 
       io.to(sessionCode).emit(WSMessageType.ITEM_LOCKED, {
         itemId,
         lockedAt,
+        autoLocked: false,
       });
 
-      logger.info({ sessionCode, itemId }, "Item locked");
+      logger.info({ sessionCode, itemId }, "Item locked manually by host");
     } catch (error) {
       logger.error({ error }, "Error locking item");
       socket.emit("error", { message: "Failed to lock item" });
@@ -741,6 +1053,21 @@ io.on("connection", (socket: Socket) => {
     try {
       const { sessionCode, itemId } = data;
       logger.info({ sessionCode, itemId }, "Host revealing answers");
+
+      // STATE VALIDATION: Check if action is allowed
+      const state = await getSessionPhase(sessionCode);
+      const validation = isActionAllowed("REVEAL", state);
+      if (!validation.allowed) {
+        socket.emit(WSMessageType.ERROR, { 
+          message: validation.reason,
+          code: "INVALID_STATE" 
+        });
+        logger.warn({ sessionCode, state, reason: validation.reason }, "REVEAL rejected");
+        return;
+      }
+      
+      // Clear timer when revealing (item is done)
+      clearItemTimer(sessionCode);
 
       // Verify session exists
       const session = await prisma.liveSession.findUnique({
@@ -866,6 +1193,17 @@ io.on("connection", (socket: Socket) => {
           return;
         }
 
+        // CHECK IF ITEM IS LOCKED (timer expired or host locked)
+        const itemLockedAt = await redis.get(`session:${sessionCode}:itemLockedAt`);
+        if (itemLockedAt) {
+          socket.emit(WSMessageType.ERROR, {
+            message: "Time's up! This question is closed.",
+            code: "ITEM_LOCKED",
+          });
+          logger.info({ playerId, itemId, lockedAt: itemLockedAt }, "Late answer rejected - item locked");
+          return;
+        }
+
         // Check if already answered this item
         const existingAnswer = await prisma.liveAnswer.findFirst({
           where: {
@@ -923,11 +1261,11 @@ io.on("connection", (socket: Socket) => {
         
         // Get base points from Redis (set when item started) or settings
         const redisBasePoints = await redis.get(`session:${sessionCode}:itemBasePoints`);
-        const basePoints = redisBasePoints ? parseInt(redisBasePoints) : (settingsJson?.points || 1000);
+        const basePoints = redisBasePoints ? parseInt(redisBasePoints) : (settingsJson?.points || 10);
         
         // Get timer duration from Redis or settings
         const redisTimerDuration = await redis.get(`session:${sessionCode}:itemTimerDuration`);
-        const timerDurationSec = redisTimerDuration ? parseInt(redisTimerDuration) : (settingsJson?.timer || 30);
+        const timerDurationSec = redisTimerDuration ? parseInt(redisTimerDuration) : (settingsJson?.timer || 4);
         const timeLimitMs = timerDurationSec * 1000;
 
         // Calculate time spent using Redis startedAt timestamp
@@ -1296,14 +1634,18 @@ io.on("connection", (socket: Socket) => {
       // Store pause state in Redis
       await redis.set(`session:${sessionCode}:paused`, "true");
       await redis.set(`session:${sessionCode}:pausedAt`, Date.now().toString());
+      
+      // PAUSE THE TIMER - saves remaining time
+      const remainingMs = pauseItemTimer(sessionCode);
 
       // Notify all clients
       io.to(sessionCode).emit(WSMessageType.SESSION_PAUSED, {
         sessionCode,
         pausedAt: Date.now(),
+        remainingMs: remainingMs || 0,
       });
 
-      logger.info({ sessionCode }, "Session paused");
+      logger.info({ sessionCode, remainingMs }, "Session paused with timer");
     } catch (error) {
       logger.error({ error }, "Error pausing session");
       socket.emit("error", { message: "Failed to pause session" });
@@ -1320,14 +1662,18 @@ io.on("connection", (socket: Socket) => {
       // Remove pause state from Redis
       await redis.del(`session:${sessionCode}:paused`);
       await redis.del(`session:${sessionCode}:pausedAt`);
+      
+      // RESUME THE TIMER - restarts countdown with remaining time
+      const timerEndsAt = resumeItemTimer(sessionCode, io);
 
       // Notify all clients
       io.to(sessionCode).emit(WSMessageType.SESSION_RESUMED, {
         sessionCode,
         resumedAt: Date.now(),
+        timerEndsAt: timerEndsAt || null,
       });
 
-      logger.info({ sessionCode }, "Session resumed");
+      logger.info({ sessionCode, timerEndsAt }, "Session resumed with timer");
     } catch (error) {
       logger.error({ error }, "Error resuming session");
       socket.emit("error", { message: "Failed to resume session" });

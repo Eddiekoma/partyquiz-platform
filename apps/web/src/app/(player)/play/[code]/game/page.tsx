@@ -16,7 +16,8 @@ interface CurrentItem {
   prompt: string;
   mediaUrl?: string;
   options?: Array<{ id: string; text: string }>;
-  timerDuration: number;
+  timerDuration: number;  // in milliseconds
+  timerEndsAt?: number;   // absolute timestamp for sync
   settingsJson?: any;
 }
 
@@ -28,6 +29,7 @@ export default function GamePage() {
   const [currentItem, setCurrentItem] = useState<CurrentItem | null>(null);
   const [isLocked, setIsLocked] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState(0);
+  const [timerEndsAt, setTimerEndsAt] = useState<number | null>(null);
   const [myAnswer, setMyAnswer] = useState<any>(null);
   const [answerResult, setAnswerResult] = useState<{
     isCorrect: boolean;
@@ -85,17 +87,30 @@ export default function GamePage() {
     socket.on("ITEM_STARTED", (data: any) => {
       console.log("[Player] Item started:", data);
       setShowSwanRace(false); // Hide Swan Race
+      
+      // timerDuration from server is in SECONDS, convert to MS for internal use
+      const timerMs = (data.timerDuration || 4) * 1000;
+      
+      // Use timerEndsAt from server if available (better sync)
+      // Otherwise calculate from timerDuration
+      const serverTimerEndsAt = data.timerEndsAt || (Date.now() + timerMs);
+      setTimerEndsAt(serverTimerEndsAt);
+      
+      // Calculate initial remaining time from server timestamp
+      const initialRemaining = Math.max(0, serverTimerEndsAt - Date.now());
+      
       setCurrentItem({
         id: data.itemId,
         questionType: data.questionType,
         prompt: data.prompt,
         mediaUrl: data.mediaUrl,
         options: data.options,
-        timerDuration: data.timerDuration,
+        timerDuration: timerMs, // Store in milliseconds
+        timerEndsAt: serverTimerEndsAt,
         settingsJson: data.settingsJson,
       });
       setIsLocked(false);
-      setTimeRemaining(data.timerDuration);
+      setTimeRemaining(initialRemaining); // Use server-synced time
       setMyAnswer(null);
       setAnswerResult(null);
       setExplanation(null); // Reset explanation
@@ -106,6 +121,23 @@ export default function GamePage() {
     socket.on("ITEM_LOCKED", () => {
       console.log("[Player] Item locked");
       setIsLocked(true);
+      setTimerEndsAt(null); // Stop timer
+    });
+
+    // Listen for session paused - freeze timer
+    socket.on("SESSION_PAUSED", (data: any) => {
+      console.log("[Player] Session paused:", data);
+      // Store remaining time, clear timerEndsAt to stop countdown
+      setTimerEndsAt(null);
+    });
+
+    // Listen for session resumed - restart timer
+    socket.on("SESSION_RESUMED", (data: any) => {
+      console.log("[Player] Session resumed:", data);
+      // Server sends new timerEndsAt
+      if (data.timerEndsAt) {
+        setTimerEndsAt(data.timerEndsAt);
+      }
     });
 
     // Listen for answer feedback
@@ -143,6 +175,8 @@ export default function GamePage() {
       socket.off("SWAN_RACE_STARTED");
       socket.off("ITEM_STARTED");
       socket.off("ITEM_LOCKED");
+      socket.off("SESSION_PAUSED");
+      socket.off("SESSION_RESUMED");
       socket.off("ANSWER_RECEIVED");
       socket.off("REVEAL_ANSWERS");
       socket.off("SESSION_ENDED");
@@ -150,16 +184,23 @@ export default function GamePage() {
     };
   }, [socket, isConnected, code, router]);
 
-  // Timer countdown
+  // Timer countdown - syncs with server timerEndsAt timestamp
   useEffect(() => {
-    if (timeRemaining <= 0 || isLocked) return;
+    if (isLocked || !timerEndsAt) return;
 
     const interval = setInterval(() => {
-      setTimeRemaining((prev) => Math.max(0, prev - 100));
+      const remaining = Math.max(0, timerEndsAt - Date.now());
+      setTimeRemaining(remaining);
+      
+      // Auto-lock when timer reaches 0
+      if (remaining === 0) {
+        setIsLocked(true);
+        clearInterval(interval);
+      }
     }, 100);
 
     return () => clearInterval(interval);
-  }, [timeRemaining, isLocked]);
+  }, [timerEndsAt, isLocked]);
 
   const handleSubmitAnswer = (answer: any) => {
     if (!socket || !currentItem || isLocked || myAnswer !== null) return;
@@ -239,7 +280,7 @@ export default function GamePage() {
           settingsJson={currentItem.settingsJson}
         />
 
-        {/* Answer Input */}
+        {/* Answer Input - only show if not locked and no answer submitted */}
         {!isLocked && !myAnswer && (
           <div className="mt-8 w-full">
             <AnswerInput
@@ -252,7 +293,17 @@ export default function GamePage() {
           </div>
         )}
 
-        {/* Feedback */}
+        {/* Time's Up - no answer submitted */}
+        {isLocked && !myAnswer && !answerResult && (
+          <div className="mt-8 text-center">
+            <div className="text-7xl mb-4">⏰</div>
+            <p className="text-3xl font-black text-red-400 mb-2">Time&apos;s Up!</p>
+            <p className="text-xl text-white/70">No answer submitted</p>
+            <p className="text-lg text-red-300 mt-2">0 points</p>
+          </div>
+        )}
+
+        {/* Feedback - answer submitted, waiting for result */}
         {myAnswer && !answerResult && (
           <div className="mt-8 text-center">
             <div className="text-5xl mb-3 animate-pulse">📤</div>

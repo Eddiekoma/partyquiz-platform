@@ -277,8 +277,8 @@ function SortableItem({
 
   // Get timer and points from settings
   const settings = item.settingsJson as { timer?: number; points?: number } | null;
-  const timer = settings?.timer || 30;
-  const points = settings?.points || 1000;
+  const timer = settings?.timer || 4;
+  const points = settings?.points || 10;
 
   // Render content based on item type
   const renderItemContent = () => {
@@ -433,8 +433,8 @@ export default function QuizDetailPage() {
   // Edit item settings
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [editingItem, setEditingItem] = useState<{ roundId: string; item: QuizItem } | null>(null);
-  const [editTimer, setEditTimer] = useState(30);
-  const [editPoints, setEditPoints] = useState(1000);
+  const [editTimer, setEditTimer] = useState(4);
+  const [editPoints, setEditPoints] = useState(10);
   const [editShowExplanation, setEditShowExplanation] = useState(false);
 
   // Drag and drop sensors
@@ -634,8 +634,8 @@ export default function QuizDetailPage() {
   const handleEditSettings = (roundId: string, item: QuizItem) => {
     const settings = item.settingsJson as { timer?: number; points?: number; showExplanation?: boolean } | null;
     setEditingItem({ roundId, item });
-    setEditTimer(settings?.timer || 30);
-    setEditPoints(settings?.points || 1000);
+    setEditTimer(settings?.timer || 4);
+    setEditPoints(settings?.points || 10);
     setEditShowExplanation(settings?.showExplanation ?? false);
     setShowSettingsModal(true);
   };
@@ -1042,14 +1042,14 @@ export default function QuizDetailPage() {
                 <div className="flex items-center gap-4">
                   <input
                     type="range"
-                    min="5"
-                    max="120"
-                    step="5"
+                    min="1"
+                    max="20"
+                    step="1"
                     value={editTimer}
                     onChange={(e) => setEditTimer(parseInt(e.target.value))}
                     className="flex-1"
                   />
-                  <span className="font-mono w-16 text-right">{editTimer}s</span>
+                  <span className="font-mono w-12 text-right text-lg">{editTimer}s</span>
                 </div>
                 <p className="text-xs text-slate-400 mt-1">How long players have to answer</p>
               </div>
@@ -1058,12 +1058,12 @@ export default function QuizDetailPage() {
                 <label className="block text-sm font-medium mb-2">
                   ⭐ Base Points
                 </label>
-                <div className="flex gap-2">
-                  {[500, 1000, 1500, 2000].map((pts) => (
+                <div className="flex flex-wrap gap-2">
+                  {[5, 10, 15, 20, 30, 40, 50].map((pts) => (
                     <button
                       key={pts}
                       onClick={() => setEditPoints(pts)}
-                      className={`flex-1 py-2 rounded-lg border transition-colors ${
+                      className={`px-4 py-2 rounded-lg border transition-colors ${
                         editPoints === pts
                           ? "bg-blue-600 border-blue-500 text-white"
                           : "border-slate-600 hover:bg-slate-700"
