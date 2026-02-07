@@ -41,7 +41,7 @@ const updateQuestionSchema = z.object({
   })).optional(),
   spotifyTrackId: z.string().nullable().optional(),
   youtubeVideoId: z.string().nullable().optional(),
-  settingsJson: z.record(z.any()).optional(),
+  settingsJson: z.record(z.string(), z.any()).optional(),
 });
 
 export async function GET(

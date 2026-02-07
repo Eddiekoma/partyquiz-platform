@@ -68,8 +68,8 @@ export const questionOptionSchema = z.object({
 export const questionMediaSchema = z.object({
   provider: z.nativeEnum(MediaProvider),
   mediaType: z.nativeEnum(MediaType),
-  reference: z.record(z.any()),
-  metadata: z.record(z.any()).optional(),
+  reference: z.record(z.string(), z.any()),
+  metadata: z.record(z.string(), z.any()).optional(),
   order: z.number().int().min(0),
 });
 
