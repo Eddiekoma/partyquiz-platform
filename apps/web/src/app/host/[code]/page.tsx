@@ -390,6 +390,19 @@ export default function HostControlPage() {
     }
   }, [code, send]);
 
+  const kickPlayer = useCallback((playerId: string, playerName: string) => {
+    if (confirm(`Remove "${playerName}" from the session?`)) {
+      send({
+        type: WSMessageType.KICK_PLAYER,
+        timestamp: Date.now(),
+        payload: { 
+          sessionCode: code,
+          playerId,
+        },
+      });
+    }
+  }, [code, send]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
@@ -588,7 +601,7 @@ export default function HostControlPage() {
                     return (
                       <div 
                         key={player.id}
-                        className="flex items-center gap-3 bg-slate-700/50 rounded-lg px-3 py-2"
+                        className="flex items-center gap-3 bg-slate-700/50 rounded-lg px-3 py-2 group"
                       >
                         <span className="text-lg font-bold text-slate-500 w-6">
                           {index + 1}
@@ -604,6 +617,13 @@ export default function HostControlPage() {
                           className={`w-2 h-2 rounded-full ${statusColor}`}
                           title={statusTitle}
                         />
+                        <button
+                          onClick={() => kickPlayer(player.id, player.name)}
+                          className="opacity-0 group-hover:opacity-100 p-1 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded transition-all"
+                          title="Remove player"
+                        >
+                          ✕
+                        </button>
                       </div>
                     );
                   })

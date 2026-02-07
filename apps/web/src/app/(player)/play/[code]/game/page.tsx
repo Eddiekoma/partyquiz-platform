@@ -166,6 +166,16 @@ export default function GamePage() {
       router.push(`/play/${code}/results`);
     });
 
+    // Listen for being kicked by host
+    socket.on(WSMessageType.PLAYER_KICKED, (data: any) => {
+      console.log("[Player] Kicked from session:", data);
+      // Clear player data from localStorage
+      localStorage.removeItem(`player-${code.toUpperCase()}`);
+      // Show message and redirect
+      alert(data.reason || "You have been removed from the session by the host.");
+      router.push("/join");
+    });
+
     // Listen for errors
     socket.on("ERROR", (data: any) => {
       console.error("[Player] Error:", data.message);
@@ -180,6 +190,7 @@ export default function GamePage() {
       socket.off("ANSWER_RECEIVED");
       socket.off("REVEAL_ANSWERS");
       socket.off("SESSION_ENDED");
+      socket.off(WSMessageType.PLAYER_KICKED);
       socket.off("ERROR");
     };
   }, [socket, isConnected, code, router]);

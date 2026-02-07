@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { WSMessageType } from "@partyquiz/shared";
 
 interface Player {
   id: string;
@@ -158,11 +159,22 @@ export default function LobbyPage() {
       }
     };
 
+    // Listen for being kicked by host
+    const handlePlayerKicked = (data: any) => {
+      console.log("[Lobby] PLAYER_KICKED received:", data);
+      // Clear player data from localStorage
+      localStorage.removeItem(`player-${code.toUpperCase()}`);
+      // Show message and redirect
+      alert(data.reason || "You have been removed from the session by the host.");
+      router.push("/join");
+    };
+
     socket.on("SESSION_STATE", handleSessionState);
     socket.on("ITEM_STARTED", handleItemStarted);
     socket.on("ERROR", handleError);
     socket.on("PLAYER_JOINED", handlePlayerJoined);
     socket.on("PLAYER_LEFT", handlePlayerLeft);
+    socket.on(WSMessageType.PLAYER_KICKED, handlePlayerKicked);
 
     console.log("[Lobby] Event listeners registered successfully");
 
@@ -174,6 +186,7 @@ export default function LobbyPage() {
       socket.off("ERROR", handleError);
       socket.off("PLAYER_JOINED", handlePlayerJoined);
       socket.off("PLAYER_LEFT", handlePlayerLeft);
+      socket.off(WSMessageType.PLAYER_KICKED, handlePlayerKicked);
     };
   }, [socket, code, router]);
 

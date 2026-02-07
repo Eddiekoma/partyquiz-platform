@@ -411,6 +411,16 @@ function getConnectionQuality(conn: PlayerConnection): 'good' | 'poor' | 'offlin
   return 'good';
 }
 
+// Find a player's socket by their playerId
+function findPlayerSocket(io: any, playerId: string) {
+  for (const [, socket] of io.sockets.sockets) {
+    if (socket.data.playerId === playerId) {
+      return socket;
+    }
+  }
+  return null;
+}
+
 function startSwanRace(sessionCode: string, playerIds: string[], playerNames: string[]) {
   const players = new Map();
   playerIds.forEach((id, idx) => {
@@ -1677,6 +1687,69 @@ io.on("connection", (socket: Socket) => {
     } catch (error) {
       logger.error({ error }, "Error resuming session");
       socket.emit("error", { message: "Failed to resume session" });
+    }
+  });
+
+  // Kick player from session (host only)
+  socket.on(WSMessageType.KICK_PLAYER, async (data: { sessionCode: string; playerId: string; reason?: string }) => {
+    try {
+      const { sessionCode, playerId, reason } = data;
+
+      logger.info({ sessionCode, playerId, reason }, "Host kicking player");
+
+      // Find the player
+      const player = await prisma.livePlayer.findUnique({
+        where: { id: playerId },
+      });
+
+      if (!player) {
+        socket.emit(WSMessageType.ERROR, { message: "Player not found" });
+        return;
+      }
+
+      // Mark player as left in database
+      await prisma.livePlayer.update({
+        where: { id: playerId },
+        data: { leftAt: new Date() },
+      });
+
+      // Remove from Redis active players
+      await removeActivePlayer(sessionCode, playerId);
+
+      // Remove from connection tracking
+      markPlayerOffline(sessionCode, playerId);
+
+      // Find the kicked player's socket and disconnect them
+      const kickedPlayerSocket = findPlayerSocket(io, playerId);
+      if (kickedPlayerSocket) {
+        // Send kick notification to the kicked player BEFORE disconnecting
+        kickedPlayerSocket.emit(WSMessageType.PLAYER_KICKED, {
+          playerId,
+          reason: reason || "You have been removed from the session by the host",
+        });
+        // Disconnect their socket after a short delay to ensure message is sent
+        setTimeout(() => {
+          kickedPlayerSocket.disconnect(true);
+        }, 100);
+      }
+
+      // Notify all other clients that player left
+      socket.to(sessionCode).emit(WSMessageType.PLAYER_LEFT, {
+        playerId: player.id,
+        name: player.name,
+        kicked: true,
+      });
+
+      // Update connection status for host
+      const connections = getSessionConnections(sessionCode);
+      io.to(sessionCode).emit("CONNECTION_STATUS_UPDATE", {
+        connections,
+      });
+
+      logger.info({ sessionCode, playerId, playerName: player.name }, "Player kicked successfully");
+    } catch (error) {
+      logger.error({ error }, "Error kicking player");
+      socket.emit(WSMessageType.ERROR, { message: "Failed to kick player" });
     }
   });
 
