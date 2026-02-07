@@ -51,11 +51,68 @@ const QUESTION_TYPES: { value: QuestionType; label: string; description: string 
   { value: "VIDEO_OPEN", label: "Video Open", description: "Open answer with video" },
 ];
 
+// Categorized question types
+type CategoryKey = "text" | "photo" | "audio" | "video" | "spotify" | "youtube";
+
+interface Category {
+  key: CategoryKey;
+  label: string;
+  icon: string;
+  description: string;
+  types: QuestionType[];
+}
+
+const QUESTION_CATEGORIES: Category[] = [
+  {
+    key: "text",
+    label: "Text Questions",
+    icon: "📝",
+    description: "Basic questions without media",
+    types: ["MC_SINGLE", "MC_MULTIPLE", "TRUE_FALSE", "OPEN_TEXT", "ESTIMATION", "ORDER", "POLL"],
+  },
+  {
+    key: "photo",
+    label: "Photo Questions",
+    icon: "📷",
+    description: "Questions with uploaded images",
+    types: ["PHOTO_QUESTION", "PHOTO_OPEN"],
+  },
+  {
+    key: "audio",
+    label: "Audio Questions",
+    icon: "🎵",
+    description: "Questions with uploaded audio files",
+    types: ["AUDIO_QUESTION", "AUDIO_OPEN"],
+  },
+  {
+    key: "video",
+    label: "Video Questions",
+    icon: "🎬",
+    description: "Questions with uploaded video files",
+    types: ["VIDEO_QUESTION", "VIDEO_OPEN"],
+  },
+  {
+    key: "spotify",
+    label: "Spotify Music",
+    icon: "🎧",
+    description: "Music questions using Spotify",
+    types: ["MUSIC_GUESS_TITLE", "MUSIC_GUESS_ARTIST", "MUSIC_GUESS_YEAR"],
+  },
+  {
+    key: "youtube",
+    label: "YouTube Videos",
+    icon: "▶️",
+    description: "Questions using YouTube videos",
+    types: ["YOUTUBE_SCENE_QUESTION", "YOUTUBE_NEXT_LINE", "YOUTUBE_WHO_SAID_IT"],
+  },
+];
+
 export default function NewQuestionPage() {
   const params = useParams();
   const router = useRouter();
   const workspaceId = params.id as string;
 
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedType, setSelectedType] = useState<QuestionType | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -261,19 +318,55 @@ export default function NewQuestionPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="mb-6">
           <h1 className="text-3xl font-bold mb-2">Create Question</h1>
-          <p className="text-slate-400">Choose a question type to get started</p>
+          <p className="text-slate-400">
+            {selectedCategory 
+              ? `Choose a question type from ${QUESTION_CATEGORIES.find(c => c.key === selectedCategory)?.label}`
+              : "Choose a category to get started"}
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {QUESTION_TYPES.map((type) => (
-            <div key={type.value} onClick={() => setSelectedType(type.value)}>
-              <Card className="p-6 cursor-pointer hover:shadow-lg transition-shadow border-2 border-transparent hover:border-primary-500">
-                <h3 className="text-lg font-semibold mb-2">{type.label}</h3>
-                <p className="text-sm text-slate-400">{type.description}</p>
-              </Card>
+        {!selectedCategory ? (
+          /* Category Selection */
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {QUESTION_CATEGORIES.map((category) => (
+              <div key={category.key} onClick={() => setSelectedCategory(category.key)}>
+                <Card className="p-6 cursor-pointer hover:shadow-lg transition-all border-2 border-transparent hover:border-primary-500 hover:scale-[1.02]">
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className="text-3xl">{category.icon}</span>
+                    <h3 className="text-lg font-semibold">{category.label}</h3>
+                  </div>
+                  <p className="text-sm text-slate-400">{category.description}</p>
+                  <p className="text-xs text-slate-500 mt-2">{category.types.length} type(s)</p>
+                </Card>
+              </div>
+            ))}
+          </div>
+        ) : (
+          /* Question Type Selection within Category */
+          <div>
+            <button
+              onClick={() => setSelectedCategory(null)}
+              className="text-primary-600 hover:text-primary-700 mb-4"
+            >
+              ← Back to Categories
+            </button>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {QUESTION_TYPES
+                .filter((type) => {
+                  const category = QUESTION_CATEGORIES.find(c => c.key === selectedCategory);
+                  return category?.types.includes(type.value);
+                })
+                .map((type) => (
+                  <div key={type.value} onClick={() => setSelectedType(type.value)}>
+                    <Card className="p-6 cursor-pointer hover:shadow-lg transition-all border-2 border-transparent hover:border-primary-500 hover:scale-[1.02]">
+                      <h3 className="text-lg font-semibold mb-2">{type.label}</h3>
+                      <p className="text-sm text-slate-400">{type.description}</p>
+                    </Card>
+                  </div>
+                ))}
             </div>
-          ))}
-        </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -282,7 +375,10 @@ export default function NewQuestionPage() {
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <div className="mb-6">
         <button
-          onClick={() => setSelectedType(null)}
+          onClick={() => {
+            setSelectedType(null);
+            setSelectedCategory(null);
+          }}
           className="text-primary-600 hover:text-primary-700 mb-4"
         >
           ← Change Question Type
