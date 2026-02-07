@@ -429,10 +429,9 @@ export default function HostControlPage() {
             
             <p className="text-xs text-slate-400 text-center break-all">{joinUrl}</p>
             
-            {/* Dev Tools - Quick Player Access */}
-            {process.env.NODE_ENV === "development" && (
-              <div className="mt-4 pt-4 border-t border-slate-600">
-                <p className="text-xs text-slate-500 text-center mb-2">🛠️ Dev Tools</p>
+            {/* Dev Tools - Quick Player Access (visible for logged-in hosts) */}
+            <div className="mt-4 pt-4 border-t border-slate-600">
+                <p className="text-xs text-slate-500 text-center mb-2">🛠️ Quick Test</p>
                 <div className="flex gap-2">
                   <button
                     onClick={() => window.open(joinUrl, "_blank")}
@@ -466,7 +465,6 @@ export default function HostControlPage() {
                   </button>
                 </div>
               </div>
-            )}
           </div>
 
           {/* Players List */}
