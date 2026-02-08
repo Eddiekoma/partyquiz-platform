@@ -16,6 +16,12 @@ interface WorkspaceBranding {
   themeColor: string | null;
 }
 
+interface RecognizedPlayer {
+  id: string;
+  name: string;
+  avatar: string | null;
+}
+
 export default function LobbyPage() {
   const router = useRouter();
   const params = useParams();
@@ -24,9 +30,15 @@ export default function LobbyPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [sessionState, setSessionState] = useState<"waiting" | "starting" | "playing">("waiting");
   const [error, setError] = useState("");
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [branding, setBranding] = useState<WorkspaceBranding>({ logo: null, themeColor: null });
   const [myPlayer, setMyPlayer] = useState<{ name: string; avatar: string } | null>(null);
   const [hasJoined, setHasJoined] = useState(false);
+  
+  // Device recognition state
+  const [deviceRecognized, setDeviceRecognized] = useState(false);
+  const [recognizedPlayer, setRecognizedPlayer] = useState<RecognizedPlayer | null>(null);
+  const [newPlayerName, setNewPlayerName] = useState("");
 
   const { socket, isConnected } = useWebSocket();
 
@@ -113,7 +125,7 @@ export default function LobbyPage() {
       if (data.status === "in_progress") {
         setSessionState("starting");
       }
-      // Store player ID in localStorage for game page rejoin
+      // Store player ID and accessToken in localStorage for game page rejoin
       if (data.playerId) {
         const playerName = sessionStorage.getItem("playerName");
         const playerAvatar = sessionStorage.getItem("playerAvatar");
@@ -121,6 +133,7 @@ export default function LobbyPage() {
           id: data.playerId,
           name: playerName,
           avatar: playerAvatar,
+          accessToken: data.accessToken, // Permanent player link token
         }));
       }
     };
@@ -136,6 +149,7 @@ export default function LobbyPage() {
     const handleError = (data: any) => {
       console.log("[Lobby] ERROR received:", data);
       setError(data.message || "Failed to join session");
+      setErrorCode(data.code || null);
     };
 
     // Listen for player joined
@@ -169,12 +183,21 @@ export default function LobbyPage() {
       router.push("/join");
     };
 
+    // Listen for device recognition
+    const handleDeviceRecognized = (data: any) => {
+      console.log("[Lobby] DEVICE_RECOGNIZED received:", data);
+      setDeviceRecognized(true);
+      setRecognizedPlayer(data.existingPlayer);
+      setNewPlayerName(data.newPlayerName);
+    };
+
     socket.on("SESSION_STATE", handleSessionState);
     socket.on("ITEM_STARTED", handleItemStarted);
     socket.on("ERROR", handleError);
     socket.on("PLAYER_JOINED", handlePlayerJoined);
     socket.on("PLAYER_LEFT", handlePlayerLeft);
     socket.on(WSMessageType.PLAYER_KICKED, handlePlayerKicked);
+    socket.on(WSMessageType.DEVICE_RECOGNIZED, handleDeviceRecognized);
 
     console.log("[Lobby] Event listeners registered successfully");
 
@@ -187,10 +210,29 @@ export default function LobbyPage() {
       socket.off("PLAYER_JOINED", handlePlayerJoined);
       socket.off("PLAYER_LEFT", handlePlayerLeft);
       socket.off(WSMessageType.PLAYER_KICKED, handlePlayerKicked);
+      socket.off(WSMessageType.DEVICE_RECOGNIZED, handleDeviceRecognized);
     };
   }, [socket, code, router]);
 
-  if (error) {
+  // Handlers for device recognition choice
+  const handleContinueAsExisting = () => {
+    if (!socket || !recognizedPlayer) return;
+    console.log("[Lobby] Continuing as existing player:", recognizedPlayer.id);
+    socket.emit(WSMessageType.REJOIN_AS_EXISTING, { playerId: recognizedPlayer.id });
+    setDeviceRecognized(false);
+    setRecognizedPlayer(null);
+  };
+
+  const handleJoinAsNew = () => {
+    if (!socket) return;
+    console.log("[Lobby] Joining as new player");
+    socket.emit(WSMessageType.JOIN_AS_NEW);
+    setDeviceRecognized(false);
+    setRecognizedPlayer(null);
+  };
+
+  // Show device recognized choice screen
+  if (deviceRecognized && recognizedPlayer) {
     const themeColor = branding.themeColor || "#3B82F6";
     return (
       <div 
@@ -199,15 +241,71 @@ export default function LobbyPage() {
           background: `linear-gradient(135deg, ${themeColor} 0%, ${themeColor}dd 100%)`,
         }}
       >
+        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 max-w-md w-full text-center">
+          <div className="text-6xl mb-4">📱</div>
+          <h1 className="text-2xl font-black text-white mb-4">
+            Welkom terug!
+          </h1>
+          <p className="text-white/90 mb-6">
+            Dit apparaat was al in deze sessie als:
+          </p>
+          
+          <div className="bg-white/20 rounded-xl p-4 mb-6">
+            <span className="text-4xl">{recognizedPlayer.avatar || "👤"}</span>
+            <div className="text-xl font-bold text-white mt-2">
+              {recognizedPlayer.name}
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <button
+              onClick={handleContinueAsExisting}
+              className="w-full px-6 py-4 text-lg font-bold text-white bg-green-500 hover:bg-green-400 rounded-xl transition-all"
+            >
+              ✅ Doorgaan als {recognizedPlayer.name}
+            </button>
+            
+            <button
+              onClick={handleJoinAsNew}
+              className="w-full px-6 py-4 text-lg font-bold text-white bg-white/20 hover:bg-white/30 rounded-xl transition-all"
+            >
+              👤 Nieuwe speler ({newPlayerName})
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    const themeColor = branding.themeColor || "#3B82F6";
+    const isNameTaken = errorCode === "NAME_ALREADY_TAKEN";
+    
+    return (
+      <div 
+        className="flex-1 flex items-center justify-center p-4"
+        style={{
+          background: `linear-gradient(135deg, ${themeColor} 0%, ${themeColor}dd 100%)`,
+        }}
+      >
         <div className="text-center">
-          <div className="text-6xl mb-4">❌</div>
-          <h1 className="text-3xl font-black text-white mb-2">Oops!</h1>
+          <div className="text-6xl mb-4">{isNameTaken ? "👤" : "❌"}</div>
+          <h1 className="text-3xl font-black text-white mb-2">
+            {isNameTaken ? "Naam al in gebruik" : "Oops!"}
+          </h1>
           <p className="text-lg text-white/90 mb-6">{error}</p>
           <button
-            onClick={() => router.push("/join")}
+            onClick={() => {
+              // Clear the stored name so user can enter a new one
+              sessionStorage.removeItem("playerName");
+              setHasJoined(false);
+              setError("");
+              setErrorCode(null);
+              router.push(`/play/${code}`);
+            }}
             className="px-6 py-3 text-lg font-bold text-white bg-white/20 backdrop-blur-sm rounded-xl hover:bg-white/30 transition-all"
           >
-            Try Again
+            {isNameTaken ? "Andere naam kiezen" : "Try Again"}
           </button>
         </div>
       </div>

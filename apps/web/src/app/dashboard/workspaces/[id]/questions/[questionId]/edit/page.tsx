@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { UploadZone } from "@/components/ui/Upload";
 import { parseTimestamp, formatTimestamp } from "@partyquiz/shared";
+import { ScoringInfoCard } from "@/components/ScoringInfoCard";
 
 type QuestionType =
   | "MC_SINGLE"
@@ -453,6 +454,13 @@ export default function EditQuestionPage() {
           </Button>
         </div>
       </div>
+
+      {/* Scoring Info */}
+      {selectedType && (
+        <div className="mb-6">
+          <ScoringInfoCard questionType={selectedType} />
+        </div>
+      )}
 
       <div className="space-y-6">
         {/* Title - Internal Name */}

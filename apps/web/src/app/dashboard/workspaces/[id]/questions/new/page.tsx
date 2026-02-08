@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { SpotifyTrackSelector } from "@/components/SpotifyTrackSelector";
 import { FileUploader } from "@/components/media/FileUploader";
+import { ScoringInfoCard } from "@/components/ScoringInfoCard";
 
 type QuestionType =
   | "MC_SINGLE"
@@ -390,6 +391,13 @@ export default function NewQuestionPage() {
           {QUESTION_TYPES.find((t) => t.value === selectedType)?.description}
         </p>
       </div>
+
+      {/* Scoring Info */}
+      {selectedType && (
+        <div className="mb-6">
+          <ScoringInfoCard questionType={selectedType} />
+        </div>
+      )}
 
       <div className="space-y-6">
         {/* Title - Internal Name */}

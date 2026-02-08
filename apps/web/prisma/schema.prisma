@@ -270,14 +270,15 @@ model QuestionMedia {
 // ============================================
 
 model Quiz {
-  id          String   @id @default(cuid())
-  workspaceId String
-  title       String
-  description String?  @db.Text
-  isTemplate  Boolean  @default(false)
-  createdBy   String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  workspaceId         String
+  title               String
+  description         String?  @db.Text
+  isTemplate          Boolean  @default(false)
+  createdBy           String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  scoringSettingsJson Json?    // Quiz-level scoring settings: timeBonus, streakBonus, basePoints
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   rounds    QuizRound[]
@@ -326,10 +327,16 @@ model LiveSession {
   workspaceId String
   quizId      String
   code        String    @unique // 6-char code for joining
-  status      String    // LOBBY, ITEM_INTRO, ITEM_ACTIVE, etc.
+  status      String    // LOBBY, ACTIVE, PAUSED, ENDED
   hostUserId  String
   startedAt   DateTime  @default(now())
   endedAt     DateTime?
+
+  // Progress tracking for resume capability
+  currentRoundIndex Int?      // 0-based index of current round
+  currentItemIndex  Int?      // 0-based index of current item in round
+  pausedAt          DateTime? // When session was paused (null = not paused)
+  displayName       String?   // Optional friendly name for session
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   quiz      Quiz      @relation(fields: [quizId], references: [id])
@@ -353,10 +360,15 @@ model LivePlayer {
   joinedAt     DateTime  @default(now())
   leftAt       DateTime?
 
+  // Permanent access token for rejoining
+  accessToken  String    @unique @default(cuid())
+  lastActiveAt DateTime  @default(now())
+
   session LiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   answers LiveAnswer[]
 
   @@index([sessionId])
+  @@index([accessToken])
   @@index([deviceIdHash])
 }
 

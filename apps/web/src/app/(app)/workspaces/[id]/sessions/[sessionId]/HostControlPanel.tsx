@@ -15,13 +15,14 @@ interface HostControlPanelProps {
 
 export default function HostControlPanel({ session, quiz }: HostControlPanelProps) {
   const router = useRouter();
-  const [currentRoundIndex, setCurrentRoundIndex] = useState(0);
-  const [currentItemIndex, setCurrentItemIndex] = useState(0);
+  // Initialize with saved progress from database
+  const [currentRoundIndex, setCurrentRoundIndex] = useState(session.currentRoundIndex || 0);
+  const [currentItemIndex, setCurrentItemIndex] = useState(session.currentItemIndex || 0);
   const [isItemActive, setIsItemActive] = useState(false);
   const [isItemLocked, setIsItemLocked] = useState(false);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isPaused, setIsPaused] = useState(false);
+  const [isPaused, setIsPaused] = useState(session.status === "PAUSED");
   const youtubePlayerRef = useRef<HTMLDivElement>(null);
 
   // Flatten all items for easy navigation
@@ -116,21 +117,8 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
     setError(null);
   }
 
-  function lockItem() {
-    if (!currentItem) return;
-
-    const message: WSMessage = {
-      type: WSMessageType.LOCK_ITEM,
-      timestamp: Date.now(),
-      payload: {
-        sessionCode: session.code,
-        itemId: currentItem.id,
-      },
-    };
-
-    send(message);
-    setError(null);
-  }
+  // Note: Lock is now handled automatically by the server-side timer
+  // When timer expires, server broadcasts ITEM_LOCKED
 
   function revealAnswers() {
     if (!currentItem) return;
@@ -162,11 +150,24 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
   }
 
   function pauseSession() {
+    // Find which round the current item is in
+    let itemCounter = 0;
+    let roundIndex = 0;
+    for (const round of quiz.rounds || []) {
+      if (itemCounter + round.items.length > currentItemIndex) {
+        break;
+      }
+      itemCounter += round.items.length;
+      roundIndex++;
+    }
+
     const message: WSMessage = {
       type: WSMessageType.PAUSE_SESSION,
       timestamp: Date.now(),
       payload: {
         sessionCode: session.code,
+        currentRoundIndex: roundIndex,
+        currentItemIndex: currentItemIndex,
       },
     };
 
@@ -221,8 +222,8 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
 
   if (session.status === "ENDED") {
     return (
-      <div className="bg-white border border-slate-700 rounded-lg p-6">
-        <h3 className="font-semibold text-gray-900 mb-2">Session Ended</h3>
+      <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-6">
+        <h3 className="font-semibold text-white mb-2">Session Ended</h3>
         <p className="text-slate-400 text-sm">This session has ended. View the final results above.</p>
       </div>
     );
@@ -230,8 +231,8 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
 
   if (!currentItem) {
     return (
-      <div className="bg-white border border-slate-700 rounded-lg p-6">
-        <h3 className="font-semibold text-gray-900 mb-2">No Questions</h3>
+      <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-6">
+        <h3 className="font-semibold text-white mb-2">No Questions</h3>
         <p className="text-slate-400 text-sm">This quiz has no questions to display.</p>
       </div>
     );
@@ -243,27 +244,27 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
       <PlayerConnectionStatus socket={socket} sessionCode={session.code} />
 
       {/* WebSocket Status */}
-      <div className="bg-white border border-slate-700 rounded-lg p-4">
+      <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-4">
         <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-500" : "bg-red-500"}`} />
-          <span className="text-sm font-medium">{isConnected ? "✅ Connected" : "❌ Disconnected"}</span>
+          <span className="text-sm font-medium text-white">{isConnected ? "✅ Connected" : "❌ Disconnected"}</span>
         </div>
-        {wsError && <p className="text-xs text-red-600 mt-2">Error: {wsError.message}</p>}
+        {wsError && <p className="text-xs text-red-400 mt-2">Error: {wsError.message}</p>}
       </div>
 
       {/* Current Question */}
-      <div className="bg-white border border-slate-700 rounded-lg p-6">
+      <div className="bg-slate-900/50 border border-slate-700 rounded-lg p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
             <p className="text-sm text-slate-400">Round: {currentItem.roundTitle}</p>
-            <h3 className="font-semibold text-gray-900">
+            <h3 className="font-semibold text-white">
               Question {currentItemIndex + 1} of {totalItems}
             </h3>
           </div>
           {timeRemaining !== null && (
             <div className="text-right">
               <p className="text-sm text-slate-400">Time Remaining</p>
-              <p className={`text-2xl font-bold ${timeRemaining <= 10 ? "text-red-600" : "text-gray-900"}`}>
+              <p className={`text-2xl font-bold ${timeRemaining <= 10 ? "text-red-400" : "text-white"}`}>
                 {timeRemaining}s
               </p>
             </div>
@@ -271,7 +272,7 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
         </div>
 
         <div className="bg-slate-800/50 p-4 rounded-lg mb-4">
-          <p className="text-gray-900 font-medium">{currentItem.question.prompt}</p>
+          <p className="text-white font-medium">{currentItem.question.prompt}</p>
           <p className="text-sm text-slate-400 mt-2">Type: {currentItem.question.type}</p>
           <p className="text-sm text-slate-400">Points: {currentItem.points}</p>
           <p className="text-sm text-slate-400">Time Limit: {currentItem.timeLimit}s</p>
@@ -295,7 +296,7 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
               <div className="bg-slate-700 px-4 py-2 border-b border-slate-700">
                 <p className="text-sm font-medium text-slate-300">🎬 YouTube Preview (Host Only)</p>
               </div>
-              <div className="p-4 bg-white">
+              <div className="p-4 bg-slate-800/50">
                 <div ref={youtubePlayerRef}>
                   <YouTubePlayer
                     videoId={videoId}
@@ -392,13 +393,9 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
           )}
 
           {isItemActive && !isItemLocked && (
-            <button
-              onClick={lockItem}
-              disabled={!isConnected || isPaused}
-              className="w-full px-4 py-3 bg-yellow-600 text-white font-medium rounded-lg hover:bg-yellow-700 disabled:bg-gray-300 transition-colors"
-            >
-              🔒 Lock Answers
-            </button>
+            <div className="w-full px-4 py-3 bg-yellow-600/50 text-white font-medium rounded-lg text-center">
+              ⏱️ Timer loopt...
+            </div>
           )}
 
           {isItemLocked && (
@@ -429,14 +426,14 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
         </div>
 
         {isPaused && (
-          <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-yellow-800 text-sm font-medium">⏸️ Session is paused. Players cannot submit answers.</p>
+          <div className="mt-4 p-3 bg-yellow-900/50 border border-yellow-700 rounded-lg">
+            <p className="text-yellow-300 text-sm font-medium">⏸️ Session is paused. Players cannot submit answers.</p>
           </div>
         )}
 
         {error && (
-          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-800 text-sm">{error}</p>
+          <div className="mt-4 p-3 bg-red-900/50 border border-red-700 rounded-lg">
+            <p className="text-red-300 text-sm">{error}</p>
           </div>
         )}
       </div>

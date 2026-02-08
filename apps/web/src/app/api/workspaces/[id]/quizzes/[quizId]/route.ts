@@ -4,9 +4,18 @@ import { prisma } from "@/lib/prisma";
 import { hasPermission, Permission, WorkspaceRole } from "@/lib/permissions";
 import { z } from "zod";
 
+const scoringSettingsSchema = z.object({
+  basePoints: z.number().min(1).max(1000).optional(),
+  timeBonusEnabled: z.boolean().optional(),
+  timeBonusPercentage: z.number().min(0).max(100).optional(),
+  streakBonusEnabled: z.boolean().optional(),
+  streakBonusPoints: z.number().min(1).max(10).optional(),
+}).optional();
+
 const updateQuizSchema = z.object({
   title: z.string().min(1).optional(),
   description: z.string().optional(),
+  scoringSettingsJson: scoringSettingsSchema,
 });
 
 // GET /api/workspaces/:id/quizzes/:quizId - Get quiz details
@@ -125,6 +134,7 @@ export async function PUT(
       data: {
         title: data.title,
         description: data.description,
+        scoringSettingsJson: data.scoringSettingsJson,
       },
       include: {
         rounds: {

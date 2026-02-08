@@ -24,6 +24,7 @@ export default function NewSessionPage({ params }: NewSessionPageProps) {
   const router = useRouter();
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [selectedQuizId, setSelectedQuizId] = useState<string>("");
+  const [displayName, setDisplayName] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +60,10 @@ export default function NewSessionPage({ params }: NewSessionPageProps) {
       const res = await fetch(`/api/workspaces/${resolvedParams.id}/sessions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ quizId: selectedQuizId }),
+        body: JSON.stringify({ 
+          quizId: selectedQuizId,
+          displayName: displayName.trim() || undefined,
+        }),
       });
 
       if (!res.ok) {
@@ -170,6 +174,23 @@ export default function NewSessionPage({ params }: NewSessionPageProps) {
                 </label>
               ))}
             </div>
+          </div>
+
+          <div className="mb-6">
+            <label htmlFor="displayName" className="block text-sm font-medium text-slate-300 mb-2">
+              Sessie Naam <span className="text-slate-500">(optioneel)</span>
+            </label>
+            <input
+              type="text"
+              id="displayName"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              placeholder="bijv. Kerst Quiz 2025, Teambuilding December"
+              className="w-full px-4 py-3 border border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900"
+            />
+            <p className="text-xs text-slate-500 mt-1">
+              Geef de sessie een herkenbare naam. Handig als je dezelfde quiz vaker speelt.
+            </p>
           </div>
 
           <div className="flex gap-3">

@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { WSMessageType } from "@partyquiz/shared";
 import { SwanRace } from "@/components/SwanRace";
+import QRCode from "react-qr-code";
 
 interface Player {
   id: string;
@@ -181,6 +182,16 @@ export default function DisplayPage() {
       setDisplayState("scoreboard");
     };
 
+    const handleHideScoreboard = () => {
+      console.log("[Display] HIDE_SCOREBOARD");
+      // Return to lobby or previous state
+      if (currentQuestion) {
+        setDisplayState("question");
+      } else {
+        setDisplayState("lobby");
+      }
+    };
+
     // Listen for swan race
     const handleSwanRaceStarted = () => {
       console.log("[Display] SWAN_RACE_STARTED");
@@ -214,6 +225,7 @@ export default function DisplayPage() {
     socket.on(WSMessageType.REVEAL_ANSWERS, handleRevealAnswers);
     socket.on(WSMessageType.ANSWER_RECEIVED, handleAnswerReceived);
     socket.on("SHOW_SCOREBOARD", handleShowScoreboard);
+    socket.on("HIDE_SCOREBOARD", handleHideScoreboard);
     socket.on(WSMessageType.SWAN_RACE_STARTED, handleSwanRaceStarted);
     socket.on(WSMessageType.SESSION_PAUSED, handleSessionPaused);
     socket.on(WSMessageType.SESSION_RESUMED, handleSessionResumed);
@@ -233,6 +245,7 @@ export default function DisplayPage() {
       socket.off(WSMessageType.REVEAL_ANSWERS, handleRevealAnswers);
       socket.off(WSMessageType.ANSWER_RECEIVED, handleAnswerReceived);
       socket.off("SHOW_SCOREBOARD", handleShowScoreboard);
+      socket.off("HIDE_SCOREBOARD", handleHideScoreboard);
       socket.off(WSMessageType.SWAN_RACE_STARTED, handleSwanRaceStarted);
       socket.off(WSMessageType.SESSION_PAUSED, handleSessionPaused);
       socket.off(WSMessageType.SESSION_RESUMED, handleSessionResumed);
@@ -258,18 +271,21 @@ export default function DisplayPage() {
     fetchSession();
   }, [code]);
 
-  // Timer countdown
+  // Timer countdown - use ref-based approach for stable interval
   useEffect(() => {
-    if (timeRemaining === null || timeRemaining <= 0 || displayState !== "question") {
+    if (displayState !== "question") {
       return;
     }
 
     const interval = setInterval(() => {
-      setTimeRemaining(prev => (prev !== null && prev > 0) ? prev - 1 : 0);
+      setTimeRemaining(prev => {
+        if (prev === null || prev <= 0) return prev;
+        return prev - 1;
+      });
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [timeRemaining, displayState]);
+  }, [displayState]); // Only depend on displayState, not timeRemaining
 
   if (loading) {
     return (
@@ -329,34 +345,51 @@ export default function DisplayPage() {
         
         {/* LOBBY STATE */}
         {displayState === "lobby" && (
-          <div className="text-center max-w-4xl mx-auto">
-            <div className="mb-12">
-              <p className="text-2xl text-slate-400 mb-4">Join with code</p>
-              <p 
-                className="text-8xl font-mono font-bold tracking-[0.3em]"
-                style={{ color: themeColor }}
-              >
-                {code}
-              </p>
-              <p className="text-xl text-slate-500 mt-4">{joinUrl}</p>
+          <div className="w-full max-w-6xl mx-auto">
+            <div className="flex flex-col lg:flex-row items-center justify-center gap-12 lg:gap-24">
+              {/* Left side: QR Code */}
+              <div className="flex flex-col items-center">
+                <div className="bg-white p-6 rounded-3xl shadow-2xl">
+                  <QRCode 
+                    value={joinUrl} 
+                    size={280} 
+                    className="w-full h-auto"
+                  />
+                </div>
+                <p className="text-lg text-slate-400 mt-4">Scan to join</p>
+              </div>
+
+              {/* Right side: Code + URL */}
+              <div className="text-center">
+                <p className="text-2xl text-slate-400 mb-4">Or join with code</p>
+                <p 
+                  className="text-8xl font-mono font-bold tracking-[0.3em]"
+                  style={{ color: themeColor }}
+                >
+                  {code}
+                </p>
+                <p className="text-xl text-slate-500 mt-4">{joinUrl}</p>
+              </div>
             </div>
 
             {/* Player Grid */}
-            <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4">
-              {session.players.map((player) => (
-                <div 
-                  key={player.id}
-                  className="bg-slate-800/50 backdrop-blur rounded-xl p-4 text-center animate-fadeIn"
-                >
-                  <div className="text-3xl mb-2">{player.avatar || "👤"}</div>
-                  <p className="font-medium text-sm truncate">{player.name}</p>
-                </div>
-              ))}
-            </div>
+            <div className="mt-16">
+              <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-4">
+                {session.players.map((player) => (
+                  <div 
+                    key={player.id}
+                    className="bg-slate-800/50 backdrop-blur rounded-xl p-4 text-center animate-fadeIn"
+                  >
+                    <div className="text-3xl mb-2">{player.avatar || "👤"}</div>
+                    <p className="font-medium text-sm truncate">{player.name}</p>
+                  </div>
+                ))}
+              </div>
 
-            {session.players.length === 0 && (
-              <p className="text-xl text-slate-500 mt-8">Waiting for players to join...</p>
-            )}
+              {session.players.length === 0 && (
+                <p className="text-xl text-slate-500 text-center">Waiting for players to join...</p>
+              )}
+            </div>
           </div>
         )}
 

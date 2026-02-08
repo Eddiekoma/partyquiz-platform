@@ -297,12 +297,12 @@ export default function WorkspaceDetailPage() {
             <p className="text-xs text-slate-500">Maak een quiz van je vragen</p>
           </Link>
           <Link 
-            href={`/(app)/workspaces/${workspace.id}/sessions`}
+            href={`/workspaces/${workspace.id}/sessions`}
             className="p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors group"
           >
             <div className="text-2xl mb-2">🚀</div>
-            <h4 className="font-medium text-white group-hover:text-green-400 transition-colors">Live Sessie</h4>
-            <p className="text-xs text-slate-500">Start een live quiz sessie</p>
+            <h4 className="font-medium text-white group-hover:text-green-400 transition-colors">Live Sessies</h4>
+            <p className="text-xs text-slate-500">Bekijk en beheer live sessies</p>
           </Link>
         </div>
       </div>

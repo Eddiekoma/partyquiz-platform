@@ -154,6 +154,8 @@ export enum WSMessageType {
   // Client -> Server (Player actions)
   JOIN_SESSION = "JOIN_SESSION",
   PLAYER_REJOIN = "PLAYER_REJOIN",
+  REJOIN_AS_EXISTING = "REJOIN_AS_EXISTING", // Rejoin as recognized device's player
+  JOIN_AS_NEW = "JOIN_AS_NEW", // Join as new player despite device being recognized
   SUBMIT_ANSWER = "SUBMIT_ANSWER",
   GAME_INPUT = "GAME_INPUT",
 
@@ -182,12 +184,16 @@ export enum WSMessageType {
   SWAN_RACE_STARTED = "SWAN_RACE_STARTED",
   SESSION_PAUSED = "SESSION_PAUSED",
   SESSION_RESUMED = "SESSION_RESUMED",
+  POLL_RESULTS = "POLL_RESULTS",
   
   // Server -> Client (Acknowledgements)
   ANSWER_RECEIVED = "ANSWER_RECEIVED",
   ANSWER_COUNT_UPDATED = "ANSWER_COUNT_UPDATED",
   SESSION_ENDED = "SESSION_ENDED",
   SESSION_RESET = "SESSION_RESET",
+  DEVICE_RECOGNIZED = "DEVICE_RECOGNIZED", // Device already has a player in this session
+  GENERATE_REJOIN_TOKEN = "GENERATE_REJOIN_TOKEN", // Host requests rejoin token for player
+  REJOIN_TOKEN_GENERATED = "REJOIN_TOKEN_GENERATED", // Server responds with token
   
   // Error
   ERROR = "ERROR",

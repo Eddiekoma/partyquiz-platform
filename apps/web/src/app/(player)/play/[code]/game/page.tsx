@@ -15,7 +15,7 @@ interface CurrentItem {
   questionType: QuestionType;
   prompt: string;
   mediaUrl?: string;
-  options?: Array<{ id: string; text: string }>;
+  options?: Array<{ id: string; text: string; isCorrect?: boolean }>;
   timerDuration: number;  // in milliseconds
   timerEndsAt?: number;   // absolute timestamp for sync
   settingsJson?: any;
@@ -155,6 +155,16 @@ export default function GamePage() {
     // Listen for reveal answers (show correct answer)
     socket.on("REVEAL_ANSWERS", (data: any) => {
       console.log("[Player] Reveal answers:", data);
+      // Mark correct option in current item
+      if (data.correctOptionId) {
+        setCurrentItem(prev => prev ? {
+          ...prev,
+          options: prev.options?.map(opt => ({
+            ...opt,
+            isCorrect: opt.id === data.correctOptionId,
+          })),
+        } : null);
+      }
       // Show correct answer feedback and explanation if provided
       setExplanation(data.explanation || null);
       setShowReveal(true);
@@ -176,9 +186,16 @@ export default function GamePage() {
       router.push("/join");
     });
 
-    // Listen for errors
+    // Listen for errors - handle gracefully
     socket.on("ERROR", (data: any) => {
-      console.error("[Player] Error:", data.message);
+      // "Time's up" is expected game flow, not an error
+      if (data.message?.includes("Time's up") || data.code === "ITEM_LOCKED") {
+        console.log("[Player] Question closed:", data.message);
+        setIsLocked(true);
+        return;
+      }
+      // Log other errors
+      console.warn("[Player] Server message:", data.message);
     });
 
     return () => {
@@ -336,6 +353,45 @@ export default function GamePage() {
                 +{answerResult.score} points
               </p>
             )}
+          </div>
+        )}
+
+        {/* Correct Answer Reveal - show options with correct one highlighted */}
+        {showReveal && currentItem?.options && currentItem.options.length > 0 && (
+          <div className="mt-8 w-full">
+            <p className="text-center text-white/60 text-sm mb-4 font-semibold uppercase tracking-wide">Correct Answer</p>
+            <div className="grid grid-cols-2 gap-3">
+              {currentItem.options.map((option, idx) => {
+                // Same colors as Display/Host
+                const colors = [
+                  "bg-red-600",
+                  "bg-blue-600", 
+                  "bg-yellow-600",
+                  "bg-green-600",
+                ];
+                const baseColor = colors[idx % 4];
+                
+                return (
+                  <div
+                    key={option.id}
+                    className={`p-4 rounded-xl text-base font-bold transition-all ${
+                      option.isCorrect
+                        ? "bg-green-500 text-white ring-4 ring-green-300 scale-105 shadow-lg shadow-green-500/50"
+                        : myAnswer === option.id && !option.isCorrect
+                          ? "bg-red-900/80 text-white/60 ring-2 ring-red-500"
+                          : `${baseColor} opacity-40 text-white/50`
+                    }`}
+                  >
+                    <span className="opacity-70 mr-2 text-sm">
+                      {String.fromCharCode(65 + idx)}
+                    </span>
+                    {option.isCorrect && <span className="mr-1">✅</span>}
+                    {myAnswer === option.id && !option.isCorrect && <span className="mr-1">❌</span>}
+                    {option.text}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 

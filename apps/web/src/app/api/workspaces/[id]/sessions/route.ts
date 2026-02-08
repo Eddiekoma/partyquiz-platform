@@ -6,6 +6,7 @@ import { z } from "zod";
 
 const createSessionSchema = z.object({
   quizId: z.string().min(1, "Quiz ID is required"),
+  displayName: z.string().max(100).optional(),
 });
 
 /**
@@ -171,7 +172,7 @@ export async function POST(
       );
     }
 
-    const { quizId } = validation.data;
+    const { quizId, displayName } = validation.data;
 
     // Verify quiz belongs to workspace
     const quiz = await prisma.quiz.findFirst({
@@ -214,6 +215,7 @@ export async function POST(
         code,
         status: "LOBBY",
         hostUserId: session.user.id,
+        displayName: displayName || null,
       },
       include: {
         quiz: {

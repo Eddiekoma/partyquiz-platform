@@ -243,3 +243,48 @@ export function createSubscriber(): Redis {
 export async function publish(channel: string, message: any): Promise<void> {
   await redis.publish(channel, JSON.stringify(message));
 }
+
+/**
+ * Poll voting tracking
+ * Uses hash to store vote counts per option
+ */
+export async function recordPollVote(
+  sessionCode: string,
+  itemId: string,
+  optionId: string
+): Promise<Record<string, number>> {
+  const key = `session:${sessionCode}:poll:${itemId}`;
+  
+  // Increment the vote count for this option
+  await redis.hincrby(key, optionId, 1);
+  
+  // Set expiry (2 hours)
+  await redis.expire(key, 7200);
+  
+  // Return all current vote counts
+  return await getPollResults(sessionCode, itemId);
+}
+
+export async function getPollResults(
+  sessionCode: string,
+  itemId: string
+): Promise<Record<string, number>> {
+  const key = `session:${sessionCode}:poll:${itemId}`;
+  const results = await redis.hgetall(key);
+  
+  // Convert string values to numbers
+  const voteCounts: Record<string, number> = {};
+  for (const [optionId, count] of Object.entries(results)) {
+    voteCounts[optionId] = parseInt(count, 10);
+  }
+  
+  return voteCounts;
+}
+
+export async function clearPollVotes(
+  sessionCode: string,
+  itemId: string
+): Promise<void> {
+  const key = `session:${sessionCode}:poll:${itemId}`;
+  await redis.del(key);
+}

@@ -8,6 +8,8 @@ import {
   WSMessageType, 
   validateAndScore, 
   QuestionType,
+  getQuestionScoringMode,
+  ScoringMode,
   // WS Event schemas and types
   validateCommand,
   createEventPayload,
@@ -39,6 +41,8 @@ import {
   cachePlayer,
   getPlayer,
   checkRateLimit,
+  recordPollVote,
+  getPollResults,
 } from "@partyquiz/shared/server";
 import { prisma } from "./lib/prisma";
 
@@ -532,7 +536,7 @@ io.on("connection", (socket: Socket) => {
     async (data: { sessionCode: string; playerName: string; avatar?: string; deviceIdHash?: string }) => {
       try {
         const { sessionCode, playerName, avatar, deviceIdHash } = data;
-        logger.info({ sessionCode, playerName }, "Player attempting to join session");
+        logger.info({ sessionCode, playerName, deviceIdHash }, "Player attempting to join session");
 
         // Validate session exists in database
         const session = await prisma.liveSession.findUnique({
@@ -562,7 +566,60 @@ io.on("connection", (socket: Socket) => {
           return;
         }
 
-        // Create or update player in database
+        // Check if this device already has a player in this session
+        if (deviceIdHash) {
+          const existingPlayer = await prisma.livePlayer.findFirst({
+            where: {
+              sessionId: session.id,
+              deviceIdHash: deviceIdHash,
+            },
+            orderBy: { joinedAt: "desc" },
+          });
+
+          if (existingPlayer) {
+            logger.info({ 
+              deviceIdHash, 
+              existingPlayerId: existingPlayer.id, 
+              existingPlayerName: existingPlayer.name 
+            }, "Device recognized - player already exists in session");
+
+            // Store pending join data in socket for later use
+            socket.data.pendingJoin = {
+              sessionCode,
+              playerName,
+              avatar,
+              deviceIdHash,
+              sessionId: session.id,
+            };
+
+            // Emit device recognized event - let client choose
+            socket.emit(WSMessageType.DEVICE_RECOGNIZED, {
+              existingPlayer: {
+                id: existingPlayer.id,
+                name: existingPlayer.name,
+                avatar: existingPlayer.avatar,
+              },
+              newPlayerName: playerName,
+            });
+            return;
+          }
+        }
+
+        // Check if player name is already taken in this session (case-insensitive)
+        const nameAlreadyTaken = session.players.some(
+          (p) => p.name.toLowerCase() === playerName.toLowerCase()
+        );
+
+        if (nameAlreadyTaken) {
+          logger.warn({ sessionCode, playerName }, "Player name already taken in session");
+          socket.emit(WSMessageType.ERROR, {
+            message: "Deze naam is al in gebruik. Kies een andere naam.",
+            code: "NAME_ALREADY_TAKEN",
+          });
+          return;
+        }
+
+        // No existing player found - create new player
         const player = await prisma.livePlayer.create({
           data: {
             sessionId: session.id,
@@ -600,12 +657,13 @@ io.on("connection", (socket: Socket) => {
         // Track connection status (disconnects old socket if player reconnects)
         trackPlayerConnection(sessionCode, player.id, playerName, socket.id, io);
 
-        // Send session state to player
+        // Send session state to player (include accessToken for permanent link)
         socket.emit(WSMessageType.SESSION_STATE, {
           sessionId: session.id,
           sessionCode: session.code,
           status: session.status,
           playerId: player.id,
+          accessToken: player.accessToken, // For permanent player link
           players: session.players.map((p) => ({
             id: p.id,
             name: p.name,
@@ -653,6 +711,213 @@ io.on("connection", (socket: Socket) => {
       } catch (error) {
         logger.error({ error }, "Error joining session");
         socket.emit("error", { message: "Failed to join session" });
+      }
+    }
+  );
+
+  // Player chooses to rejoin as existing player (device was recognized)
+  socket.on(
+    WSMessageType.REJOIN_AS_EXISTING,
+    async (data: { playerId: string }) => {
+      try {
+        const pendingJoin = socket.data.pendingJoin;
+        if (!pendingJoin) {
+          socket.emit(WSMessageType.ERROR, {
+            message: "No pending join request",
+            code: "NO_PENDING_JOIN",
+          });
+          return;
+        }
+
+        const { sessionCode, sessionId } = pendingJoin;
+        const { playerId } = data;
+
+        logger.info({ sessionCode, playerId }, "Player rejoining as existing player (device recognized)");
+
+        // Verify player exists
+        const player = await prisma.livePlayer.findFirst({
+          where: { id: playerId, sessionId },
+        });
+
+        if (!player) {
+          socket.emit(WSMessageType.ERROR, {
+            message: "Player not found",
+            code: "PLAYER_NOT_FOUND",
+          });
+          return;
+        }
+
+        // If player was marked as left, unmark them
+        if (player.leftAt) {
+          await prisma.livePlayer.update({
+            where: { id: playerId },
+            data: { leftAt: null },
+          });
+        }
+
+        // Get session for player list
+        const session = await prisma.liveSession.findUnique({
+          where: { id: sessionId },
+          include: {
+            players: { where: { leftAt: null } },
+          },
+        });
+
+        // Join socket room
+        socket.join(sessionCode);
+
+        // Store player info in socket data
+        socket.data.playerId = playerId;
+        socket.data.sessionCode = sessionCode;
+        socket.data.sessionId = sessionId;
+        delete socket.data.pendingJoin;
+
+        // Cache player data in Redis
+        await cachePlayer(sessionCode, playerId, {
+          id: playerId,
+          name: player.name,
+          avatar: player.avatar,
+          score: 0,
+        });
+
+        // Add to active players set
+        await addActivePlayer(sessionCode, playerId);
+
+        // Track connection
+        trackPlayerConnection(sessionCode, playerId, player.name, socket.id, io);
+
+        // Send session state to player
+        socket.emit(WSMessageType.SESSION_STATE, {
+          sessionId,
+          sessionCode,
+          status: session?.status || "waiting",
+          playerId,
+          players: session?.players.map((p) => ({
+            id: p.id,
+            name: p.name,
+            avatar: p.avatar,
+            score: 0,
+          })) || [],
+        });
+
+        // Notify others
+        const playerData: Player = {
+          id: playerId,
+          name: player.name,
+          avatar: player.avatar,
+          score: 0,
+          isOnline: true,
+        };
+        socket.to(sessionCode).emit(WSMessageType.PLAYER_JOINED, { player: playerData });
+
+        // Send connection status update
+        const connections = getSessionConnections(sessionCode);
+        io.to(sessionCode).emit("CONNECTION_STATUS_UPDATE", { connections });
+
+        logger.info({ playerId, sessionCode }, "Player rejoined as existing (device recognized)");
+      } catch (error) {
+        logger.error({ error }, "Error rejoining as existing player");
+        socket.emit("error", { message: "Failed to rejoin" });
+      }
+    }
+  );
+
+  // Player chooses to join as new player (despite device being recognized)
+  socket.on(
+    WSMessageType.JOIN_AS_NEW,
+    async () => {
+      try {
+        const pendingJoin = socket.data.pendingJoin;
+        if (!pendingJoin) {
+          socket.emit(WSMessageType.ERROR, {
+            message: "No pending join request",
+            code: "NO_PENDING_JOIN",
+          });
+          return;
+        }
+
+        const { sessionCode, playerName, avatar, deviceIdHash, sessionId } = pendingJoin;
+
+        logger.info({ sessionCode, playerName }, "Player joining as new (despite device recognized)");
+
+        // Create new player with modified deviceIdHash to avoid future conflicts
+        const newDeviceHash = `${deviceIdHash}-${Date.now()}`;
+        const player = await prisma.livePlayer.create({
+          data: {
+            sessionId,
+            name: playerName,
+            avatar: avatar || null,
+            deviceIdHash: newDeviceHash,
+            joinedAt: new Date(),
+          },
+        });
+
+        // Get session for player list
+        const session = await prisma.liveSession.findUnique({
+          where: { id: sessionId },
+          include: {
+            players: { where: { leftAt: null } },
+          },
+        });
+
+        // Join socket room
+        socket.join(sessionCode);
+
+        // Store player info in socket data
+        socket.data.playerId = player.id;
+        socket.data.sessionCode = sessionCode;
+        socket.data.sessionId = sessionId;
+        delete socket.data.pendingJoin;
+
+        // Cache player data in Redis
+        await cachePlayer(sessionCode, player.id, {
+          id: player.id,
+          name: player.name,
+          avatar: player.avatar,
+          score: 0,
+        });
+
+        // Add to active players set
+        await addActivePlayer(sessionCode, player.id);
+
+        // Initialize leaderboard score
+        await updateLeaderboard(sessionCode, player.id, 0);
+
+        // Track connection
+        trackPlayerConnection(sessionCode, player.id, player.name, socket.id, io);
+
+        // Send session state to player
+        socket.emit(WSMessageType.SESSION_STATE, {
+          sessionId,
+          sessionCode,
+          status: session?.status || "waiting",
+          playerId: player.id,
+          players: session?.players.map((p) => ({
+            id: p.id,
+            name: p.name,
+            avatar: p.avatar,
+            score: 0,
+          })) || [],
+        });
+
+        // Notify others
+        const playerData: Player = {
+          id: player.id,
+          name: player.name,
+          avatar: player.avatar,
+          score: 0,
+          isOnline: true,
+        };
+        socket.to(sessionCode).emit(WSMessageType.PLAYER_JOINED, { player: playerData });
+
+        // Send connection status update
+        const connections = getSessionConnections(sessionCode);
+        io.to(sessionCode).emit("CONNECTION_STATUS_UPDATE", { connections });
+
+        logger.info({ playerId: player.id, sessionCode }, "New player joined (device was recognized but chose new)");
+      } catch (error) {
+        logger.error({ error }, "Error joining as new player");
+        socket.emit("error", { message: "Failed to join as new player" });
       }
     }
   );
@@ -1247,6 +1512,56 @@ io.on("connection", (socket: Socket) => {
 
         const question = quizItem.question;
         const questionType = question.type as QuestionType;
+        
+        // Check if this is a poll - polls don't have scoring, just vote tracking
+        const scoringMode = getQuestionScoringMode(questionType);
+        if (scoringMode === ScoringMode.NO_SCORE) {
+          // Handle as poll vote
+          const pollVote = answer; // Answer should be the option ID they voted for
+          
+          // Record vote in Redis and get updated counts
+          const pollResults = await recordPollVote(sessionCode, itemId, pollVote);
+          
+          // Store the vote in database (for persistence)
+          await prisma.liveAnswer.create({
+            data: {
+              sessionId: session.id,
+              playerId,
+              quizItemId: itemId,
+              payloadJson: answer,
+              isCorrect: true, // All poll votes are "correct"
+              score: 0, // No score for polls
+            },
+          });
+          
+          // Acknowledge to player
+          socket.emit(WSMessageType.ANSWER_RECEIVED, {
+            itemId,
+            timestamp: Date.now(),
+            isCorrect: true, // All votes accepted
+            score: 0,
+            isPoll: true,
+          });
+          
+          // Get total vote count
+          const totalVotes = Object.values(pollResults).reduce((sum, count) => sum + count, 0);
+          
+          // Broadcast updated poll results to everyone in session
+          io.to(sessionCode).emit(WSMessageType.POLL_RESULTS, {
+            itemId,
+            results: pollResults,
+            totalVotes,
+            options: question.options.map(opt => ({
+              id: opt.id,
+              text: opt.text,
+              votes: pollResults[opt.id] || 0,
+              percentage: totalVotes > 0 ? Math.round((pollResults[opt.id] || 0) / totalVotes * 100) : 0,
+            })),
+          });
+          
+          logger.info({ playerId, itemId, pollVote, totalVotes }, "Poll vote recorded");
+          return;
+        }
 
         // Get correct answer based on question type
         let correctAnswer: any;
@@ -1635,11 +1950,11 @@ io.on("connection", (socket: Socket) => {
   });
 
   // Pause session
-  socket.on(WSMessageType.PAUSE_SESSION, async (data: { sessionCode: string }) => {
+  socket.on(WSMessageType.PAUSE_SESSION, async (data: { sessionCode: string; currentRoundIndex?: number; currentItemIndex?: number }) => {
     try {
-      const { sessionCode } = data;
+      const { sessionCode, currentRoundIndex, currentItemIndex } = data;
 
-      logger.info({ sessionCode }, "Pausing session");
+      logger.info({ sessionCode, currentRoundIndex, currentItemIndex }, "Pausing session");
 
       // Store pause state in Redis
       await redis.set(`session:${sessionCode}:paused`, "true");
@@ -1647,6 +1962,28 @@ io.on("connection", (socket: Socket) => {
       
       // PAUSE THE TIMER - saves remaining time
       const remainingMs = pauseItemTimer(sessionCode);
+
+      // Update the database with progress and pause status
+      try {
+        const session = await prisma.liveSession.findFirst({
+          where: { code: sessionCode },
+        });
+        
+        if (session) {
+          await prisma.liveSession.update({
+            where: { id: session.id },
+            data: {
+              status: "PAUSED",
+              pausedAt: new Date(),
+              ...(currentRoundIndex !== undefined && { currentRoundIndex }),
+              ...(currentItemIndex !== undefined && { currentItemIndex }),
+            },
+          });
+          logger.info({ sessionId: session.id }, "Session progress saved to database");
+        }
+      } catch (dbError) {
+        logger.error({ dbError }, "Failed to update session in database (continuing anyway)");
+      }
 
       // Notify all clients
       io.to(sessionCode).emit(WSMessageType.SESSION_PAUSED, {
@@ -1676,6 +2013,26 @@ io.on("connection", (socket: Socket) => {
       // RESUME THE TIMER - restarts countdown with remaining time
       const timerEndsAt = resumeItemTimer(sessionCode, io);
 
+      // Update the database to clear pause status
+      try {
+        const session = await prisma.liveSession.findFirst({
+          where: { code: sessionCode },
+        });
+        
+        if (session) {
+          await prisma.liveSession.update({
+            where: { id: session.id },
+            data: {
+              status: "ACTIVE",
+              pausedAt: null,
+            },
+          });
+          logger.info({ sessionId: session.id }, "Session resumed in database");
+        }
+      } catch (dbError) {
+        logger.error({ dbError }, "Failed to update session in database (continuing anyway)");
+      }
+
       // Notify all clients
       io.to(sessionCode).emit(WSMessageType.SESSION_RESUMED, {
         sessionCode,
@@ -1689,6 +2046,7 @@ io.on("connection", (socket: Socket) => {
       socket.emit("error", { message: "Failed to resume session" });
     }
   });
+
 
   // Kick player from session (host only)
   socket.on(WSMessageType.KICK_PLAYER, async (data: { sessionCode: string; playerId: string; reason?: string }) => {
@@ -1752,6 +2110,66 @@ io.on("connection", (socket: Socket) => {
       socket.emit(WSMessageType.ERROR, { message: "Failed to kick player" });
     }
   });
+
+  // Generate rejoin token for a player (host only)
+  socket.on(
+    WSMessageType.GENERATE_REJOIN_TOKEN,
+    async (data: { sessionCode: string; playerId: string }) => {
+      try {
+        const { sessionCode, playerId } = data;
+
+        if (!socket.data.isHost) {
+          socket.emit(WSMessageType.ERROR, {
+            message: "Only host can generate rejoin tokens",
+            code: "NOT_HOST",
+          });
+          return;
+        }
+
+        logger.info({ sessionCode, playerId }, "Host generating rejoin token for player");
+
+        // Verify player exists
+        const player = await prisma.livePlayer.findUnique({
+          where: { id: playerId },
+          include: { session: true },
+        });
+
+        if (!player || player.session.code !== sessionCode) {
+          socket.emit(WSMessageType.ERROR, {
+            message: "Player not found in this session",
+            code: "PLAYER_NOT_FOUND",
+          });
+          return;
+        }
+
+        // Generate a simple token (playerId + timestamp + random)
+        const token = Buffer.from(
+          JSON.stringify({
+            playerId,
+            sessionCode,
+            createdAt: Date.now(),
+            random: Math.random().toString(36).substring(2),
+          })
+        ).toString("base64url");
+
+        // Store token in Redis with 1 hour expiry
+        await redis.set(`rejoin:${token}`, playerId, "EX", 3600);
+
+        // Send token back to host
+        socket.emit(WSMessageType.REJOIN_TOKEN_GENERATED, {
+          playerId,
+          playerName: player.name,
+          token,
+          expiresIn: 3600,
+        });
+
+        logger.info({ playerId, playerName: player.name }, "Rejoin token generated");
+      } catch (error) {
+        logger.error({ error }, "Error generating rejoin token");
+        socket.emit(WSMessageType.ERROR, { message: "Failed to generate rejoin token" });
+      }
+    }
+  );
 
   // Handle heartbeat for connection tracking
   socket.on("HEARTBEAT", () => {

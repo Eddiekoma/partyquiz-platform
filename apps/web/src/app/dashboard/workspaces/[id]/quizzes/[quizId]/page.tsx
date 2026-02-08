@@ -60,6 +60,14 @@ interface QuizRound {
   items: QuizItem[];
 }
 
+interface ScoringSettings {
+  basePoints?: number;
+  timeBonusEnabled?: boolean;
+  timeBonusPercentage?: number;
+  streakBonusEnabled?: boolean;
+  streakBonusPoints?: number;
+}
+
 interface Quiz {
   id: string;
   title: string;
@@ -67,6 +75,7 @@ interface Quiz {
   createdAt: string;
   updatedAt: string;
   rounds: QuizRound[];
+  scoringSettingsJson?: ScoringSettings | null;
   _count: {
     sessions: number;
   };
@@ -77,7 +86,6 @@ function SortableRound({
   round,
   index,
   onAddQuestion,
-  onAddScoreboard,
   onAddMinigame,
   onRemoveItem,
   onEditSettings,
@@ -90,7 +98,6 @@ function SortableRound({
   round: QuizRound;
   index: number;
   onAddQuestion: (roundId: string) => void;
-  onAddScoreboard: (roundId: string, displayType: string) => void;
   onAddMinigame: (roundId: string, minigameType: string) => void;
   onRemoveItem: (roundId: string, itemId: string) => void;
   onEditSettings: (roundId: string, item: QuizItem) => void;
@@ -158,33 +165,6 @@ function SortableRound({
                 >
                   <span>📝</span> Add Question
                 </button>
-                <div className="border-t border-slate-700">
-                  <p className="px-4 py-2 text-xs text-slate-500 uppercase">Scoreboard</p>
-                  <button
-                    onClick={() => { onAddScoreboard(round.id, "TOP_3"); setShowAddMenu(false); }}
-                    className="w-full text-left px-4 py-2 hover:bg-slate-700 flex items-center gap-3 pl-8"
-                  >
-                    🏆 Top 3
-                  </button>
-                  <button
-                    onClick={() => { onAddScoreboard(round.id, "TOP_5"); setShowAddMenu(false); }}
-                    className="w-full text-left px-4 py-2 hover:bg-slate-700 flex items-center gap-3 pl-8"
-                  >
-                    🎯 Top 5
-                  </button>
-                  <button
-                    onClick={() => { onAddScoreboard(round.id, "TOP_10"); setShowAddMenu(false); }}
-                    className="w-full text-left px-4 py-2 hover:bg-slate-700 flex items-center gap-3 pl-8"
-                  >
-                    📋 Top 10
-                  </button>
-                  <button
-                    onClick={() => { onAddScoreboard(round.id, "ALL"); setShowAddMenu(false); }}
-                    className="w-full text-left px-4 py-2 hover:bg-slate-700 flex items-center gap-3 pl-8"
-                  >
-                    👥 All Players
-                  </button>
-                </div>
                 <div className="border-t border-slate-700">
                   <p className="px-4 py-2 text-xs text-slate-500 uppercase">Minigames</p>
                   <button
@@ -420,6 +400,13 @@ export default function QuizDetailPage() {
   const [editMode, setEditMode] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  
+  // Scoring settings
+  const [editBasePoints, setEditBasePoints] = useState(10);
+  const [editTimeBonusEnabled, setEditTimeBonusEnabled] = useState(true);
+  const [editTimeBonusPercentage, setEditTimeBonusPercentage] = useState(50);
+  const [editStreakBonusEnabled, setEditStreakBonusEnabled] = useState(true);
+  const [editStreakBonusPoints, setEditStreakBonusPoints] = useState(1);
 
   // Add round
   const [showAddRound, setShowAddRound] = useState(false);
@@ -460,6 +447,14 @@ export default function QuizDetailPage() {
       setQuiz(loadedQuiz);
       setEditTitle(loadedQuiz.title);
       setEditDescription(loadedQuiz.description || "");
+      
+      // Load scoring settings
+      const scoringSettings = loadedQuiz.scoringSettingsJson as ScoringSettings | null;
+      setEditBasePoints(scoringSettings?.basePoints ?? 10);
+      setEditTimeBonusEnabled(scoringSettings?.timeBonusEnabled ?? true);
+      setEditTimeBonusPercentage(scoringSettings?.timeBonusPercentage ?? 50);
+      setEditStreakBonusEnabled(scoringSettings?.streakBonusEnabled ?? true);
+      setEditStreakBonusPoints(scoringSettings?.streakBonusPoints ?? 1);
     } catch (error) {
       console.error("Failed to load quiz:", error);
       alert("Failed to load quiz");
@@ -483,6 +478,13 @@ export default function QuizDetailPage() {
         body: JSON.stringify({
           title: editTitle.trim(),
           description: editDescription.trim() || undefined,
+          scoringSettingsJson: {
+            basePoints: editBasePoints,
+            timeBonusEnabled: editTimeBonusEnabled,
+            timeBonusPercentage: editTimeBonusPercentage,
+            streakBonusEnabled: editStreakBonusEnabled,
+            streakBonusPoints: editStreakBonusPoints,
+          },
         }),
       });
 
@@ -541,28 +543,6 @@ export default function QuizDetailPage() {
     } catch (error) {
       console.error("Failed to load questions:", error);
       alert("Failed to load questions");
-    }
-  };
-
-  const handleAddScoreboard = async (roundId: string, displayType: string = "TOP_10") => {
-    try {
-      const response = await fetch(
-        `/api/workspaces/${workspaceId}/quizzes/${quizId}/rounds/${roundId}/items`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            itemType: "SCOREBOARD",
-            settingsJson: { displayType }
-          }),
-        }
-      );
-
-      if (!response.ok) throw new Error("Failed to add scoreboard");
-      await loadQuiz();
-    } catch (error) {
-      console.error("Failed to add scoreboard:", error);
-      alert("Failed to add scoreboard");
     }
   };
 
@@ -881,6 +861,14 @@ export default function QuizDetailPage() {
                 >
                   {startingSession ? "Starting..." : "🎮 Start Session"}
                 </Button>
+                {quiz._count.sessions > 0 && (
+                  <Button 
+                    onClick={() => router.push(`/workspaces/${workspaceId}/sessions?quizId=${quizId}`)}
+                    variant="secondary"
+                  >
+                    📊 View Sessions ({quiz._count.sessions})
+                  </Button>
+                )}
                 <Button onClick={() => setEditMode(true)} variant="secondary">
                   Edit Details
                 </Button>
@@ -915,6 +903,106 @@ export default function QuizDetailPage() {
                   rows={3}
                 />
               </div>
+              
+              {/* Scoring Settings */}
+              <div className="border-t border-slate-700 pt-4 mt-4">
+                <h3 className="text-lg font-semibold mb-4">⚙️ Scoring Instellingen</h3>
+                
+                {/* Base Points */}
+                <div className="mb-4">
+                  <label className="block text-sm font-semibold mb-2">
+                    Basis punten per vraag
+                  </label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={1000}
+                    value={editBasePoints}
+                    onChange={(e) => setEditBasePoints(parseInt(e.target.value) || 10)}
+                    className="w-32"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">
+                    Standaard punten voor een 100% correct antwoord
+                  </p>
+                </div>
+
+                {/* Time Bonus */}
+                <div className="mb-4 p-4 bg-slate-800/50 rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">⏱️</span>
+                      <div>
+                        <label className="font-semibold">Snelheidsbonus</label>
+                        <p className="text-xs text-slate-400">Extra punten voor snelle antwoorden</p>
+                      </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editTimeBonusEnabled}
+                        onChange={(e) => setEditTimeBonusEnabled(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
+                    </label>
+                  </div>
+                  {editTimeBonusEnabled && (
+                    <div className="flex items-center gap-3 mt-3">
+                      <label className="text-sm text-slate-400">Max bonus:</label>
+                      <Input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={editTimeBonusPercentage}
+                        onChange={(e) => setEditTimeBonusPercentage(parseInt(e.target.value) || 50)}
+                        className="w-20"
+                      />
+                      <span className="text-sm text-slate-400">%</span>
+                      <span className="text-xs text-slate-500 ml-2">
+                        (= max {Math.round((editTimeBonusPercentage / 100) * editBasePoints)} extra punten)
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Streak Bonus */}
+                <div className="p-4 bg-slate-800/50 rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">🔥</span>
+                      <div>
+                        <label className="font-semibold">Streak bonus</label>
+                        <p className="text-xs text-slate-400">Extra punten voor achtereenvolgende goede antwoorden</p>
+                      </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editStreakBonusEnabled}
+                        onChange={(e) => setEditStreakBonusEnabled(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
+                    </label>
+                  </div>
+                  {editStreakBonusEnabled && (
+                    <div className="flex items-center gap-3 mt-3">
+                      <label className="text-sm text-slate-400">Punten per streak:</label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={10}
+                        value={editStreakBonusPoints}
+                        onChange={(e) => setEditStreakBonusPoints(parseInt(e.target.value) || 1)}
+                        className="w-20"
+                      />
+                      <span className="text-xs text-slate-500">
+                        (bijv. 3 goede = +{editStreakBonusPoints * 3} pts)
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </Card>
         ) : (
@@ -947,7 +1035,6 @@ export default function QuizDetailPage() {
                 round={round}
                 index={index}
                 onAddQuestion={handleAddQuestion}
-                onAddScoreboard={handleAddScoreboard}
                 onAddMinigame={handleAddMinigame}
                 onRemoveItem={handleRemoveItem}
                 onEditSettings={handleEditSettings}

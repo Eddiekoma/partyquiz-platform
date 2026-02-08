@@ -126,12 +126,12 @@ export default function SessionControl({ session }: SessionControlProps) {
   }
 
   return (
-    <div className="bg-white border border-slate-700 rounded-lg p-6">
-      <h3 className="font-semibold text-gray-900 mb-4">Host Controls</h3>
+    <div className="bg-slate-800/50 border border-slate-700 rounded-lg p-6">
+      <h3 className="font-semibold text-white mb-4">Host Controls</h3>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-          <p className="text-red-800 text-sm">{error}</p>
+        <div className="mb-4 p-3 bg-red-900/30 border border-red-700 rounded-lg">
+          <p className="text-red-400 text-sm">{error}</p>
         </div>
       )}
 
@@ -143,11 +143,11 @@ export default function SessionControl({ session }: SessionControlProps) {
             <button
               onClick={exportResults}
               disabled={exporting}
-              className="w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:bg-gray-300 transition-colors"
+              className="w-full px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:bg-slate-600 disabled:text-slate-400 transition-colors"
             >
               {exporting ? "Exporting..." : "📥 Download CSV"}
             </button>
-            <p className="text-xs text-slate-400 mt-2">
+            <p className="text-xs text-slate-500 mt-2">
               Export all player results with answers, scores, and correctness
             </p>
           </div>
@@ -161,10 +161,10 @@ export default function SessionControl({ session }: SessionControlProps) {
               <button
                 onClick={() => updateSessionStatus("ACTIVE")}
                 disabled={updating}
-                className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:bg-gray-300 transition-colors"
-              >
-                {updating ? "Starting..." : "▶️ Start Session"}
-              </button>
+                  className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:bg-slate-600 disabled:text-slate-400 transition-colors"
+                >
+                  {updating ? "Starting..." : "▶️ Start Session"}
+                </button>
             )}
 
             {session.status === "ACTIVE" && (
@@ -172,14 +172,14 @@ export default function SessionControl({ session }: SessionControlProps) {
                 <button
                   onClick={() => updateSessionStatus("PAUSED")}
                   disabled={updating}
-                  className="px-4 py-2 bg-yellow-600 text-white font-medium rounded-lg hover:bg-yellow-700 disabled:bg-gray-300 transition-colors"
+                  className="px-4 py-2 bg-yellow-600 text-white font-medium rounded-lg hover:bg-yellow-700 disabled:bg-slate-600 disabled:text-slate-400 transition-colors"
                 >
                   {updating ? "Pausing..." : "⏸️ Pause"}
                 </button>
                 <button
                   onClick={() => updateSessionStatus("ENDED")}
                   disabled={updating}
-                  className="px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 disabled:bg-gray-300 transition-colors"
+                  className="px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 disabled:bg-slate-600 disabled:text-slate-400 transition-colors"
                 >
                   {updating ? "Ending..." : "⏹️ End Session"}
                 </button>
@@ -191,14 +191,14 @@ export default function SessionControl({ session }: SessionControlProps) {
                 <button
                   onClick={() => updateSessionStatus("ACTIVE")}
                   disabled={updating}
-                  className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:bg-gray-300 transition-colors"
+                  className="px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 disabled:bg-slate-600 disabled:text-slate-400 transition-colors"
                 >
                   {updating ? "Resuming..." : "▶️ Resume"}
                 </button>
                 <button
                   onClick={() => updateSessionStatus("ENDED")}
                   disabled={updating}
-                  className="px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 disabled:bg-gray-300 transition-colors"
+                  className="px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 disabled:bg-slate-600 disabled:text-slate-400 transition-colors"
                 >
                   {updating ? "Ending..." : "⏹️ End Session"}
                 </button>
@@ -208,36 +208,36 @@ export default function SessionControl({ session }: SessionControlProps) {
         </div>
 
         {/* WebSocket Info */}
-        <div className="pt-4 border-t border-slate-700">
+        <div className="pt-4 border-t border-slate-600">
           <p className="text-sm text-slate-400 mb-2">WebSocket Connection</p>
           <div className="flex items-center gap-2 mb-2">
             <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-            <span className="text-sm font-medium">
+            <span className="text-sm font-medium text-slate-300">
               {isConnected ? '✅ Connected' : '❌ Disconnected'}
             </span>
           </div>
           {wsError && (
-            <p className="text-xs text-red-600 mb-2">Error: {wsError.message}</p>
+            <p className="text-xs text-red-400 mb-2">Error: {wsError.message}</p>
           )}
-          <p className="text-xs text-slate-400 bg-slate-800/50 p-3 rounded font-mono">
+          <p className="text-xs text-slate-500 bg-slate-700/50 p-3 rounded font-mono">
             {process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080'}/ws
           </p>
-          <p className="text-xs text-slate-400 mt-2">
+          <p className="text-xs text-slate-500 mt-2">
             💡 Real-time updates are {isConnected ? 'active' : 'paused'}. Player joins and answers will be reflected automatically.
           </p>
         </div>
 
         {/* Delete Session */}
-        <div className="pt-4 border-t border-slate-700">
+        <div className="pt-4 border-t border-slate-600">
           <p className="text-sm text-slate-400 mb-2">Danger Zone</p>
           <button
             onClick={deleteSession}
             disabled={deleting}
-            className="px-4 py-2 bg-red-50 text-red-700 font-medium rounded-lg border border-red-200 hover:bg-red-100 disabled:bg-slate-700 disabled:text-slate-500 transition-colors"
+            className="px-4 py-2 bg-red-900/30 text-red-400 font-medium rounded-lg border border-red-700 hover:bg-red-900/50 disabled:bg-slate-700 disabled:text-slate-500 transition-colors"
           >
             {deleting ? "Deleting..." : "🗑️ Delete Session"}
           </button>
-          <p className="text-xs text-slate-400 mt-2">
+          <p className="text-xs text-slate-500 mt-2">
             This will permanently delete the session, all players, and all answers.
           </p>
         </div>

@@ -71,6 +71,15 @@ export default function HostControlPage() {
   const [isPaused, setIsPaused] = useState(false);
   const [hasJoinedRoom, setHasJoinedRoom] = useState(false);
   const [liveConnectionStatus, setLiveConnectionStatus] = useState<Map<string, { isOnline: boolean; quality: string }>>(new Map());
+  const [timeRemaining, setTimeRemaining] = useState<number>(0);
+  // Track which items have been completed (answers revealed)
+  const [completedItemIds, setCompletedItemIds] = useState<Set<string>>(new Set());
+  // Scoreboard controls
+  const [showingScoreboard, setShowingScoreboard] = useState(false);
+  const [scoreboardType, setScoreboardType] = useState<"TOP_3" | "TOP_5" | "TOP_10" | "ALL">("TOP_10");
+  // Rejoin token state
+  const [rejoinTokens, setRejoinTokens] = useState<Map<string, string>>(new Map());
+  const [generatingToken, setGeneratingToken] = useState<string | null>(null);
 
   // Use WebSocket without onMessage - we'll set up direct listeners
   const { socket, isConnected, send } = useWebSocket({
@@ -191,6 +200,13 @@ export default function HostControlPage() {
       setAnsweredCount(prev => prev + 1);
     };
 
+    // Listen for item locked (auto-lock when timer expires)
+    const handleItemLocked = (data: any) => {
+      console.log("[Host] ITEM_LOCKED (auto-lock):", data);
+      setItemState("locked");
+      setTimeRemaining(0); // Stop the countdown display
+    };
+
     // Listen for session ended
     const handleSessionEnded = () => {
       console.log("[Host] SESSION_ENDED");
@@ -205,6 +221,8 @@ export default function HostControlPage() {
       setItemState("idle");
       setAnsweredCount(0);
       setIsPaused(false);
+      setTimeRemaining(0);
+      setCompletedItemIds(new Set()); // Clear completed items
       // Update session status
       setSession(prev => prev ? { 
         ...prev, 
@@ -218,15 +236,35 @@ export default function HostControlPage() {
       console.error("[Host] WS Error:", data);
     };
 
+    // Listen for rejoin token generated
+    const handleRejoinTokenGenerated = (data: any) => {
+      console.log("[Host] REJOIN_TOKEN_GENERATED:", data);
+      if (data.playerId && data.token) {
+        setRejoinTokens(prev => new Map(prev).set(data.playerId, data.token));
+        setGeneratingToken(null);
+        
+        // Build the rejoin URL and copy to clipboard
+        const rejoinUrl = `${window.location.origin}/play/${code}/rejoin?token=${data.token}`;
+        navigator.clipboard.writeText(rejoinUrl).then(() => {
+          alert(`Rejoin link voor ${data.playerName} gekopieerd naar klembord!\n\n${rejoinUrl}`);
+        }).catch(() => {
+          // If clipboard fails, show the link in alert
+          alert(`Rejoin link voor ${data.playerName}:\n\n${rejoinUrl}`);
+        });
+      }
+    };
+
     // Set up all listeners
     socket.on(WSMessageType.SESSION_STATE, handleSessionState);
     socket.on(WSMessageType.PLAYER_JOINED, handlePlayerJoined);
     socket.on(WSMessageType.PLAYER_LEFT, handlePlayerLeft);
     socket.on("CONNECTION_STATUS_UPDATE", handleConnectionStatus);
     socket.on(WSMessageType.ANSWER_RECEIVED, handleAnswerReceived);
+    socket.on(WSMessageType.ITEM_LOCKED, handleItemLocked);
     socket.on(WSMessageType.SESSION_ENDED, handleSessionEnded);
     socket.on(WSMessageType.SESSION_RESET, handleSessionReset);
     socket.on(WSMessageType.ERROR, handleError);
+    socket.on(WSMessageType.REJOIN_TOKEN_GENERATED, handleRejoinTokenGenerated);
 
     console.log("[Host] Event listeners registered successfully");
 
@@ -239,11 +277,13 @@ export default function HostControlPage() {
       socket.off(WSMessageType.PLAYER_LEFT, handlePlayerLeft);
       socket.off("CONNECTION_STATUS_UPDATE", handleConnectionStatus);
       socket.off(WSMessageType.ANSWER_RECEIVED, handleAnswerReceived);
+      socket.off(WSMessageType.ITEM_LOCKED, handleItemLocked);
       socket.off(WSMessageType.SESSION_ENDED, handleSessionEnded);
       socket.off(WSMessageType.SESSION_RESET, handleSessionReset);
       socket.off(WSMessageType.ERROR, handleError);
+      socket.off(WSMessageType.REJOIN_TOKEN_GENERATED, handleRejoinTokenGenerated);
     };
-  }, [socket]); // Only depend on socket, not on isConnected or hasJoinedRoom
+  }, [socket, code]); // Only depend on socket, not on isConnected or hasJoinedRoom
 
   // Fetch session data
   useEffect(() => {
@@ -270,6 +310,23 @@ export default function HostControlPage() {
     fetchSession();
   }, [code]);
 
+  // Countdown timer effect - runs when item is active
+  useEffect(() => {
+    if (itemState !== "active" || timeRemaining <= 0 || isPaused) return;
+
+    const interval = setInterval(() => {
+      setTimeRemaining(prev => {
+        if (prev <= 1) {
+          // Timer reached 0 - server will handle auto-lock
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [itemState, timeRemaining, isPaused]);
+
   // Flatten items for navigation
   const allItems = session?.quiz.rounds.flatMap(round => 
     round.items.map(item => ({ ...item, roundTitle: round.title }))
@@ -282,6 +339,8 @@ export default function HostControlPage() {
   const startItem = useCallback(() => {
     if (!currentItem) return;
     
+    const timerDuration = currentItem.settingsJson?.timer || 30;
+    
     send({
       type: WSMessageType.START_ITEM,
       timestamp: Date.now(),
@@ -289,37 +348,37 @@ export default function HostControlPage() {
         sessionCode: code,
         itemId: currentItem.id,
         itemType: currentItem.itemType,
-        timerDuration: currentItem.settingsJson?.timer || 30,
+        timerDuration,
       },
     });
     
+    // Start the countdown timer
+    setTimeRemaining(timerDuration);
     setItemState("active");
     setAnsweredCount(0);
   }, [currentItem, code, send]);
 
-  const lockItem = useCallback(() => {
-    send({
-      type: WSMessageType.LOCK_ITEM,
-      timestamp: Date.now(),
-      payload: { sessionCode: code },
-    });
-    setItemState("locked");
-  }, [code, send]);
+  // Note: Lock is now handled automatically by the server-side timer
+  // When timer expires, server broadcasts ITEM_LOCKED and we update state via handleItemLocked
 
   const revealAnswers = useCallback(() => {
+    if (!currentItem) return;
     send({
       type: WSMessageType.REVEAL_ANSWERS,
       timestamp: Date.now(),
-      payload: { sessionCode: code },
+      payload: { sessionCode: code, itemId: currentItem.id },
     });
     setItemState("revealed");
-  }, [code, send]);
+    // Mark this item as completed
+    setCompletedItemIds(prev => new Set([...prev, currentItem.id]));
+  }, [code, send, currentItem]);
 
   const nextItem = useCallback(() => {
     if (currentItemIndex < totalItems - 1) {
       setCurrentItemIndex(prev => prev + 1);
       setItemState("idle");
       setAnsweredCount(0);
+      setTimeRemaining(0);
     }
   }, [currentItemIndex, totalItems]);
 
@@ -328,6 +387,7 @@ export default function HostControlPage() {
       setCurrentItemIndex(prev => prev - 1);
       setItemState("idle");
       setAnsweredCount(0);
+      setTimeRemaining(0);
     }
   }, [currentItemIndex]);
 
@@ -340,26 +400,51 @@ export default function HostControlPage() {
     setItemState("active");
   }, [code, send]);
 
-  const showScoreboard = useCallback(() => {
+  const showScoreboard = useCallback((displayType: "TOP_3" | "TOP_5" | "TOP_10" | "ALL" = scoreboardType) => {
     send({
       type: "SHOW_SCOREBOARD" as any,
       timestamp: Date.now(),
       payload: { 
         sessionCode: code,
-        displayType: currentItem?.settingsJson?.displayType || "top10",
+        displayType: displayType.toLowerCase(),
       },
     });
-    setItemState("active");
-  }, [code, currentItem, send]);
+    setShowingScoreboard(true);
+  }, [code, scoreboardType, send]);
 
-  const pauseSession = useCallback(() => {
+  const hideScoreboard = useCallback(() => {
+    // Send event to hide scoreboard on display
     send({
-      type: WSMessageType.PAUSE_SESSION,
+      type: "HIDE_SCOREBOARD" as any,
       timestamp: Date.now(),
       payload: { sessionCode: code },
     });
-    setIsPaused(true);
+    setShowingScoreboard(false);
   }, [code, send]);
+
+  const pauseSession = useCallback(() => {
+    // Find which round the current item is in
+    let itemCounter = 0;
+    let roundIndex = 0;
+    for (const round of session?.quiz.rounds || []) {
+      if (itemCounter + round.items.length > currentItemIndex) {
+        break;
+      }
+      itemCounter += round.items.length;
+      roundIndex++;
+    }
+    
+    send({
+      type: WSMessageType.PAUSE_SESSION,
+      timestamp: Date.now(),
+      payload: { 
+        sessionCode: code,
+        currentRoundIndex: roundIndex,
+        currentItemIndex: currentItemIndex,
+      },
+    });
+    setIsPaused(true);
+  }, [code, send, currentItemIndex, session?.quiz.rounds]);
 
   const resumeSession = useCallback(() => {
     send({
@@ -402,6 +487,16 @@ export default function HostControlPage() {
       });
     }
   }, [code, send]);
+
+  // Generate rejoin link for offline player
+  const generateRejoinLink = useCallback((playerId: string) => {
+    if (!socket) return;
+    setGeneratingToken(playerId);
+    socket.emit(WSMessageType.GENERATE_REJOIN_TOKEN, {
+      sessionCode: code,
+      playerId,
+    });
+  }, [socket, code]);
 
   if (loading) {
     return (
@@ -580,6 +675,8 @@ export default function HostControlPage() {
                     // Determine status color: green=online, yellow=poor, red=offline, gray=unknown
                     let statusColor = "bg-slate-500"; // unknown/not connected
                     let statusTitle = "Connection unknown";
+                    const showRejoinButton = !isOnline && isConnected;
+                    
                     if (isConnected) {
                       if (isOnline) {
                         if (quality === 'good') {
@@ -594,7 +691,7 @@ export default function HostControlPage() {
                         }
                       } else {
                         statusColor = "bg-red-500";
-                        statusTitle = "Offline";
+                        statusTitle = "Offline - click link icon to generate rejoin link";
                       }
                     }
                     
@@ -617,6 +714,17 @@ export default function HostControlPage() {
                           className={`w-2 h-2 rounded-full ${statusColor}`}
                           title={statusTitle}
                         />
+                        {/* Rejoin link button - only show for offline players */}
+                        {showRejoinButton && (
+                          <button
+                            onClick={() => generateRejoinLink(player.id)}
+                            disabled={generatingToken === player.id}
+                            className="p-1 text-blue-400 hover:text-blue-300 hover:bg-blue-900/30 rounded transition-all"
+                            title="Generate rejoin link"
+                          >
+                            {generatingToken === player.id ? "⏳" : "🔗"}
+                          </button>
+                        )}
                         <button
                           onClick={() => kickPlayer(player.id, player.name)}
                           className="opacity-0 group-hover:opacity-100 p-1 text-red-400 hover:text-red-300 hover:bg-red-900/30 rounded transition-all"
@@ -734,17 +842,6 @@ export default function HostControlPage() {
                   </p>
                 </div>
               )}
-
-              {/* Scoreboard Content */}
-              {currentItem.itemType === "SCOREBOARD" && (
-                <div className="text-center py-8">
-                  <div className="text-6xl mb-4">📊</div>
-                  <h2 className="text-2xl font-bold mb-2">Scoreboard</h2>
-                  <p className="text-slate-400">
-                    Show {currentItem.settingsJson?.displayType || "top 10"} players
-                  </p>
-                </div>
-              )}
             </div>
           )}
 
@@ -785,12 +882,16 @@ export default function HostControlPage() {
                   )}
                   
                   {itemState === "active" && (
-                    <button
-                      onClick={lockItem}
-                      className="px-6 py-2 bg-orange-600 hover:bg-orange-500 rounded-lg font-medium transition-colors"
-                    >
-                      🔒 Lock Answers
-                    </button>
+                    <div className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 ${
+                      timeRemaining <= 5 
+                        ? 'bg-red-600 animate-pulse' 
+                        : timeRemaining <= 10 
+                          ? 'bg-orange-600' 
+                          : 'bg-green-600'
+                    }`}>
+                      <span className="text-2xl tabular-nums">⏱️ {timeRemaining}s</span>
+                      <span className="text-sm opacity-75">({answeredCount}/{session?.players.length || 0} antwoorden)</span>
+                    </div>
                   )}
                   
                   {itemState === "locked" && (
@@ -814,15 +915,40 @@ export default function HostControlPage() {
                 </button>
               )}
 
-              {currentItem?.itemType === "SCOREBOARD" && (
-                <button
-                  onClick={showScoreboard}
-                  disabled={itemState === "active"}
-                  className="px-6 py-2 bg-yellow-600 hover:bg-yellow-500 disabled:opacity-50 rounded-lg font-medium transition-colors"
-                >
-                  📊 Show Scoreboard
-                </button>
-              )}
+              <div className="w-px bg-slate-600 mx-2" />
+
+              {/* Scoreboard Controls - Always available when no question is active */}
+              <div className="flex items-center gap-2">
+                {!showingScoreboard ? (
+                  <>
+                    <select
+                      value={scoreboardType}
+                      onChange={(e) => setScoreboardType(e.target.value as any)}
+                      disabled={itemState === "active"}
+                      className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-sm disabled:opacity-50"
+                    >
+                      <option value="TOP_3">🏆 Top 3</option>
+                      <option value="TOP_5">🎯 Top 5</option>
+                      <option value="TOP_10">📋 Top 10</option>
+                      <option value="ALL">👥 Iedereen</option>
+                    </select>
+                    <button
+                      onClick={() => showScoreboard()}
+                      disabled={itemState === "active"}
+                      className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 disabled:opacity-50 rounded-lg font-medium transition-colors"
+                    >
+                      📊 Tussenstand
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={hideScoreboard}
+                    className="px-4 py-2 bg-slate-600 hover:bg-slate-500 rounded-lg font-medium transition-colors"
+                  >
+                    ✕ Verberg Tussenstand
+                  </button>
+                )}
+              </div>
 
               <div className="w-px bg-slate-600 mx-2" />
 
@@ -869,49 +995,94 @@ export default function HostControlPage() {
           </h3>
           
           <div className="space-y-4">
-            {session.quiz.rounds.map((round, roundIndex) => (
-              <div key={round.id}>
-                <h4 className="font-medium text-sm mb-2">
-                  Round {roundIndex + 1}: {round.title}
-                </h4>
-                <div className="space-y-1">
-                  {round.items.map((item, itemIndex) => {
-                    const globalIndex = allItems.findIndex(i => i.id === item.id);
-                    const isActive = globalIndex === currentItemIndex;
-                    const isPast = globalIndex < currentItemIndex;
-                    
-                    return (
-                      <button
-                        key={item.id}
-                        onClick={() => {
-                          setCurrentItemIndex(globalIndex);
-                          setItemState("idle");
-                        }}
-                        className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                          isActive 
-                            ? "bg-primary-600 text-white" 
-                            : isPast 
-                              ? "bg-slate-700/50 text-slate-400"
-                              : "bg-slate-700/30 text-slate-300 hover:bg-slate-700"
-                        }`}
-                      >
-                        <span className="mr-2">
-                          {item.itemType === "QUESTION" && "📝"}
-                          {item.itemType === "MINIGAME" && "🎮"}
-                          {item.itemType === "SCOREBOARD" && "📊"}
-                          {item.itemType === "BREAK" && "☕"}
-                        </span>
-                        {item.itemType === "QUESTION" && item.question?.title}
-                        {item.itemType === "MINIGAME" && (item.minigameType || "Minigame")}
-                        {item.itemType === "SCOREBOARD" && "Scoreboard"}
-                        {item.itemType === "BREAK" && "Break"}
-                        {isPast && <span className="ml-1">✓</span>}
-                      </button>
-                    );
-                  })}
+            {session.quiz.rounds.map((round, roundIndex) => {
+              // Calculate round completion
+              const roundItemIds = round.items.map(item => item.id);
+              const completedInRound = roundItemIds.filter(id => completedItemIds.has(id)).length;
+              const totalInRound = round.items.length;
+              const isRoundComplete = completedInRound === totalInRound && totalInRound > 0;
+              
+              return (
+                <div key={round.id} className={`rounded-lg ${isRoundComplete ? "bg-green-900/20 border border-green-800/50" : ""}`}>
+                  {/* Round Header */}
+                  <div className={`flex items-center justify-between px-2 py-1.5 ${isRoundComplete ? "text-green-400" : ""}`}>
+                    <h4 className="font-medium text-sm">
+                      {isRoundComplete && <span className="mr-1">✅</span>}
+                      Round {roundIndex + 1}: {round.title}
+                    </h4>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                      isRoundComplete 
+                        ? "bg-green-800/50 text-green-300" 
+                        : completedInRound > 0 
+                          ? "bg-blue-800/50 text-blue-300"
+                          : "bg-slate-700 text-slate-400"
+                    }`}>
+                      {completedInRound}/{totalInRound}
+                    </span>
+                  </div>
+                  
+                  {/* Round Items */}
+                  <div className="space-y-1 px-1 pb-1">
+                    {round.items.map((item) => {
+                      const globalIndex = allItems.findIndex(i => i.id === item.id);
+                      const isActive = globalIndex === currentItemIndex;
+                      const isCompleted = completedItemIds.has(item.id);
+                      
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => {
+                            setCurrentItemIndex(globalIndex);
+                            setItemState("idle");
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between ${
+                            isActive 
+                              ? "bg-primary-600 text-white ring-2 ring-primary-400" 
+                              : isCompleted 
+                                ? "bg-green-900/40 text-green-300 border border-green-800/50"
+                                : "bg-slate-700/30 text-slate-300 hover:bg-slate-700"
+                          }`}
+                        >
+                          <span className="flex items-center">
+                            <span className="mr-2">
+                              {item.itemType === "QUESTION" && "📝"}
+                              {item.itemType === "MINIGAME" && "🎮"}
+                              {item.itemType === "SCOREBOARD" && "📊"}
+                              {item.itemType === "BREAK" && "☕"}
+                            </span>
+                            <span className="truncate">
+                              {item.itemType === "QUESTION" && item.question?.title}
+                              {item.itemType === "MINIGAME" && (item.minigameType || "Minigame")}
+                              {item.itemType === "SCOREBOARD" && "Scoreboard"}
+                              {item.itemType === "BREAK" && "Break"}
+                            </span>
+                          </span>
+                          {isCompleted && (
+                            <span className="ml-2 text-green-400 flex-shrink-0">✓</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
+          </div>
+          
+          {/* Overall Progress */}
+          <div className="mt-6 pt-4 border-t border-slate-700">
+            <div className="flex items-center justify-between text-sm mb-2">
+              <span className="text-slate-400">Completed</span>
+              <span className="font-medium">
+                {completedItemIds.size}/{totalItems}
+              </span>
+            </div>
+            <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-green-500 transition-all duration-300"
+                style={{ width: `${(completedItemIds.size / totalItems) * 100}%` }}
+              />
+            </div>
           </div>
         </aside>
       </div>
