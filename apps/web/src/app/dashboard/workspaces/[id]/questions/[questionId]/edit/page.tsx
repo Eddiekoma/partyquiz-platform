@@ -88,6 +88,7 @@ export default function EditQuestionPage() {
 
   // OPEN_TEXT fields
   const [openTextAnswer, setOpenTextAnswer] = useState("");
+  const [acceptableAnswers, setAcceptableAnswers] = useState<string[]>([]);
 
   // Media
   const [media, setMedia] = useState<QuestionMedia[]>([]);
@@ -164,7 +165,18 @@ export default function EditQuestionPage() {
         question.options &&
         question.options.length > 0
       ) {
-        setOpenTextAnswer(question.options[0].text || "");
+        // Sort by order to get primary answer first
+        const sortedOptions = [...question.options].sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
+        const correctOptions = sortedOptions.filter((opt: any) => opt.isCorrect);
+        
+        if (correctOptions.length > 0) {
+          // Primary correct answer (order 0 or lowest)
+          setOpenTextAnswer(correctOptions[0].text || "");
+          // Additional acceptable answers (remaining correct options)
+          if (correctOptions.length > 1) {
+            setAcceptableAnswers(correctOptions.slice(1).map((opt: any) => opt.text));
+          }
+        }
       }
 
       // Load media
@@ -407,11 +419,17 @@ export default function EditQuestionPage() {
         case "PHOTO_OPEN":
         case "AUDIO_OPEN":
         case "VIDEO_OPEN":
-          // Store expected answer in options with a special marker
+          // Store correct answer in options with isCorrect: true
           if (openTextAnswer.trim()) {
+            // Primary correct answer
             questionOptions = [
               { text: openTextAnswer, isCorrect: true, order: 0 },
             ];
+            // Add acceptable alternative answers (order 1, 2, 3, etc.)
+            const validAlternatives = acceptableAnswers.filter(a => a.trim() !== "");
+            validAlternatives.forEach((alt, index) => {
+              questionOptions!.push({ text: alt.trim(), isCorrect: true, order: index + 1 });
+            });
           }
           break;
       }
@@ -772,15 +790,63 @@ export default function EditQuestionPage() {
           selectedType === "VIDEO_OPEN") && (
           <Card className="p-6">
             <label className="block text-sm font-semibold mb-2">
-              Expected Answer (optional - for host reference)
+              Correct Answer <span className="text-red-400">*</span>
             </label>
             <textarea
               value={openTextAnswer}
               onChange={(e) => setOpenTextAnswer(e.target.value)}
-              placeholder="Enter the expected answer or leave blank for fully open questions..."
+              placeholder="Enter the correct answer..."
               className="w-full px-4 py-3 border border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               rows={3}
+              required
             />
+            <p className="text-sm text-slate-400 mt-2">
+              <strong>Fuzzy matching:</strong> Player answers with 85%+ similarity are accepted. Small typos are allowed.
+            </p>
+            
+            {/* Acceptable Alternative Answers */}
+            <div className="mt-6 pt-4 border-t border-slate-600">
+              <label className="block text-sm font-semibold mb-2">
+                Alternative Correct Answers (Optional)
+              </label>
+              <p className="text-sm text-slate-400 mb-3">
+                Add alternative answers that should also be accepted. Each answer uses the same fuzzy matching.
+              </p>
+              
+              {acceptableAnswers.map((answer, index) => (
+                <div key={index} className="flex gap-2 mb-2">
+                  <input
+                    type="text"
+                    value={answer}
+                    onChange={(e) => {
+                      const newAnswers = [...acceptableAnswers];
+                      newAnswers[index] = e.target.value;
+                      setAcceptableAnswers(newAnswers);
+                    }}
+                    placeholder={`Alternative answer ${index + 1}...`}
+                    className="flex-1 px-4 py-2 border border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newAnswers = acceptableAnswers.filter((_, i) => i !== index);
+                      setAcceptableAnswers(newAnswers);
+                    }}
+                    className="px-3 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+              
+              <button
+                type="button"
+                onClick={() => setAcceptableAnswers([...acceptableAnswers, ""])}
+                className="mt-2 px-4 py-2 bg-primary-500/20 text-primary-400 rounded-lg hover:bg-primary-500/30 transition-colors text-sm"
+              >
+                + Add Alternative Answer
+              </button>
+            </div>
           </Card>
         )}
 

@@ -11,6 +11,10 @@ import {
   getQuestionScoringMode,
   ScoringMode,
   getDefaultTimerForQuestionType,
+  // Speed Podium scoring
+  calculateSpeedPodium,
+  DEFAULT_SPEED_PODIUM_PERCENTAGES,
+  type SpeedPodiumResult,
   // WS Event schemas and types
   validateCommand,
   createEventPayload,
@@ -306,6 +310,183 @@ async function autoLockItem(sessionCode: string, itemId: string, io: Server): Pr
   });
   
   logger.info({ sessionCode, itemId, lockedAt }, "Item auto-locked by timer");
+  
+  // Process speed podium bonuses if enabled
+  await processSpeedPodiumBonuses(sessionCode, itemId, io);
+}
+
+/**
+ * Process speed podium bonuses after item is locked
+ * Calculates top 3 fastest 100% correct answers and awards bonus points
+ */
+async function processSpeedPodiumBonuses(sessionCode: string, itemId: string, io: Server): Promise<void> {
+  try {
+    // Get session with quiz scoring settings
+    const session = await prisma.liveSession.findUnique({
+      where: { code: sessionCode },
+      include: {
+        quiz: {
+          select: {
+            scoringSettingsJson: true,
+          },
+        },
+      },
+    });
+    
+    if (!session) {
+      logger.warn({ sessionCode }, "Session not found for speed podium");
+      return;
+    }
+    
+    const scoringSettings = session.quiz?.scoringSettingsJson as {
+      speedPodiumEnabled?: boolean;
+      speedPodiumPercentages?: { first: number; second: number; third: number };
+    } | null;
+    
+    // Check if speed podium is enabled
+    if (!scoringSettings?.speedPodiumEnabled) {
+      logger.debug({ sessionCode }, "Speed podium not enabled, skipping");
+      return;
+    }
+    
+    // Get item start time from Redis
+    const itemStartedAtStr = await redis.get(`session:${sessionCode}:itemStartedAt`);
+    if (!itemStartedAtStr) {
+      logger.warn({ sessionCode, itemId }, "No item start time found for speed podium");
+      return;
+    }
+    const itemStartedAt = parseInt(itemStartedAtStr);
+    
+    // Get all answers for this item
+    const answers = await prisma.liveAnswer.findMany({
+      where: {
+        sessionId: session.id,
+        quizItemId: itemId,
+      },
+      include: {
+        player: true,
+      },
+    });
+    
+    if (answers.length === 0) {
+      logger.debug({ sessionCode, itemId }, "No answers for speed podium");
+      return;
+    }
+    
+    // Get base points from Redis for calculating percentage
+    const basePointsStr = await redis.get(`session:${sessionCode}:itemBasePoints`);
+    const basePoints = basePointsStr ? parseInt(basePointsStr) : 10;
+    
+    // Prepare answers for podium calculation
+    // We need to calculate timeSpentMs from answeredAt
+    const answersForPodium = answers
+      .filter(a => a.score > 0) // Only consider answers that earned points
+      .map(a => {
+        const answerTime = a.answeredAt.getTime();
+        const timeSpentMs = answerTime - itemStartedAt;
+        // Calculate score percentage based on actual score vs possible base score
+        // For 100% correct, score should equal basePoints (before bonuses)
+        const scorePercentage = Math.round((a.score / basePoints) * 100);
+        
+        return {
+          playerId: a.playerId,
+          score: a.score,
+          scorePercentage: Math.min(scorePercentage, 100), // Cap at 100%
+          timeSpentMs,
+        };
+      });
+    
+    // Get podium percentages (use defaults if not set)
+    const percentages = scoringSettings.speedPodiumPercentages || DEFAULT_SPEED_PODIUM_PERCENTAGES;
+    
+    // Calculate podium results
+    const podiumResults = calculateSpeedPodium(answersForPodium, percentages);
+    
+    if (podiumResults.length === 0) {
+      logger.debug({ sessionCode, itemId }, "No 100% correct answers for speed podium");
+      return;
+    }
+    
+    logger.info({ sessionCode, itemId, podiumResults }, "Speed podium calculated");
+    
+    // Apply bonus points to each podium winner
+    for (const result of podiumResults) {
+      // Update database score
+      await prisma.liveAnswer.updateMany({
+        where: {
+          sessionId: session.id,
+          quizItemId: itemId,
+          playerId: result.playerId,
+        },
+        data: {
+          score: result.finalScore,
+        },
+      });
+      
+      // Update Redis leaderboard
+      const cachedPlayer = await getPlayer(sessionCode, result.playerId);
+      if (cachedPlayer) {
+        // Add bonus points to total (base score was already added at submit time)
+        const newScore = cachedPlayer.score + result.bonusPoints;
+        await updateLeaderboard(sessionCode, result.playerId, newScore);
+        await cachePlayer(sessionCode, result.playerId, {
+          ...cachedPlayer,
+          score: newScore,
+        });
+      }
+    }
+    
+    // Get player names for the podium results
+    const podiumWithNames = await Promise.all(
+      podiumResults.map(async (r) => {
+        const player = answers.find(a => a.playerId === r.playerId)?.player;
+        return {
+          ...r,
+          playerName: player?.name || "Unknown",
+          playerAvatar: player?.avatar || null,
+        };
+      })
+    );
+    
+    // Emit speed podium results to all clients
+    io.to(sessionCode).emit(WSMessageType.SPEED_PODIUM_RESULTS, {
+      itemId,
+      podium: podiumWithNames.map(p => ({
+        position: p.position,
+        playerId: p.playerId,
+        playerName: p.playerName,
+        playerAvatar: p.playerAvatar,
+        baseScore: p.baseScore,
+        bonusPercentage: p.bonusPercentage,
+        bonusPoints: p.bonusPoints,
+        finalScore: p.finalScore,
+        timeSpentMs: p.timeSpentMs,
+      })),
+    });
+    
+    // Update leaderboard for all clients
+    const leaderboard = await getLeaderboard(sessionCode, 10);
+    const enrichedLeaderboard = await Promise.all(
+      leaderboard.map(async (entry) => {
+        const player = await getPlayer(sessionCode, entry.playerId);
+        return {
+          playerId: entry.playerId,
+          playerName: player?.name || "Unknown",
+          avatar: player?.avatar || null,
+          score: entry.score,
+        };
+      })
+    );
+    
+    io.to(sessionCode).emit(WSMessageType.LEADERBOARD_UPDATE, {
+      leaderboard: enrichedLeaderboard,
+      totalPlayers: await getActivePlayerCount(sessionCode),
+    });
+    
+    logger.info({ sessionCode, itemId, winners: podiumWithNames.length }, "Speed podium bonuses applied");
+  } catch (error) {
+    logger.error({ error, sessionCode, itemId }, "Error processing speed podium bonuses");
+  }
 }
 
 /**
@@ -1225,6 +1406,8 @@ io.on("connection", (socket: Socket) => {
           rawAnswer: any;
           isCorrect: boolean | null;
           score: number;
+          maxScore?: number;
+          timeSpentMs?: number;
           answeredAt: number;
           selectedOptionIds?: string[];
           submittedOrder?: string[];
@@ -1244,6 +1427,14 @@ io.on("connection", (socket: Socket) => {
           
           // Format the answer display using the same logic as PLAYER_ANSWERED
           const formatted = formatAnswerForDisplay(questionType, parsedAnswer, options);
+          
+          logger.debug({ 
+            questionType, 
+            rawPayload, 
+            parsedAnswer, 
+            formattedDisplay: formatted.display,
+            playerName: answer.player.name,
+          }, "Formatting answer for history");
 
           answerHistoryMap[itemId].push({
             itemId,
@@ -1255,6 +1446,8 @@ io.on("connection", (socket: Socket) => {
             rawAnswer: parsedAnswer,
             isCorrect: answer.isCorrect,
             score: answer.score,
+            maxScore: answer.maxScore ?? undefined, // Maximum possible score
+            timeSpentMs: answer.timeSpentMs ?? undefined, // How long player took to answer
             answeredAt: answer.answeredAt.getTime(),
             selectedOptionIds: formatted.selectedOptionIds,
             submittedOrder: formatted.submittedOrder,
@@ -1756,6 +1949,11 @@ io.on("connection", (socket: Socket) => {
       });
 
       logger.info({ sessionCode, itemId }, "Item locked manually by host");
+      
+      // Process speed podium bonuses if enabled
+      if (itemId) {
+        await processSpeedPodiumBonuses(sessionCode, itemId, io);
+      }
     } catch (error) {
       logger.error({ error }, "Error locking item");
       socket.emit("error", { message: "Failed to lock item" });
@@ -1882,10 +2080,14 @@ io.on("connection", (socket: Socket) => {
 
       // Build correct answer data based on question type
       const questionType = quizItem?.question?.type || "";
+      const settingsJson = (quizItem?.settingsJson as Record<string, unknown>) || {};
       let correctOptionId: string | null = null;
       let correctOptionIds: string[] | null = null;
       let correctOrder: Array<{ id: string; text: string; position: number }> | null = null;
       let correctText: string | null = null;
+      let correctNumber: number | null = null;
+      let estimationMargin: number | null = null;
+      let acceptableAnswers: string[] | null = null;
 
       if (quizItem?.question?.options) {
         const options = quizItem.question.options;
@@ -1906,11 +2108,44 @@ io.on("connection", (socket: Socket) => {
           // MC_SINGLE/TRUE_FALSE: Send single correct option ID
           const correctOption = options.find(opt => opt.isCorrect);
           correctOptionId = correctOption?.id || null;
+        } else if (questionType === "ESTIMATION" || questionType === "MUSIC_GUESS_YEAR") {
+          // ESTIMATION/MUSIC_GUESS_YEAR: Send correct number and margin
+          if (settingsJson?.correctAnswer !== undefined) {
+            correctNumber = parseFloat(String(settingsJson.correctAnswer));
+          } else if (options.length > 0) {
+            // Fallback: correct answer stored in first option's text
+            correctNumber = parseFloat(options[0].text);
+          }
+          // Get margin for percentage calculation
+          if (settingsJson?.estimationMargin !== undefined) {
+            estimationMargin = Number(settingsJson.estimationMargin);
+          } else if (options.length > 0 && options[0].order !== undefined) {
+            estimationMargin = options[0].order;
+          } else {
+            estimationMargin = 10; // Default 10%
+          }
         } else if (questionType === "OPEN_TEXT" || questionType === "PHOTO_OPEN" || 
                    questionType === "AUDIO_OPEN" || questionType === "VIDEO_OPEN") {
-          // Open text types: Send correct text answer
-          const correctOption = options.find(opt => opt.isCorrect);
-          correctText = correctOption?.text || null;
+          // Open text types: Send correct text answer and acceptable alternatives
+          const correctOptions = options.filter(opt => opt.isCorrect);
+          if (correctOptions.length > 0) {
+            // Primary correct answer (order 0 or lowest)
+            const sortedCorrect = [...correctOptions].sort((a, b) => (a.order || 0) - (b.order || 0));
+            correctText = sortedCorrect[0]?.text || null;
+            // Additional acceptable answers (remaining correct options)
+            if (sortedCorrect.length > 1) {
+              acceptableAnswers = sortedCorrect.slice(1).map(opt => opt.text);
+            }
+          }
+          // Also check settingsJson for acceptableAnswers (quiz-item level override)
+          if (settingsJson?.acceptableAnswers && Array.isArray(settingsJson.acceptableAnswers)) {
+            const fromSettings = settingsJson.acceptableAnswers as string[];
+            if (acceptableAnswers) {
+              acceptableAnswers = [...acceptableAnswers, ...fromSettings];
+            } else {
+              acceptableAnswers = fromSettings;
+            }
+          }
         } else {
           // Default: Find correct option
           const correctOption = options.find(opt => opt.isCorrect);
@@ -1929,6 +2164,12 @@ io.on("connection", (socket: Socket) => {
         correctOrder,
         // Correct text for open-ended questions
         correctText,
+        // Alternative acceptable answers for open text
+        acceptableAnswers,
+        // Correct number for ESTIMATION/MUSIC_GUESS_YEAR
+        correctNumber,
+        // Margin for estimation scoring (percentage)
+        estimationMargin,
         explanation: showExplanation ? quizItem?.question?.explanation : null,
         answers: answers.map((a) => ({
           playerId: a.playerId,
@@ -2125,6 +2366,24 @@ io.on("connection", (socket: Socket) => {
         const question = quizItem.question;
         const questionType = question.type as QuestionType;
         
+        // Get quiz-level scoring settings from the session's quiz
+        const sessionWithQuiz = await prisma.liveSession.findUnique({
+          where: { code: sessionCode },
+          include: {
+            quiz: {
+              select: {
+                scoringSettingsJson: true,
+              },
+            },
+          },
+        });
+        const quizScoringSettings = sessionWithQuiz?.quiz?.scoringSettingsJson as {
+          streakBonusEnabled?: boolean;
+          streakBonusPoints?: number;
+          speedPodiumEnabled?: boolean;
+          speedPodiumPercentages?: { first: number; second: number; third: number };
+        } | null;
+        
         // Check if this is a poll - polls don't have scoring, just vote tracking
         const scoringMode = getQuestionScoringMode(questionType);
         if (scoringMode === ScoringMode.NO_SCORE) {
@@ -2253,6 +2512,27 @@ io.on("connection", (socket: Socket) => {
           estimationMargin = question.options[0].order || 10;
         }
         
+        // For OPEN_TEXT types, extract acceptableAnswers from extra correct options
+        let validationAcceptableAnswers = settingsJson?.acceptableAnswers as string[] | undefined;
+        if (
+          (questionType === "OPEN_TEXT" || questionType === "PHOTO_OPEN" ||
+           questionType === "AUDIO_OPEN" || questionType === "VIDEO_OPEN") &&
+          question.options.length > 1
+        ) {
+          const correctOptions = question.options.filter(opt => opt.isCorrect);
+          if (correctOptions.length > 1) {
+            // Sort by order to get primary answer first, rest are alternatives
+            const sortedCorrect = [...correctOptions].sort((a, b) => (a.order || 0) - (b.order || 0));
+            const alternativeOptions = sortedCorrect.slice(1).map(opt => opt.text);
+            // Merge with any from settingsJson
+            if (validationAcceptableAnswers) {
+              validationAcceptableAnswers = [...validationAcceptableAnswers, ...alternativeOptions];
+            } else {
+              validationAcceptableAnswers = alternativeOptions;
+            }
+          }
+        }
+        
         const validation = validateAnswerComplete(
           questionType,
           answer,
@@ -2264,7 +2544,12 @@ io.on("connection", (socket: Socket) => {
             timeLimitMs,
             currentStreak,
             estimationMargin,
-            acceptableAnswers: settingsJson?.acceptableAnswers,
+            acceptableAnswers: validationAcceptableAnswers,
+            // Pass quiz-level scoring settings
+            streakBonusEnabled: quizScoringSettings?.streakBonusEnabled,
+            streakBonusPoints: quizScoringSettings?.streakBonusPoints,
+            // Speed podium: bonus for top 3 fastest 100% correct (applied at lock time)
+            speedPodiumEnabled: quizScoringSettings?.speedPodiumEnabled,
           }
         );
 
@@ -2289,6 +2574,8 @@ io.on("connection", (socket: Socket) => {
             payloadJson: answer,
             isCorrect: validation.isCorrect,
             score: validation.score,
+            maxScore: basePoints,
+            timeSpentMs: timeSpentMs ?? null,
           },
         });
 
@@ -2363,7 +2650,7 @@ io.on("connection", (socket: Socket) => {
           question.options.map(opt => ({ id: opt.id, text: opt.text }))
         );
 
-        io.to(sessionCode).emit(WSMessageType.PLAYER_ANSWERED, {
+        const playerAnsweredPayload = {
           itemId,
           playerId,
           playerName: player.name,
@@ -2373,10 +2660,15 @@ io.on("connection", (socket: Socket) => {
           rawAnswer: answer,
           isCorrect: validation.isCorrect,
           score: validation.score,
+          maxScore: basePoints, // Maximum possible score for this question
+          timeSpentMs, // How long it took to answer
           answeredAt: Date.now(),
           selectedOptionIds: answerFormatted.selectedOptionIds,
           submittedOrder: answerFormatted.submittedOrder,
-        });
+        };
+        
+        logger.info({ playerAnsweredPayload }, "Sending PLAYER_ANSWERED to host");
+        io.to(sessionCode).emit(WSMessageType.PLAYER_ANSWERED, playerAnsweredPayload);
 
         logger.info(
           {

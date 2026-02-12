@@ -274,6 +274,7 @@ export enum WSMessageType {
   SESSION_PAUSED = "SESSION_PAUSED",
   SESSION_RESUMED = "SESSION_RESUMED",
   POLL_RESULTS = "POLL_RESULTS",
+  SPEED_PODIUM_RESULTS = "SPEED_PODIUM_RESULTS", // Top 3 fastest 100% correct players
   
   // Server -> Client (Acknowledgements)
   ANSWER_RECEIVED = "ANSWER_RECEIVED",

@@ -6,10 +6,13 @@ import { z } from "zod";
 
 const scoringSettingsSchema = z.object({
   basePoints: z.number().min(1).max(1000).optional(),
-  timeBonusEnabled: z.boolean().optional(),
-  timeBonusPercentage: z.number().min(0).max(100).optional(),
   streakBonusEnabled: z.boolean().optional(),
   streakBonusPoints: z.number().min(1).max(10).optional(),
+  // Speed Podium: top 3 fastest 100% correct players get bonus
+  speedPodiumEnabled: z.boolean().optional(),
+  speedPodiumFirst: z.number().min(0).max(100).optional(),
+  speedPodiumSecond: z.number().min(0).max(100).optional(),
+  speedPodiumThird: z.number().min(0).max(100).optional(),
 }).optional();
 
 const updateQuizSchema = z.object({
@@ -155,9 +158,26 @@ export async function PUT(
       include: {
         rounds: {
           include: {
-            items: true,
+            items: {
+              include: {
+                question: {
+                  include: {
+                    options: {
+                      orderBy: { order: "asc" },
+                    },
+                    media: {
+                      orderBy: { order: "asc" },
+                    },
+                  },
+                },
+              },
+              orderBy: { order: "asc" },
+            },
           },
           orderBy: { order: "asc" },
+        },
+        _count: {
+          select: { sessions: true },
         },
       },
     });

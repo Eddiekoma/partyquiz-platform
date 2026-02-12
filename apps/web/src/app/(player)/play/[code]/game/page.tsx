@@ -54,6 +54,23 @@ export default function GamePage() {
   // ORDER question reveal data
   const [correctOrder, setCorrectOrder] = useState<Array<{ id: string; text: string; position: number }> | null>(null);
   const [correctText, setCorrectText] = useState<string | null>(null);
+  // ESTIMATION/NUMBER question reveal data
+  const [correctNumber, setCorrectNumber] = useState<number | null>(null);
+  const [estimationMargin, setEstimationMargin] = useState<number | null>(null);
+  // Player's submitted answer for reveal display
+  const [submittedAnswer, setSubmittedAnswer] = useState<any>(null);
+  // Score percentage for feedback (0-100)
+  const [scorePercentage, setScorePercentage] = useState<number | null>(null);
+  // Acceptable answers for TEXT questions
+  const [acceptableAnswers, setAcceptableAnswers] = useState<string[] | null>(null);
+  // Auto-transition state after answer feedback
+  const [waitingForNext, setWaitingForNext] = useState(false);
+  // Speed podium results
+  const [speedPodiumResult, setSpeedPodiumResult] = useState<{
+    position: 1 | 2 | 3;
+    bonusPoints: number;
+    bonusPercentage: number;
+  } | null>(null);
 
   const { socket, isConnected } = useWebSocket();
 
@@ -130,6 +147,13 @@ export default function GamePage() {
       setShowReveal(false); // Reset reveal state
       setCorrectOrder(null); // Reset ORDER reveal data
       setCorrectText(null); // Reset open text reveal data
+      setCorrectNumber(null); // Reset ESTIMATION reveal data
+      setEstimationMargin(null);
+      setSubmittedAnswer(null); // Reset submitted answer
+      setScorePercentage(null); // Reset score percentage
+      setAcceptableAnswers(null); // Reset acceptable answers
+      setWaitingForNext(false); // Reset waiting state
+      setSpeedPodiumResult(null); // Reset speed podium result
     });
 
     // Listen for item locked (time's up)
@@ -170,8 +194,8 @@ export default function GamePage() {
         isCorrect: data.isCorrect,
         score: data.score,
       });
-      if (data.isCorrect && !data.alreadyAnswered) {
-        // Only add score if this is a new answer (not a rejoin)
+      // Add score if player earned points (including partial scores for ORDER, ESTIMATION etc.)
+      if (data.score > 0 && !data.alreadyAnswered) {
         setCurrentScore((prev) => prev + data.score);
       }
     });
@@ -180,10 +204,29 @@ export default function GamePage() {
     socket.on("REVEAL_ANSWERS", (data: any) => {
       console.log("[Player] Reveal answers:", data);
       
+      // Find this player's submitted answer from the answers array
+      if (data.answers && playerId) {
+        const myAnswerData = data.answers.find((a: any) => a.playerId === playerId);
+        if (myAnswerData) {
+          setSubmittedAnswer(myAnswerData.answer);
+          // Calculate score percentage if we have points info
+          if (myAnswerData.points !== undefined && currentItem?.settingsJson?.points) {
+            const basePoints = currentItem.settingsJson.points || 10;
+            // Estimate percentage from score (without bonuses)
+            const pct = Math.min(100, Math.round((myAnswerData.points / basePoints) * 100));
+            setScorePercentage(pct);
+          }
+        }
+      }
+      
       // Handle different question types
       if (data.correctOrder) {
         // ORDER question: store correct order for display
         setCorrectOrder(data.correctOrder);
+      } else if (data.correctNumber !== undefined && data.correctNumber !== null) {
+        // ESTIMATION/MUSIC_GUESS_YEAR: store correct number and margin
+        setCorrectNumber(data.correctNumber);
+        setEstimationMargin(data.estimationMargin || null);
       } else if (data.correctOptionIds && data.correctOptionIds.length > 0) {
         // MC_MULTIPLE: mark all correct options
         setCurrentItem(prev => prev ? {
@@ -205,6 +248,11 @@ export default function GamePage() {
       } else if (data.correctText) {
         // Open text types: store correct text
         setCorrectText(data.correctText);
+      }
+      
+      // Store acceptable answers for TEXT questions
+      if (data.acceptableAnswers) {
+        setAcceptableAnswers(data.acceptableAnswers);
       }
       
       // Show correct answer feedback and explanation if provided
@@ -262,6 +310,11 @@ export default function GamePage() {
       setShowReveal(false);
       setCorrectOrder(null);
       setCorrectText(null);
+      setCorrectNumber(null);
+      setEstimationMargin(null);
+      setSubmittedAnswer(null);
+      setScorePercentage(null);
+      setAcceptableAnswers(null);
     });
 
     // Listen for errors - handle gracefully
@@ -274,6 +327,22 @@ export default function GamePage() {
       }
       // Log other errors
       console.warn("[Player] Server message:", data.message);
+    });
+
+    // Listen for speed podium results
+    socket.on(WSMessageType.SPEED_PODIUM_RESULTS, (data: any) => {
+      console.log("[Player] Speed podium results:", data);
+      // Check if this player is on the podium
+      const myPodiumResult = data.podium?.find((p: any) => p.playerId === playerId);
+      if (myPodiumResult) {
+        setSpeedPodiumResult({
+          position: myPodiumResult.position,
+          bonusPoints: myPodiumResult.bonusPoints,
+          bonusPercentage: myPodiumResult.bonusPercentage,
+        });
+        // Update score with bonus
+        setCurrentScore((prev) => prev + myPodiumResult.bonusPoints);
+      }
     });
 
     return () => {
@@ -291,8 +360,9 @@ export default function GamePage() {
       socket.off(WSMessageType.PLAYER_KICKED);
       socket.off(WSMessageType.ITEM_CANCELLED);
       socket.off("ERROR");
+      socket.off(WSMessageType.SPEED_PODIUM_RESULTS);
     };
-  }, [socket, isConnected, code, router]);
+  }, [socket, isConnected, code, router, playerId]);
 
   // Timer countdown - syncs with server timerEndsAt timestamp
   useEffect(() => {
@@ -311,6 +381,27 @@ export default function GamePage() {
 
     return () => clearInterval(interval);
   }, [timerEndsAt, isLocked]);
+
+  // Auto-transition to "waiting for next" after answer feedback (3 seconds)
+  // Cancel if reveal/scoreboard/session end happens
+  useEffect(() => {
+    if (!answerResult) {
+      setWaitingForNext(false);
+      return;
+    }
+    
+    // If reveal or scoreboard is shown, don't auto-transition
+    if (showReveal || showScoreboard) {
+      setWaitingForNext(false);
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setWaitingForNext(true);
+    }, 3000);
+
+    return () => clearTimeout(timeout);
+  }, [answerResult, showReveal, showScoreboard]);
 
   const handleSubmitAnswer = (answer: any) => {
     if (!socket || !currentItem || isLocked || myAnswer !== null) return;
@@ -448,19 +539,69 @@ export default function GamePage() {
           </div>
         )}
 
-        {answerResult && (
+        {answerResult && !waitingForNext && (
           <div className="mt-8 text-center">
             <div className="text-7xl mb-4 animate-bounce">
-              {answerResult.isCorrect ? "✅" : "❌"}
+              {answerResult.isCorrect ? "✅" : answerResult.score > 0 ? "⭐" : "❌"}
             </div>
             <p className="text-3xl font-black text-white mb-2">
-              {answerResult.isCorrect ? "Correct!" : "Wrong!"}
+              {/* Smart feedback based on score and percentage */}
+              {answerResult.isCorrect 
+                ? "Correct!" 
+                : answerResult.score > 0 
+                  ? scorePercentage !== null
+                    ? scorePercentage >= 90 
+                      ? "Bijna perfect!" 
+                      : scorePercentage >= 70 
+                        ? "Goed gedaan!" 
+                        : scorePercentage >= 50 
+                          ? "Redelijk!" 
+                          : "Punten!"
+                    : "Gedeeltelijk goed!"
+                  : "Helaas!"}
             </p>
-            {answerResult.isCorrect && (
+            {/* Show percentage for partial scores */}
+            {answerResult.score > 0 && scorePercentage !== null && scorePercentage < 100 && (
+              <p className="text-lg text-white/70 mb-1">{scorePercentage}% correct</p>
+            )}
+            {answerResult.score > 0 && (
               <p className="text-2xl font-bold text-yellow-300">
                 +{answerResult.score} points
               </p>
             )}
+            {/* Speed Podium bonus */}
+            {speedPodiumResult && (
+              <div className="mt-4 animate-pulse">
+                <div className="text-5xl mb-2">
+                  {speedPodiumResult.position === 1 ? "🥇" : speedPodiumResult.position === 2 ? "🥈" : "🥉"}
+                </div>
+                <p className="text-xl font-bold text-purple-300">
+                  Speed Bonus: +{speedPodiumResult.bonusPoints}!
+                </p>
+                <p className="text-sm text-white/60">
+                  {speedPodiumResult.position === 1 ? "Fastest correct answer!" : 
+                   speedPodiumResult.position === 2 ? "2nd fastest!" : "3rd fastest!"}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Waiting for next question - after auto-transition */}
+        {answerResult && waitingForNext && !showReveal && !showScoreboard && (
+          <div className="mt-8 text-center">
+            <div className="text-5xl mb-4 animate-pulse">⏳</div>
+            <p className="text-2xl font-bold text-white mb-2">
+              {answerResult.isCorrect 
+                ? "Goed gedaan!" 
+                : answerResult.score > 0 
+                  ? scorePercentage !== null && scorePercentage >= 70 
+                    ? "Bijna!" 
+                    : "Punten gepakt!" 
+                  : "Volgende keer beter!"}
+            </p>
+            <p className="text-lg text-white/60">Wachten op volgende vraag...</p>
+            <p className="text-sm text-white/40 mt-2">Score: {currentScore} punten</p>
           </div>
         )}
 
@@ -497,10 +638,69 @@ export default function GamePage() {
               </div>
             )}
             
-            {/* Open Text Reveal - show correct text answer */}
+            {/* Open Text Reveal - show correct text answer AND player's answer */}
             {correctText && (
-              <div className="p-6 rounded-xl bg-green-500/80 text-white text-center">
-                <p className="text-xl font-bold">{correctText}</p>
+              <div className="space-y-4">
+                {/* Player's submitted answer */}
+                {submittedAnswer && (
+                  <div className="p-4 rounded-xl bg-slate-700/60 text-white">
+                    <p className="text-sm text-white/60 mb-1">Jouw antwoord:</p>
+                    <p className="text-lg font-bold">{String(submittedAnswer)}</p>
+                  </div>
+                )}
+                {/* Correct answer */}
+                <div className="p-6 rounded-xl bg-green-500/80 text-white text-center">
+                  <p className="text-sm text-white/80 mb-1">Correct antwoord:</p>
+                  <p className="text-xl font-bold">{correctText}</p>
+                </div>
+                {/* Acceptable alternatives if any */}
+                {acceptableAnswers && acceptableAnswers.length > 0 && (
+                  <div className="p-3 rounded-lg bg-slate-800/60 text-white/60 text-sm">
+                    <p className="mb-1">Ook goed: {acceptableAnswers.join(", ")}</p>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* ESTIMATION/NUMBER Reveal - show correct number, player's answer, and difference */}
+            {correctNumber !== null && (
+              <div className="space-y-4">
+                {/* Player's submitted answer with comparison */}
+                {submittedAnswer !== null && submittedAnswer !== undefined && (
+                  <div className={`p-4 rounded-xl ${
+                    answerResult?.score && answerResult.score > 0 
+                      ? "bg-green-600/40 border border-green-500/50" 
+                      : "bg-red-600/40 border border-red-500/50"
+                  }`}>
+                    <p className="text-sm text-white/60 mb-1">Jouw antwoord:</p>
+                    <p className="text-2xl font-bold text-white">
+                      {typeof submittedAnswer === "number" 
+                        ? submittedAnswer.toLocaleString("nl-NL") 
+                        : String(submittedAnswer)}
+                    </p>
+                    {/* Show difference */}
+                    {typeof submittedAnswer === "number" && (
+                      <p className="text-sm text-white/70 mt-1">
+                        {submittedAnswer === correctNumber 
+                          ? "🎯 Exact goed!" 
+                          : submittedAnswer > correctNumber 
+                            ? `↑ ${(submittedAnswer - correctNumber).toLocaleString("nl-NL")} te hoog`
+                            : `↓ ${(correctNumber - submittedAnswer).toLocaleString("nl-NL")} te laag`
+                        }
+                      </p>
+                    )}
+                  </div>
+                )}
+                {/* Correct answer */}
+                <div className="p-6 rounded-xl bg-green-500/80 text-white text-center">
+                  <p className="text-sm text-white/80 mb-1">Correct antwoord:</p>
+                  <p className="text-3xl font-bold">{correctNumber.toLocaleString("nl-NL")}</p>
+                  {estimationMargin && (
+                    <p className="text-sm text-white/70 mt-2">
+                      Marge voor volle punten: ±{estimationMargin}%
+                    </p>
+                  )}
+                </div>
               </div>
             )}
             

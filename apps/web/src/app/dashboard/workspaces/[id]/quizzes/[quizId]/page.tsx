@@ -63,10 +63,11 @@ interface QuizRound {
 
 interface ScoringSettings {
   basePoints?: number;
-  timeBonusEnabled?: boolean;
-  timeBonusPercentage?: number;
   streakBonusEnabled?: boolean;
   streakBonusPoints?: number;
+  // Speed Podium: bonus for top 3 fastest 100% correct players
+  speedPodiumEnabled?: boolean;
+  speedPodiumPercentages?: { first: number; second: number; third: number };
 }
 
 interface Quiz {
@@ -450,10 +451,13 @@ export default function QuizDetailPage() {
   
   // Scoring settings
   const [editBasePoints, setEditBasePoints] = useState(10);
-  const [editTimeBonusEnabled, setEditTimeBonusEnabled] = useState(true);
-  const [editTimeBonusPercentage, setEditTimeBonusPercentage] = useState(50);
   const [editStreakBonusEnabled, setEditStreakBonusEnabled] = useState(true);
   const [editStreakBonusPoints, setEditStreakBonusPoints] = useState(1);
+  // Speed Podium settings: top 3 fastest 100% correct players get bonus
+  const [editSpeedPodiumEnabled, setEditSpeedPodiumEnabled] = useState(false);
+  const [editSpeedPodiumFirst, setEditSpeedPodiumFirst] = useState(30);
+  const [editSpeedPodiumSecond, setEditSpeedPodiumSecond] = useState(20);
+  const [editSpeedPodiumThird, setEditSpeedPodiumThird] = useState(10);
 
   // Add round
   const [showAddRound, setShowAddRound] = useState(false);
@@ -504,10 +508,13 @@ export default function QuizDetailPage() {
       // Load scoring settings
       const scoringSettings = loadedQuiz.scoringSettingsJson as ScoringSettings | null;
       setEditBasePoints(scoringSettings?.basePoints ?? 10);
-      setEditTimeBonusEnabled(scoringSettings?.timeBonusEnabled ?? true);
-      setEditTimeBonusPercentage(scoringSettings?.timeBonusPercentage ?? 50);
       setEditStreakBonusEnabled(scoringSettings?.streakBonusEnabled ?? true);
       setEditStreakBonusPoints(scoringSettings?.streakBonusPoints ?? 1);
+      // Speed Podium settings
+      setEditSpeedPodiumEnabled(scoringSettings?.speedPodiumEnabled ?? false);
+      setEditSpeedPodiumFirst(scoringSettings?.speedPodiumPercentages?.first ?? 30);
+      setEditSpeedPodiumSecond(scoringSettings?.speedPodiumPercentages?.second ?? 20);
+      setEditSpeedPodiumThird(scoringSettings?.speedPodiumPercentages?.third ?? 10);
     } catch (error) {
       console.error("Failed to load quiz:", error);
       alert("Failed to load quiz");
@@ -564,10 +571,14 @@ export default function QuizDetailPage() {
           description: editDescription.trim() || undefined,
           scoringSettingsJson: {
             basePoints: editBasePoints,
-            timeBonusEnabled: editTimeBonusEnabled,
-            timeBonusPercentage: editTimeBonusPercentage,
             streakBonusEnabled: editStreakBonusEnabled,
             streakBonusPoints: editStreakBonusPoints,
+            speedPodiumEnabled: editSpeedPodiumEnabled,
+            speedPodiumPercentages: {
+              first: editSpeedPodiumFirst,
+              second: editSpeedPodiumSecond,
+              third: editSpeedPodiumThird,
+            },
           },
         }),
       });
@@ -1074,12 +1085,12 @@ export default function QuizDetailPage() {
                 >
                   {startingSession ? "Starting..." : "🎮 Start Session"}
                 </Button>
-                {quiz._count.sessions > 0 && (
+                {(quiz._count?.sessions ?? 0) > 0 && (
                   <Button 
                     onClick={() => router.push(`/workspaces/${workspaceId}/sessions?quizId=${quizId}`)}
                     variant="secondary"
                   >
-                    📊 View Sessions ({quiz._count.sessions})
+                    📊 View Sessions ({quiz._count?.sessions ?? 0})
                   </Button>
                 )}
                 <Button 
@@ -1144,47 +1155,8 @@ export default function QuizDetailPage() {
                   </p>
                 </div>
 
-                {/* Time Bonus */}
-                <div className="mb-4 p-4 bg-slate-800/50 rounded-lg">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">⏱️</span>
-                      <div>
-                        <label className="font-semibold">Speed Bonus</label>
-                        <p className="text-xs text-slate-400">Extra points for fast answers</p>
-                      </div>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={editTimeBonusEnabled}
-                        onChange={(e) => setEditTimeBonusEnabled(e.target.checked)}
-                        className="sr-only peer"
-                      />
-                      <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
-                    </label>
-                  </div>
-                  {editTimeBonusEnabled && (
-                    <div className="flex items-center gap-3 mt-3">
-                      <label className="text-sm text-slate-400">Max bonus:</label>
-                      <Input
-                        type="number"
-                        min={0}
-                        max={100}
-                        value={editTimeBonusPercentage}
-                        onChange={(e) => setEditTimeBonusPercentage(parseInt(e.target.value) || 50)}
-                        className="w-20"
-                      />
-                      <span className="text-sm text-slate-400">%</span>
-                      <span className="text-xs text-slate-500 ml-2">
-                        (= max {Math.round((editTimeBonusPercentage / 100) * editBasePoints)} extra points)
-                      </span>
-                    </div>
-                  )}
-                </div>
-
                 {/* Streak Bonus */}
-                <div className="p-4 bg-slate-800/50 rounded-lg">
+                <div className="mb-4 p-4 bg-slate-800/50 rounded-lg">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <span className="text-xl">🔥</span>
@@ -1220,6 +1192,85 @@ export default function QuizDetailPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Speed Podium */}
+                <div className="mt-4 p-4 bg-slate-800/50 rounded-lg">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">🏆</span>
+                      <div>
+                        <label className="font-semibold">Speed Podium</label>
+                        <p className="text-xs text-slate-400">Top 3 fastest 100% correct players get bonus points</p>
+                      </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editSpeedPodiumEnabled}
+                        onChange={(e) => setEditSpeedPodiumEnabled(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-primary-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
+                    </label>
+                  </div>
+                  {editSpeedPodiumEnabled && (
+                    <div className="space-y-3 mt-3">
+                      <p className="text-xs text-amber-400 mb-2">
+                        🏁 Only players with 100% correct answers qualify for the Speed Podium.
+                      </p>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="text-center">
+                          <span className="text-2xl">🥇</span>
+                          <div className="flex items-center justify-center gap-1 mt-1">
+                            <Input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={editSpeedPodiumFirst}
+                              onChange={(e) => setEditSpeedPodiumFirst(parseInt(e.target.value) || 0)}
+                              className="w-16 text-center"
+                            />
+                            <span className="text-sm text-slate-400">%</span>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-1">1st place</p>
+                        </div>
+                        <div className="text-center">
+                          <span className="text-2xl">🥈</span>
+                          <div className="flex items-center justify-center gap-1 mt-1">
+                            <Input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={editSpeedPodiumSecond}
+                              onChange={(e) => setEditSpeedPodiumSecond(parseInt(e.target.value) || 0)}
+                              className="w-16 text-center"
+                            />
+                            <span className="text-sm text-slate-400">%</span>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-1">2nd place</p>
+                        </div>
+                        <div className="text-center">
+                          <span className="text-2xl">🥉</span>
+                          <div className="flex items-center justify-center gap-1 mt-1">
+                            <Input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={editSpeedPodiumThird}
+                              onChange={(e) => setEditSpeedPodiumThird(parseInt(e.target.value) || 0)}
+                              className="w-16 text-center"
+                            />
+                            <span className="text-sm text-slate-400">%</span>
+                          </div>
+                          <p className="text-xs text-slate-500 mt-1">3rd place</p>
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-500 text-center mt-2">
+                        Example: {editBasePoints} points × {editSpeedPodiumFirst}% = +{Math.round(editBasePoints * editSpeedPodiumFirst / 100)} bonus for 1st place
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </Card>
@@ -1230,7 +1281,7 @@ export default function QuizDetailPage() {
             <div className="flex gap-6 text-sm text-slate-400">
               <span>📋 {quiz.rounds.length} rounds</span>
               <span>❓ {totalQuestions} questions</span>
-              <span>🎮 {quiz._count.sessions} sessions played</span>
+              <span>🎮 {quiz._count?.sessions ?? 0} sessions played</span>
             </div>
           </>
         )}

@@ -58,6 +58,19 @@ export default function DisplayPage() {
   // ORDER question reveal data
   const [correctOrder, setCorrectOrder] = useState<Array<{ id: string; text: string; position: number }> | null>(null);
   const [correctText, setCorrectText] = useState<string | null>(null);
+  // ESTIMATION reveal data
+  const [correctNumber, setCorrectNumber] = useState<number | null>(null);
+  const [estimationMargin, setEstimationMargin] = useState<number | null>(null);
+  // Auto-transition state after locked
+  const [waitingForHost, setWaitingForHost] = useState(false);
+  // Speed Podium results
+  const [speedPodiumResults, setSpeedPodiumResults] = useState<Array<{
+    playerId: string;
+    playerName: string;
+    position: number;
+    bonusPercentage: number;
+    bonusPoints: number;
+  }> | null>(null);
 
   // Use WebSocket without onMessage - we'll set up direct listeners
   const { socket, isConnected } = useWebSocket({
@@ -149,6 +162,8 @@ export default function DisplayPage() {
       setExplanation(null); // Reset explanation for new question
       setCorrectOrder(null); // Reset ORDER reveal data
       setCorrectText(null); // Reset open text reveal data
+      setWaitingForHost(false); // Reset waiting state
+      setSpeedPodiumResults(null); // Reset speed podium results
       setDisplayState("question");
     };
 
@@ -187,6 +202,14 @@ export default function DisplayPage() {
       } else if (data.correctText) {
         // Open text types: store correct text
         setCorrectText(data.correctText);
+      }
+      
+      // ESTIMATION: store correct number and margin
+      if (data.correctNumber !== undefined) {
+        setCorrectNumber(data.correctNumber);
+      }
+      if (data.estimationMargin !== undefined) {
+        setEstimationMargin(data.estimationMargin);
       }
       
       // Set explanation if provided
@@ -302,7 +325,16 @@ export default function DisplayPage() {
       setExplanation(null);
       setCorrectOrder(null);
       setCorrectText(null);
+      setSpeedPodiumResults(null);
       setDisplayState("lobby");
+    };
+
+    // Listen for Speed Podium results
+    const handleSpeedPodiumResults = (data: any) => {
+      console.log("[Display] SPEED_PODIUM_RESULTS:", data);
+      if (data.results && Array.isArray(data.results)) {
+        setSpeedPodiumResults(data.results);
+      }
     };
 
     // Set up all listeners
@@ -322,6 +354,7 @@ export default function DisplayPage() {
     socket.on(WSMessageType.SESSION_RESUMED, handleSessionResumed);
     socket.on(WSMessageType.SESSION_ENDED, handleSessionEnded);
     socket.on(WSMessageType.ITEM_CANCELLED, handleItemCancelled);
+    socket.on(WSMessageType.SPEED_PODIUM_RESULTS, handleSpeedPodiumResults);
 
     console.log("[Display] Event listeners registered successfully");
 
@@ -345,6 +378,7 @@ export default function DisplayPage() {
       socket.off(WSMessageType.SESSION_RESUMED, handleSessionResumed);
       socket.off(WSMessageType.SESSION_ENDED, handleSessionEnded);
       socket.off(WSMessageType.ITEM_CANCELLED, handleItemCancelled);
+      socket.off(WSMessageType.SPEED_PODIUM_RESULTS, handleSpeedPodiumResults);
     };
   }, [socket, session, currentQuestion]);
 
@@ -391,6 +425,21 @@ export default function DisplayPage() {
 
     return () => clearInterval(interval);
   }, [displayState]); // Only depend on displayState, not timeRemaining
+
+  // Auto-transition to "waiting for host" after locked state (3 seconds)
+  // Cancel if reveal/scoreboard/ended happens
+  useEffect(() => {
+    if (displayState !== "locked") {
+      setWaitingForHost(false);
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setWaitingForHost(true);
+    }, 3000);
+
+    return () => clearTimeout(timeout);
+  }, [displayState]);
 
   if (loading) {
     return (
@@ -540,12 +589,23 @@ export default function DisplayPage() {
 
             {/* Options - different display per question type */}
             
-            {/* ORDER Question - during question just show instruction, don't show options */}
+            {/* ORDER Question - show items that need to be ordered (without numbers/correct order) */}
             {currentQuestion.type === "ORDER" && displayState !== "reveal" && (
-              <div className="text-center py-12">
-                <div className="text-6xl mb-6">📋</div>
-                <p className="text-3xl font-bold text-white mb-4">Put the items in order!</p>
-                <p className="text-xl text-white/60">Players are ordering {currentQuestion.options?.length || 0} items on their devices</p>
+              <div className="text-center py-8">
+                <div className="text-5xl mb-4">📋</div>
+                <p className="text-2xl font-bold text-white mb-6">Put these items in the correct order:</p>
+                {currentQuestion.options && currentQuestion.options.length > 0 && (
+                  <div className="flex flex-wrap justify-center gap-4 max-w-4xl mx-auto">
+                    {currentQuestion.options.map((option) => (
+                      <div
+                        key={option.id}
+                        className="px-6 py-4 bg-slate-700/80 rounded-xl text-xl font-semibold text-white"
+                      >
+                        {option.text}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
             
@@ -567,6 +627,27 @@ export default function DisplayPage() {
               </div>
             )}
             
+            {/* ESTIMATION Question - show input hint (NOT the answer!) */}
+            {currentQuestion.type === "ESTIMATION" && displayState !== "reveal" && (
+              <div className="text-center py-8">
+                <div className="text-6xl mb-6">🔢</div>
+                <p className="text-2xl font-bold text-white mb-4">Voer je schatting in!</p>
+                <p className="text-lg text-white/60">Typ een getal op je telefoon</p>
+              </div>
+            )}
+            
+            {/* OPEN_TEXT Question - show input hint */}
+            {(currentQuestion.type === "OPEN_TEXT" || 
+              currentQuestion.type === "PHOTO_OPEN" ||
+              currentQuestion.type === "AUDIO_OPEN" ||
+              currentQuestion.type === "VIDEO_OPEN") && displayState !== "reveal" && (
+              <div className="text-center py-8">
+                <div className="text-6xl mb-6">✍️</div>
+                <p className="text-2xl font-bold text-white mb-4">Typ je antwoord!</p>
+                <p className="text-lg text-white/60">Voer je antwoord in op je telefoon</p>
+              </div>
+            )}
+            
             {/* Open Text Reveal - show correct text answer */}
             {displayState === "reveal" && correctText && (
               <div className="p-8 rounded-2xl bg-green-500/80 text-white text-center">
@@ -574,9 +655,31 @@ export default function DisplayPage() {
               </div>
             )}
             
+            {/* ESTIMATION Reveal - show correct number and margin */}
+            {displayState === "reveal" && correctNumber !== null && currentQuestion.type === "ESTIMATION" && (
+              <div className="text-center py-8">
+                <div className="p-8 rounded-2xl bg-green-500/80 text-white">
+                  <p className="text-2xl font-bold mb-2">Correcte antwoord:</p>
+                  <p className="text-6xl font-black mb-4">{correctNumber.toLocaleString("nl-NL")}</p>
+                  {estimationMargin !== null && estimationMargin > 0 && (
+                    <p className="text-xl text-white/80">
+                      ±{estimationMargin}% marge voor volle punten
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+            
             {/* MC/TRUE_FALSE Options - show grid with correct highlighted on reveal */}
-            {/* Exclude ORDER type since it has its own display */}
-            {currentQuestion.options && currentQuestion.type !== "ORDER" && !correctOrder && !correctText && (
+            {/* Exclude ORDER, ESTIMATION, OPEN_TEXT types since they have their own display */}
+            {currentQuestion.options && 
+             currentQuestion.type !== "ORDER" && 
+             currentQuestion.type !== "ESTIMATION" &&
+             currentQuestion.type !== "OPEN_TEXT" &&
+             currentQuestion.type !== "PHOTO_OPEN" &&
+             currentQuestion.type !== "AUDIO_OPEN" &&
+             currentQuestion.type !== "VIDEO_OPEN" &&
+             !correctOrder && !correctText && (
               <div className="grid grid-cols-2 gap-6">
                 {currentQuestion.options.map((option, idx) => {
                   const colors = [
@@ -619,6 +722,33 @@ export default function DisplayPage() {
               </div>
             )}
 
+            {/* Speed Podium - shown after item locked/reveal */}
+            {speedPodiumResults && speedPodiumResults.length > 0 && (displayState === "locked" || displayState === "reveal") && (
+              <div className="mt-8 p-6 bg-gradient-to-r from-amber-900/50 to-yellow-900/50 border border-yellow-500/30 rounded-2xl">
+                <h3 className="text-2xl font-bold text-yellow-300 text-center mb-4">⚡ Speed Podium</h3>
+                <div className="flex justify-center items-end gap-6">
+                  {speedPodiumResults.map((result) => {
+                    const medals = ["🥇", "🥈", "🥉"];
+                    const heights = ["h-24", "h-20", "h-16"];
+                    const bgColors = ["bg-yellow-500/40", "bg-slate-400/40", "bg-amber-700/40"];
+                    
+                    return (
+                      <div key={result.playerId} className="text-center">
+                        <div className="text-5xl mb-2">{medals[result.position - 1]}</div>
+                        <p className="text-xl font-bold text-white mb-1">{result.playerName}</p>
+                        <p className="text-lg text-green-400 font-semibold mb-2">+{result.bonusPoints} pts</p>
+                        <div 
+                          className={`${heights[result.position - 1]} w-24 rounded-t-lg ${bgColors[result.position - 1]} flex items-center justify-center`}
+                        >
+                          <span className="text-lg font-bold text-white/80">+{result.bonusPercentage}%</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Answer Progress */}
             <div className="mt-8 text-center">
               <div className="inline-flex items-center gap-4 bg-slate-800/80 backdrop-blur px-6 py-3 rounded-full">
@@ -627,6 +757,14 @@ export default function DisplayPage() {
                 <span className="text-slate-400">/ {totalPlayerCount || session.players.length}</span>
               </div>
             </div>
+
+            {/* Waiting for host - after auto-transition from locked */}
+            {displayState === "locked" && waitingForHost && (
+              <div className="mt-12 text-center animate-pulse">
+                <div className="text-5xl mb-4">⏳</div>
+                <p className="text-2xl font-bold text-white/80">Waiting for host...</p>
+              </div>
+            )}
           </div>
         )}
 

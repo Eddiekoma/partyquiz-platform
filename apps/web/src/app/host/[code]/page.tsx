@@ -292,6 +292,8 @@ export default function HostControlPage() {
       rawAnswer: any;
       isCorrect: boolean | null;
       score: number;
+      maxScore?: number;
+      timeSpentMs?: number;
       answeredAt: number;
       selectedOptionIds?: string[];
       submittedOrder?: string[];
@@ -1106,7 +1108,12 @@ export default function HostControlPage() {
                           </div>
                         ))}
                     </div>
-                  ) : currentItem.question.options && (
+                  ) : currentItem.question.options && 
+                       currentItem.question.type !== "ESTIMATION" &&
+                       currentItem.question.type !== "OPEN_TEXT" &&
+                       currentItem.question.type !== "PHOTO_OPEN" &&
+                       currentItem.question.type !== "AUDIO_OPEN" &&
+                       currentItem.question.type !== "VIDEO_OPEN" && (
                     /* MC/TRUE_FALSE/POLL: Show A, B, C, D grid */
                     <div className="grid grid-cols-2 gap-3">
                       {currentItem.question.options.map((option, idx) => (
@@ -1124,6 +1131,38 @@ export default function HostControlPage() {
                           {option.text}
                         </div>
                       ))}
+                    </div>
+                  )}
+                  
+                  {/* ESTIMATION: Show correct number on host */}
+                  {currentItem.question.type === "ESTIMATION" && (
+                    <div className="bg-slate-700/50 border-2 border-slate-600 rounded-lg p-4">
+                      <p className="text-sm text-slate-400 mb-2">Correcte antwoord:</p>
+                      <p className="text-2xl font-bold text-green-400">
+                        {currentItem.question.options?.[0]?.text 
+                          ? Number(currentItem.question.options[0].text).toLocaleString("nl-NL")
+                          : "Niet ingesteld"}
+                      </p>
+                      {currentItem.question.options?.[0]?.order !== undefined && 
+                       currentItem.question.options[0].order > 0 && (
+                        <p className="text-sm text-slate-400 mt-1">
+                          ±{currentItem.question.options[0].order}% marge voor volle punten
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  
+                  {/* OPEN_TEXT types: Show correct answer on host */}
+                  {(currentItem.question.type === "OPEN_TEXT" ||
+                    currentItem.question.type === "PHOTO_OPEN" ||
+                    currentItem.question.type === "AUDIO_OPEN" ||
+                    currentItem.question.type === "VIDEO_OPEN") && 
+                    currentItem.question.options?.[0] && (
+                    <div className="bg-slate-700/50 border-2 border-slate-600 rounded-lg p-4">
+                      <p className="text-sm text-slate-400 mb-2">Correcte antwoord:</p>
+                      <p className="text-xl font-bold text-green-400">
+                        {currentItem.question.options[0].text}
+                      </p>
                     </div>
                   )}
 

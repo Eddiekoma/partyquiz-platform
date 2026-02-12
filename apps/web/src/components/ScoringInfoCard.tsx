@@ -7,14 +7,14 @@ interface ScoringInfoCardProps {
   /** Example base points for preview (actual set per quiz) */
   exampleBasePoints?: number;
   showBonuses?: boolean;
-  /** Show time bonus in preview */
-  showTimeBonusExample?: boolean;
-  /** Example time bonus percentage */
-  exampleTimeBonusPercentage?: number;
   /** Show streak bonus in preview */
   showStreakBonusExample?: boolean;
   /** Example streak bonus points */
   exampleStreakBonusPoints?: number;
+  /** Show speed podium in preview */
+  showSpeedPodiumExample?: boolean;
+  /** Example speed podium percentages */
+  exampleSpeedPodiumPercentages?: { first: number; second: number; third: number };
 }
 
 /**
@@ -25,10 +25,10 @@ export function ScoringInfoCard({
   questionType,
   exampleBasePoints = 10,
   showBonuses = true,
-  showTimeBonusExample = true,
-  exampleTimeBonusPercentage = 50,
   showStreakBonusExample = true,
   exampleStreakBonusPoints = 1,
+  showSpeedPodiumExample = false,
+  exampleSpeedPodiumPercentages = { first: 30, second: 20, third: 10 },
 }: ScoringInfoCardProps) {
   const scoringInfo = getScoringInfo(questionType);
   
@@ -123,19 +123,6 @@ export function ScoringInfoCard({
             Bonuses (if enabled in Quiz)
           </p>
           <div className="space-y-2">
-            {/* Time bonus */}
-            <div className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-2">
-                <span>⏱️</span>
-                <span className={showTimeBonusExample ? "text-slate-300" : "text-slate-500 line-through"}>
-                  Speed Bonus
-                </span>
-              </div>
-              <span className="text-slate-500 italic">
-                Up to +{exampleTimeBonusPercentage}% (e.g. +{calculateExamplePoints(exampleTimeBonusPercentage)} pts)
-              </span>
-            </div>
-
             {/* Streak bonus */}
             <div className="flex items-center justify-between text-sm">
               <div className="flex items-center gap-2">
@@ -148,6 +135,36 @@ export function ScoringInfoCard({
                 e.g. +{exampleStreakBonusPoints} pt per streak
               </span>
             </div>
+
+            {/* Speed Podium */}
+            {showSpeedPodiumExample && (
+              <div className="mt-3 pt-3 border-t border-slate-700/50">
+                <div className="flex items-center gap-2 mb-2">
+                  <span>🏆</span>
+                  <span className="text-slate-300 font-medium">Speed Podium</span>
+                </div>
+                <p className="text-xs text-slate-400 mb-2">
+                  Top 3 fastest players with 100% correct get bonus:
+                </p>
+                <div className="grid grid-cols-3 gap-2 text-center text-sm">
+                  <div>
+                    <span className="text-lg">🥇</span>
+                    <p className="text-yellow-400">+{exampleSpeedPodiumPercentages.first}%</p>
+                    <p className="text-xs text-slate-500">+{Math.round(exampleBasePoints * exampleSpeedPodiumPercentages.first / 100)} pts</p>
+                  </div>
+                  <div>
+                    <span className="text-lg">🥈</span>
+                    <p className="text-slate-300">+{exampleSpeedPodiumPercentages.second}%</p>
+                    <p className="text-xs text-slate-500">+{Math.round(exampleBasePoints * exampleSpeedPodiumPercentages.second / 100)} pts</p>
+                  </div>
+                  <div>
+                    <span className="text-lg">🥉</span>
+                    <p className="text-orange-400">+{exampleSpeedPodiumPercentages.third}%</p>
+                    <p className="text-xs text-slate-500">+{Math.round(exampleBasePoints * exampleSpeedPodiumPercentages.third / 100)} pts</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -158,11 +175,19 @@ export function ScoringInfoCard({
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-slate-300">Example maximum:</span>
             <span className="text-lg font-bold text-green-400/70 italic">
-              ~{exampleBasePoints + (showTimeBonusExample ? calculateExamplePoints(exampleTimeBonusPercentage) : 0)} pts
+              ~{exampleBasePoints + (
+                showSpeedPodiumExample 
+                  ? Math.round(exampleBasePoints * exampleSpeedPodiumPercentages.first / 100)
+                  : 0
+              )} pts
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            E.g. {exampleBasePoints} base + {showTimeBonusExample ? `${calculateExamplePoints(exampleTimeBonusPercentage)} speed` : "no bonus"}
+            E.g. {exampleBasePoints} base{
+              showSpeedPodiumExample 
+                ? ` + ${Math.round(exampleBasePoints * exampleSpeedPodiumPercentages.first / 100)} podium (1st place)`
+                : ""
+            }
           </p>
         </div>
       )}

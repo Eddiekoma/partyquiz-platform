@@ -147,7 +147,7 @@ export default function QuizzesPage() {
                     <span>❓ {getTotalQuestions(quiz)} questions</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span>🎮 {quiz._count.sessions} sessions</span>
+                    <span>🎮 {quiz._count?.sessions ?? 0} sessions</span>
                     <span className="text-xs">
                       Updated {new Date(quiz.updatedAt).toLocaleDateString()}
                     </span>

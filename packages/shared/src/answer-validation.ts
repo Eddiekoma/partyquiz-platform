@@ -59,18 +59,42 @@ export interface ValidationResult {
 
 export interface ScoringConfig {
   basePoints: number;
-  timeBonus: boolean;
-  timeBonusPercentage: number; // 0-100, max percentage bonus for fast answers
   streakBonus: boolean;
   streakBonusPoints: number; // Points per consecutive correct answer
+  // Speed Podium: top 3 fastest 100% correct players get bonus
+  speedPodiumEnabled?: boolean;
+  speedPodiumPercentages?: { first: number; second: number; third: number };
 }
 
 export interface QuizScoringSettings {
-  timeBonus: boolean;
-  timeBonusPercentage: number; // 0-100
   streakBonus: boolean;
   streakBonusPoints: number;
+  // Speed Podium: top 3 fastest 100% correct players get bonus
+  speedPodiumEnabled?: boolean;
+  speedPodiumPercentages?: { first: number; second: number; third: number };
 }
+
+/**
+ * Speed Podium result for a player
+ */
+export interface SpeedPodiumResult {
+  playerId: string;
+  position: 1 | 2 | 3;
+  baseScore: number;
+  bonusPercentage: number;
+  bonusPoints: number;
+  finalScore: number;
+  timeSpentMs: number;
+}
+
+/**
+ * Default speed podium percentages
+ */
+export const DEFAULT_SPEED_PODIUM_PERCENTAGES = {
+  first: 30,
+  second: 20,
+  third: 10,
+};
 
 export interface EstimationConfig {
   correctAnswer: number;
@@ -123,13 +147,13 @@ export function getScoringInfo(questionType: string): ScoringInfo {
       return {
         mode,
         title: "Partial Points (Ordering)",
-        description: "Points per item in the correct position.",
+        description: "Points per item in the correct position. You earn points for each item placed correctly.",
         tiers: [
-          { threshold: "All correct", percentage: 100, description: "All items in correct position" },
-          { threshold: "3 of 4 correct", percentage: 75, description: "75% in correct position" },
-          { threshold: "2 of 4 correct", percentage: 50, description: "50% in correct position" },
-          { threshold: "1 of 4 correct", percentage: 25, description: "25% in correct position" },
-          { threshold: "None correct", percentage: 0, description: "No items correct" },
+          { threshold: "All correct", percentage: 100, description: "Every item in the right position" },
+          { threshold: "Most correct", percentage: 75, description: "Most items placed correctly" },
+          { threshold: "Half correct", percentage: 50, description: "About half in the right position" },
+          { threshold: "Few correct", percentage: 25, description: "Only a few items correct" },
+          { threshold: "None correct", percentage: 0, description: "No items in the right position" },
         ],
       };
       
@@ -456,6 +480,11 @@ export function validateAnswerComplete(
     currentStreak?: number;
     estimationMargin?: number;
     acceptableAnswers?: string[];
+    // Quiz-level scoring settings
+    streakBonusEnabled?: boolean;
+    streakBonusPoints?: number;
+    // Speed Podium: bonus for top 3 fastest 100% correct (applied at lock)
+    speedPodiumEnabled?: boolean;
   }
 ): ValidationResult & { 
   normalizedPlayerAnswer: any;
@@ -485,10 +514,9 @@ export function validateAnswerComplete(
   // Calculate final score with bonuses
   const config: ScoringConfig = {
     basePoints: scoringOptions?.basePoints || 10,
-    timeBonus: true,
-    timeBonusPercentage: 50,
-    streakBonus: true,
-    streakBonusPoints: 1,
+    streakBonus: scoringOptions?.streakBonusEnabled ?? true,
+    streakBonusPoints: scoringOptions?.streakBonusPoints ?? 1,
+    speedPodiumEnabled: scoringOptions?.speedPodiumEnabled ?? false,
   };
   
   const score = calculateScore(
@@ -811,12 +839,15 @@ export function validateAnswer(
 
 /**
  * Calculate final score with time bonus and streak
+ * NOTE: When speedPodiumEnabled is true, time bonus is NOT applied here.
+ *       Speed podium bonuses are calculated separately in the WS server
+ *       after all answers are collected (when the item is locked).
  */
 export function calculateScore(
   scorePercentage: number,
   config: ScoringConfig,
-  timeSpentMs?: number,
-  timeLimitMs?: number,
+  _timeSpentMs?: number,
+  _timeLimitMs?: number,
   currentStreak?: number
 ): number {
   // Base score from percentage
@@ -825,19 +856,11 @@ export function calculateScore(
   // No bonuses if no points earned
   if (score === 0) return 0;
 
-  // Time bonus (if enabled and time data available)
-  if (config.timeBonus && timeSpentMs !== undefined && timeLimitMs !== undefined && timeLimitMs > 0) {
-    const timeRemainingMs = timeLimitMs - timeSpentMs;
-    if (timeRemainingMs > 0) {
-      const timePercentage = timeRemainingMs / timeLimitMs;
-      const maxTimeBonus = config.basePoints * (config.timeBonusPercentage / 100);
-      const timeBonus = Math.round(maxTimeBonus * timePercentage);
-      score += timeBonus;
-    }
-  }
+  // Speed Podium bonus is calculated separately in processSpeedPodiumBonuses()
+  // after question lock, not here per-answer
 
-  // Streak bonus (if enabled)
-  if (config.streakBonus && currentStreak !== undefined && currentStreak > 0) {
+  // Streak bonus (if enabled) - only for fully correct answers
+  if (config.streakBonus && currentStreak !== undefined && currentStreak > 0 && scorePercentage === 100) {
     const streakBonus = config.streakBonusPoints * currentStreak;
     score += streakBonus;
   }
@@ -846,15 +869,88 @@ export function calculateScore(
 }
 
 /**
+ * Calculate speed podium bonus for a single player
+ * Only called for players with 100% correct answers
+ * @param position - 1, 2, or 3 (podium position)
+ * @param baseScore - The score earned without bonuses
+ * @param percentages - Podium percentages (first, second, third)
+ * @returns The bonus points to add
+ */
+export function calculateSpeedPodiumBonus(
+  position: 1 | 2 | 3,
+  baseScore: number,
+  percentages: { first: number; second: number; third: number } = DEFAULT_SPEED_PODIUM_PERCENTAGES
+): number {
+  const percentageMap: Record<1 | 2 | 3, number> = {
+    1: percentages.first,
+    2: percentages.second,
+    3: percentages.third,
+  };
+  
+  const percentage = percentageMap[position];
+  return Math.round(baseScore * (percentage / 100));
+}
+
+/**
+ * Calculate speed podium results for all players who got 100% correct
+ * Returns an array of podium results sorted by position (1st, 2nd, 3rd)
+ * Only top 3 get podium bonuses
+ * 
+ * @param answers - Array of player answers with { playerId, score, scorePercentage, timeSpentMs }
+ * @param percentages - Podium percentages (first, second, third)
+ * @returns Array of SpeedPodiumResult for players who earn podium bonus
+ */
+export function calculateSpeedPodium(
+  answers: Array<{
+    playerId: string;
+    score: number;
+    scorePercentage: number;
+    timeSpentMs: number;
+  }>,
+  percentages: { first: number; second: number; third: number } = DEFAULT_SPEED_PODIUM_PERCENTAGES
+): SpeedPodiumResult[] {
+  // Filter to only 100% correct answers
+  const perfectAnswers = answers.filter(a => a.scorePercentage === 100);
+  
+  if (perfectAnswers.length === 0) {
+    return [];
+  }
+  
+  // Sort by time spent (fastest first)
+  const sorted = [...perfectAnswers].sort((a, b) => a.timeSpentMs - b.timeSpentMs);
+  
+  // Take top 3 and calculate bonuses
+  const results: SpeedPodiumResult[] = [];
+  
+  for (let i = 0; i < Math.min(3, sorted.length); i++) {
+    const answer = sorted[i];
+    const position = (i + 1) as 1 | 2 | 3;
+    const bonusPoints = calculateSpeedPodiumBonus(position, answer.score, percentages);
+    const bonusPercentage = position === 1 ? percentages.first : position === 2 ? percentages.second : percentages.third;
+    
+    results.push({
+      playerId: answer.playerId,
+      position,
+      baseScore: answer.score,
+      bonusPercentage,
+      bonusPoints,
+      finalScore: answer.score + bonusPoints,
+      timeSpentMs: answer.timeSpentMs,
+    });
+  }
+  
+  return results;
+}
+
+/**
  * Get default scoring config for a question type
  */
 export function getDefaultScoringConfig(_questionType: string): ScoringConfig {
   return {
     basePoints: 10, // Default from user settings
-    timeBonus: true,
-    timeBonusPercentage: 50, // Up to 50% bonus
     streakBonus: true,
     streakBonusPoints: 1, // 1 point per streak
+    speedPodiumEnabled: false,
   };
 }
 
@@ -863,10 +959,9 @@ export function getDefaultScoringConfig(_questionType: string): ScoringConfig {
  */
 export function getDefaultQuizScoringSettings(): QuizScoringSettings {
   return {
-    timeBonus: true,
-    timeBonusPercentage: 50,
     streakBonus: true,
     streakBonusPoints: 1,
+    speedPodiumEnabled: false,
   };
 }
 

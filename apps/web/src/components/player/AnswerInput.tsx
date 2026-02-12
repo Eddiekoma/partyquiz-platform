@@ -420,7 +420,7 @@ function OrderingInput({
               </button>
             </div>
             <div className="flex-1 font-bold text-white">
-              {index + 1}. {item.text}
+              {item.text}
             </div>
           </div>
         ))}

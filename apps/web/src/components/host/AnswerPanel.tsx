@@ -16,7 +16,9 @@ export interface PlayerAnswer {
   rawAnswer: any;
   isCorrect: boolean | null;
   score: number;
+  maxScore?: number; // Maximum possible score for this question
   answeredAt: number;
+  timeSpentMs?: number; // How long it took to answer (milliseconds)
   selectedOptionIds?: string[];
   submittedOrder?: string[];
 }
@@ -98,11 +100,34 @@ export function AnswerPanel({
     return distribution;
   }, [answers, options, questionType]);
 
-  // Get status icon and color
-  const getStatusIcon = (isCorrect: boolean | null): { icon: string; color: string } => {
-    if (isCorrect === null) return { icon: "💬", color: "text-blue-600" }; // Poll/no score
-    if (isCorrect) return { icon: "✅", color: "text-green-600" };
-    return { icon: "❌", color: "text-red-600" };
+  // Get status icon and color - now supports partial correct
+  const getStatusIcon = (answer: PlayerAnswer): { icon: string; color: string; label: string } => {
+    // Poll or no scoring
+    if (answer.isCorrect === null) {
+      return { icon: "💬", color: "text-blue-400", label: "Poll" };
+    }
+    
+    // Fully correct
+    if (answer.isCorrect && answer.score > 0) {
+      return { icon: "✅", color: "text-green-400", label: "Correct" };
+    }
+    
+    // Partial correct: has points but not marked as fully correct
+    if (!answer.isCorrect && answer.score > 0) {
+      return { icon: "🟡", color: "text-yellow-400", label: "Gedeeltelijk" };
+    }
+    
+    // Completely wrong
+    return { icon: "❌", color: "text-red-400", label: "Fout" };
+  };
+
+  // Format time spent answering
+  const formatTimeSpent = (timeSpentMs?: number): string | null => {
+    if (!timeSpentMs) return null;
+    const seconds = timeSpentMs / 1000;
+    if (seconds < 1) return `${Math.round(timeSpentMs)}ms`;
+    if (seconds < 10) return `${seconds.toFixed(1)}s`;
+    return `${Math.round(seconds)}s`;
   };
 
   // Format time ago
@@ -128,11 +153,11 @@ export function AnswerPanel({
             return (
               <div
                 key={optId}
-                className={`flex items-center gap-1 ${isCorrectPosition ? "text-green-700" : "text-red-700"}`}
+                className={`flex items-center gap-1 ${isCorrectPosition ? "text-green-400" : "text-red-400"}`}
               >
                 <span className="font-mono">{idx + 1}.</span>
                 <span className="truncate">{opt?.text || optId}</span>
-                {isCorrectPosition && <span className="text-green-500">✓</span>}
+                {isCorrectPosition && <span className="text-green-400">✓</span>}
               </div>
             );
           })}
@@ -152,8 +177,8 @@ export function AnswerPanel({
                 key={optId}
                 className={`px-1.5 py-0.5 rounded text-xs ${
                   isCorrectOption
-                    ? "bg-green-100 text-green-800"
-                    : "bg-red-100 text-red-800"
+                    ? "bg-green-900/50 text-green-300"
+                    : "bg-red-900/50 text-red-300"
                 }`}
               >
                 {opt?.text || optId}
@@ -166,32 +191,45 @@ export function AnswerPanel({
     
     // ESTIMATION: show number with distance indicator
     if (type === "ESTIMATION" || type === "MUSIC_GUESS_YEAR") {
-      const scorePercent = answer.score > 0 ? Math.round((answer.score / 100) * 100) : 0;
+      // Debug: log what we received
+      console.log("[AnswerPanel] ESTIMATION answer:", { 
+        answerDisplay: answer.answerDisplay, 
+        rawAnswer: answer.rawAnswer,
+        score: answer.score,
+        playerName: answer.playerName 
+      });
+      
+      // Use rawAnswer as fallback if answerDisplay is empty
+      const displayValue = answer.answerDisplay || 
+        (answer.rawAnswer !== undefined && answer.rawAnswer !== null 
+          ? String(answer.rawAnswer) 
+          : "(geen antwoord)");
+      
       return (
         <div className="flex items-center gap-2">
-          <span className="font-mono text-sm">{answer.answerDisplay}</span>
+          <span className="font-mono text-sm font-bold text-white">{displayValue}</span>
           {answer.score > 0 && (
-            <span className="text-xs text-gray-500">({scorePercent}% punten)</span>
+            <span className="text-xs text-slate-400">(+{answer.score} punten)</span>
           )}
         </div>
       );
     }
     
     // Default: show formatted display
-    return <span className="text-sm">{answer.answerDisplay}</span>;
+    return <span className="text-sm text-white">{answer.answerDisplay}</span>;
   };
 
   return (
-    <div className="bg-white border rounded-lg shadow-sm">
+    <div className="bg-slate-800 border border-slate-600 rounded-lg shadow-sm">
       {/* Header - always visible */}
       <button
         onClick={onToggle}
-        className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
+        className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-700 transition-colors"
       >
         <div className="flex items-center gap-3">
           <span className="text-lg">{isExpanded ? "▼" : "▶"}</span>
-          <span className="font-medium">Antwoorden</span>
-          <span className="text-sm text-gray-500">
+          <span className="font-medium text-white">Antwoorden</span>
+          <span className="text-sm text-slate-400">
             {answers.length}/{totalPlayers} spelers
           </span>
         </div>
@@ -199,24 +237,24 @@ export function AnswerPanel({
         {/* Quick stats */}
         <div className="flex items-center gap-4 text-sm">
           {stats.correctCount > 0 && (
-            <span className="text-green-600">✅ {stats.correctCount}</span>
+            <span className="text-green-400">✅ {stats.correctCount}</span>
           )}
           {stats.incorrectCount > 0 && (
-            <span className="text-red-600">❌ {stats.incorrectCount}</span>
+            <span className="text-red-400">❌ {stats.incorrectCount}</span>
           )}
           {stats.pendingCount > 0 && (
-            <span className="text-gray-400">⏳ {stats.pendingCount}</span>
+            <span className="text-slate-400">⏳ {stats.pendingCount}</span>
           )}
         </div>
       </button>
       
       {/* Expanded content */}
       {isExpanded && (
-        <div className="border-t">
+        <div className="border-t border-slate-600">
           {/* Option distribution for MC questions */}
           {optionDistribution && Object.keys(optionDistribution).length > 0 && (
-            <div className="px-4 py-3 bg-gray-50 border-b">
-              <div className="text-xs text-gray-500 mb-2 font-medium">Antwoord verdeling:</div>
+            <div className="px-4 py-3 bg-slate-700 border-b border-slate-600">
+              <div className="text-xs text-slate-400 mb-2 font-medium">Antwoord verdeling:</div>
               <div className="space-y-1.5">
                 {Object.entries(optionDistribution).map(([optId, data]) => {
                   const percentage = answers.length > 0 
@@ -224,17 +262,17 @@ export function AnswerPanel({
                     : 0;
                   return (
                     <div key={optId} className="flex items-center gap-2">
-                      <div className="w-32 truncate text-sm flex items-center gap-1">
-                        {data.isCorrect && <span className="text-green-500">✓</span>}
+                      <div className="w-32 truncate text-sm text-white flex items-center gap-1">
+                        {data.isCorrect && <span className="text-green-400">✓</span>}
                         {data.text}
                       </div>
-                      <div className="flex-1 h-4 bg-gray-200 rounded-full overflow-hidden">
+                      <div className="flex-1 h-4 bg-slate-600 rounded-full overflow-hidden">
                         <div
                           className={`h-full ${data.isCorrect ? "bg-green-500" : "bg-blue-500"}`}
                           style={{ width: `${percentage}%` }}
                         />
                       </div>
-                      <div className="w-12 text-right text-xs text-gray-600">
+                      <div className="w-12 text-right text-xs text-slate-300">
                         {data.count} ({percentage}%)
                       </div>
                     </div>
@@ -245,23 +283,23 @@ export function AnswerPanel({
           )}
           
           {/* Sort controls */}
-          <div className="px-4 py-2 bg-gray-50 border-b flex items-center gap-2 text-xs">
-            <span className="text-gray-500">Sorteer:</span>
+          <div className="px-4 py-2 bg-slate-700 border-b border-slate-600 flex items-center gap-2 text-xs">
+            <span className="text-slate-400">Sorteer:</span>
             <button
               onClick={() => setSortBy("time")}
-              className={`px-2 py-1 rounded ${sortBy === "time" ? "bg-blue-100 text-blue-700" : "text-gray-600 hover:bg-gray-100"}`}
+              className={`px-2 py-1 rounded ${sortBy === "time" ? "bg-blue-600 text-white" : "text-slate-300 hover:bg-slate-600"}`}
             >
               ⏱️ Tijd
             </button>
             <button
               onClick={() => setSortBy("score")}
-              className={`px-2 py-1 rounded ${sortBy === "score" ? "bg-blue-100 text-blue-700" : "text-gray-600 hover:bg-gray-100"}`}
+              className={`px-2 py-1 rounded ${sortBy === "score" ? "bg-blue-600 text-white" : "text-slate-300 hover:bg-slate-600"}`}
             >
               🏆 Score
             </button>
             <button
               onClick={() => setSortBy("name")}
-              className={`px-2 py-1 rounded ${sortBy === "name" ? "bg-blue-100 text-blue-700" : "text-gray-600 hover:bg-gray-100"}`}
+              className={`px-2 py-1 rounded ${sortBy === "name" ? "bg-blue-600 text-white" : "text-slate-300 hover:bg-slate-600"}`}
             >
               👤 Naam
             </button>
@@ -270,34 +308,48 @@ export function AnswerPanel({
           {/* Answer list */}
           <div className="max-h-64 overflow-y-auto">
             {sortedAnswers.length === 0 ? (
-              <div className="px-4 py-8 text-center text-gray-500">
+              <div className="px-4 py-8 text-center text-slate-400">
                 Nog geen antwoorden ontvangen...
               </div>
             ) : (
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 sticky top-0">
-                  <tr className="text-left text-xs text-gray-500">
+                <thead className="bg-slate-700 sticky top-0">
+                  <tr className="text-left text-xs text-slate-400">
                     <th className="px-4 py-2">Speler</th>
                     <th className="px-4 py-2">Antwoord</th>
                     <th className="px-4 py-2 text-center w-16">✓/✗</th>
                     <th className="px-4 py-2 text-right w-20">Score</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y">
+                <tbody className="divide-y divide-slate-600">
                   {sortedAnswers.map((answer) => {
-                    const status = getStatusIcon(answer.isCorrect);
+                    const status = getStatusIcon(answer);
+                    const timeSpent = formatTimeSpent(answer.timeSpentMs);
+                    // Debug: log each answer to find the issue
+                    console.log("[AnswerPanel] Rendering answer:", {
+                      playerId: answer.playerId,
+                      playerName: answer.playerName,
+                      answerDisplay: answer.answerDisplay,
+                      questionType: answer.questionType,
+                      timeSpentMs: answer.timeSpentMs,
+                    });
                     return (
-                      <tr key={answer.playerId} className="hover:bg-gray-50">
+                      <tr key={answer.playerId} className="hover:bg-slate-700">
                         <td className="px-4 py-2">
                           <div className="flex items-center gap-2">
                             <span className="text-lg">{answer.playerAvatar || "👤"}</span>
                             <div>
-                              <div className="font-medium">{answer.playerName}</div>
-                              <div className="text-xs text-gray-400">{formatTimeAgo(answer.answeredAt)}</div>
+                              <div className="font-medium text-white">{answer.playerName || "(onbekend)"}</div>
+                              <div className="text-xs text-slate-400 flex items-center gap-2">
+                                <span>{formatTimeAgo(answer.answeredAt)}</span>
+                                {timeSpent && (
+                                  <span className="text-blue-400">⚡ {timeSpent}</span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-2">
+                        <td className="px-4 py-2 text-white">
                           {renderAnswerContent(answer)}
                         </td>
                         <td className="px-4 py-2 text-center">
@@ -305,9 +357,9 @@ export function AnswerPanel({
                         </td>
                         <td className="px-4 py-2 text-right">
                           {answer.score > 0 ? (
-                            <span className="font-medium text-green-600">+{answer.score}</span>
+                            <span className="font-medium text-green-400">+{answer.score}</span>
                           ) : (
-                            <span className="text-gray-400">0</span>
+                            <span className="text-slate-400">0</span>
                           )}
                         </td>
                       </tr>
@@ -320,9 +372,9 @@ export function AnswerPanel({
           
           {/* Footer with averages */}
           {answers.length > 0 && (
-            <div className="px-4 py-2 bg-gray-50 border-t text-xs text-gray-600 flex justify-between">
+            <div className="px-4 py-2 bg-slate-700 border-t border-slate-600 text-xs text-slate-300 flex justify-between">
               <span>
-                Gemiddelde score: <strong>{stats.avgScore}</strong> punten
+                Gemiddelde score: <strong className="text-white">{stats.avgScore}</strong> punten
               </span>
               <span>
                 {Math.round((stats.correctCount / answers.length) * 100)}% correct

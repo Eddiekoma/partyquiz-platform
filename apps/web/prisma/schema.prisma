@@ -297,7 +297,7 @@ model Quiz {
   createdBy           String
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
-  scoringSettingsJson Json? // Quiz-level scoring settings: timeBonus, streakBonus, basePoints
+  scoringSettingsJson Json? // Quiz-level scoring settings: speedPodium, streakBonus, basePoints
 
   workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   rounds    QuizRound[]
@@ -399,6 +399,8 @@ model LiveAnswer {
   payloadJson Json // Flexible answer format
   isCorrect   Boolean?
   score       Int      @default(0)
+  maxScore    Int?     // Maximum possible score for this question
+  timeSpentMs Int?     // Time spent answering in milliseconds
   answeredAt  DateTime @default(now())
 
   session  LiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)

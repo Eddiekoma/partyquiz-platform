@@ -193,10 +193,9 @@ describe("Answer Validation", () => {
   describe("calculateScore", () => {
     const basicConfig = { 
       basePoints: 100, 
-      timeBonus: true, 
-      timeBonusPercentage: 50, 
       streakBonus: true, 
-      streakBonusPoints: 50 
+      streakBonusPoints: 50,
+      speedPodiumEnabled: false,
     };
 
     it("should return 0 for 0% score", () => {
@@ -212,12 +211,6 @@ describe("Answer Validation", () => {
       expect(result).toBeGreaterThanOrEqual(100);
     });
 
-    it("should add time bonus for fast answers", () => {
-      const fastResult = calculateScore(100, basicConfig, 1000, 30000, 0);
-      const slowResult = calculateScore(100, basicConfig, 25000, 30000, 0);
-      expect(fastResult).toBeGreaterThan(slowResult);
-    });
-
     it("should add streak bonus", () => {
       const noStreakResult = calculateScore(100, basicConfig, 1000, 30000, 0);
       const streakResult = calculateScore(100, basicConfig, 1000, 30000, 5);
@@ -225,18 +218,16 @@ describe("Answer Validation", () => {
       expect(streakResult).toBeGreaterThanOrEqual(noStreakResult + 250); // 5 * 50
     });
 
-    it("should not give time bonus when disabled", () => {
-      const noTimeBonusConfig = { 
+    it("should not give streak bonus when disabled", () => {
+      const noStreakConfig = { 
         basePoints: 100, 
-        timeBonus: false, 
-        timeBonusPercentage: 0, 
         streakBonus: false, 
         streakBonusPoints: 0 
       };
-      const fastResult = calculateScore(100, noTimeBonusConfig, 1000, 30000, 0);
-      const slowResult = calculateScore(100, noTimeBonusConfig, 25000, 30000, 0);
-      expect(fastResult).toBe(slowResult);
-      expect(fastResult).toBe(100);
+      const noStreakResult = calculateScore(100, noStreakConfig, 1000, 30000, 0);
+      const streakResult = calculateScore(100, noStreakConfig, 1000, 30000, 5);
+      expect(noStreakResult).toBe(streakResult);
+      expect(noStreakResult).toBe(100);
     });
   });
 
@@ -438,6 +429,56 @@ describe("Answer Validation", () => {
       const result = validateAnswerComplete("ORDER", ["item1", "item2", "item3"], options);
       expect(result.isCorrect).toBe(true);
       expect(result.answerFormat).toBe("ORDER_ARRAY");
+    });
+
+    it("should give partial points for ORDER with some correct positions", () => {
+      const options = [
+        { id: "item1", text: "First", order: 1 },
+        { id: "item2", text: "Second", order: 2 },
+        { id: "item3", text: "Third", order: 3 },
+        { id: "item4", text: "Fourth", order: 4 },
+      ];
+
+      // Player gets 2 of 4 correct (items 1 and 4 in right position, 2 and 3 swapped)
+      // Correct: [item1, item2, item3, item4]
+      // Player:  [item1, item3, item2, item4]
+      const result = validateAnswerComplete("ORDER", ["item1", "item3", "item2", "item4"], options);
+      expect(result.isCorrect).toBe(false); // Not 100% correct
+      expect(result.scorePercentage).toBe(50); // 2 of 4 = 50%
+      expect(result.score).toBeGreaterThan(0); // Should still get partial points
+    });
+
+    it("should give 0 points for ORDER with all wrong positions", () => {
+      const options = [
+        { id: "item1", text: "First", order: 1 },
+        { id: "item2", text: "Second", order: 2 },
+        { id: "item3", text: "Third", order: 3 },
+      ];
+
+      // Player gets everything in reverse order
+      // Correct: [item1, item2, item3]
+      // Player:  [item3, item2, item1]
+      const result = validateAnswerComplete("ORDER", ["item3", "item2", "item1"], options);
+      expect(result.isCorrect).toBe(false);
+      // Only item2 is in correct position (middle stays middle in reverse)
+      expect(result.scorePercentage).toBe(33); // 1 of 3 = 33%
+    });
+
+    it("should handle ORDER with 2 items correctly", () => {
+      const options = [
+        { id: "A", text: "First", order: 1 },
+        { id: "B", text: "Second", order: 2 },
+      ];
+
+      // Correct order
+      const correct = validateAnswerComplete("ORDER", ["A", "B"], options);
+      expect(correct.isCorrect).toBe(true);
+      expect(correct.scorePercentage).toBe(100);
+
+      // Wrong order - with 2 items, swapping means 0 correct
+      const wrong = validateAnswerComplete("ORDER", ["B", "A"], options);
+      expect(wrong.isCorrect).toBe(false);
+      expect(wrong.scorePercentage).toBe(0); // Neither in correct position
     });
 
     it("should correctly validate PHOTO_OPEN with text answer", () => {
