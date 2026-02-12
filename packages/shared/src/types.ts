@@ -247,6 +247,7 @@ export enum WSMessageType {
 
   // Client -> Server (Host actions)
   HOST_JOIN_SESSION = "HOST_JOIN_SESSION",
+  REQUEST_SYNC = "REQUEST_SYNC", // Host requests current player list (lightweight sync)
   START_ITEM = "START_ITEM",
   LOCK_ITEM = "LOCK_ITEM",
   CANCEL_ITEM = "CANCEL_ITEM", // Cancel current item without scoring/revealing

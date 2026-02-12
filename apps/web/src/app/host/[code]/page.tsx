@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { WSMessageType, type Player as SharedPlayer, type ConnectionStatus, QuestionType } from "@partyquiz/shared";
@@ -120,6 +120,20 @@ export default function HostControlPage() {
   const [selectedHistoryItemId, setSelectedHistoryItemId] = useState<string | null>(null);
   // Answer counts per item (restored from server after page refresh)
   const [answerCountsMap, setAnswerCountsMap] = useState<Record<string, number>>({});
+
+  // Refs to access current values in event handlers
+  const currentItemAnswersRef = useRef(currentItemAnswers);
+  const allItemsRef = useRef<Array<{ id: string; questionType?: string }>>([]);
+  const currentItemIndexRef = useRef(currentItemIndex);
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    currentItemAnswersRef.current = currentItemAnswers;
+  }, [currentItemAnswers]);
+
+  useEffect(() => {
+    currentItemIndexRef.current = currentItemIndex;
+  }, [currentItemIndex]);
 
   // Use WebSocket without onMessage - we'll set up direct listeners
   const { socket, isConnected, send } = useWebSocket({
@@ -302,11 +316,27 @@ export default function HostControlPage() {
       });
     };
 
-    // Listen for item locked (auto-lock when timer expires)
-    const handleItemLocked = (data: any) => {
+    // Listen for item locked (auto-lock when timer expires or all answered)
+    const handleItemLocked = (data: { itemId: string }) => {
       console.log("[Host] ITEM_LOCKED (auto-lock):", data);
       setItemState("locked");
       setTimeRemaining(0); // Stop the countdown display
+      
+      // Mark item as completed automatically when locked
+      if (data.itemId) {
+        setCompletedItemIds(prev => new Set([...prev, data.itemId]));
+        
+        // Save current answers to history
+        const currentAnswers = currentItemAnswersRef.current;
+        if (currentAnswers.length > 0) {
+          setAnswerHistory(prev => {
+            const updated = new Map(prev);
+            updated.set(data.itemId, [...currentAnswers]);
+            return updated;
+          });
+        }
+        console.log("[Host] Item marked as completed:", data.itemId);
+      }
     };
 
     // Listen for item cancelled
@@ -480,6 +510,14 @@ export default function HostControlPage() {
   const allItems = session?.quiz.rounds.flatMap(round => 
     round.items.map(item => ({ ...item, roundTitle: round.title }))
   ) || [];
+  
+  // Keep ref in sync for event handlers
+  useEffect(() => {
+    allItemsRef.current = allItems.map(item => ({
+      id: item.id,
+      questionType: item.question?.type,
+    }));
+  }, [allItems]);
   
   const currentItem = allItems[currentItemIndex];
   const totalItems = allItems.length;

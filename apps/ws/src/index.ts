@@ -898,7 +898,9 @@ io.on("connection", (socket: Socket) => {
           currentSocketId: socket.id
         }, "DEBUG: Room state before PLAYER_JOINED emit");
         
-        socket.to(sessionCode).emit(WSMessageType.PLAYER_JOINED, {
+        // Use io.to() instead of socket.to() to ensure ALL clients receive the event
+        // This fixes race conditions where host might not be in room yet
+        io.to(sessionCode).emit(WSMessageType.PLAYER_JOINED, {
           player: playerData,
         } satisfies PlayerJoinedEvent);
         
@@ -1016,7 +1018,8 @@ io.on("connection", (socket: Socket) => {
           score: 0,
           isOnline: true,
         };
-        socket.to(sessionCode).emit(WSMessageType.PLAYER_JOINED, { player: playerData });
+        // Use io.to() to broadcast to ALL clients including host
+        io.to(sessionCode).emit(WSMessageType.PLAYER_JOINED, { player: playerData });
 
         // Send connection status update
         const connections = getSessionConnections(sessionCode);
@@ -1116,7 +1119,8 @@ io.on("connection", (socket: Socket) => {
           score: 0,
           isOnline: true,
         };
-        socket.to(sessionCode).emit(WSMessageType.PLAYER_JOINED, { player: playerData });
+        // Use io.to() to broadcast to ALL clients including host
+        io.to(sessionCode).emit(WSMessageType.PLAYER_JOINED, { player: playerData });
 
         // Send connection status update
         const connections = getSessionConnections(sessionCode);
@@ -1291,6 +1295,63 @@ io.on("connection", (socket: Socket) => {
       } catch (error) {
         logger.error({ error }, "Error joining session as host");
         socket.emit("error", { message: "Failed to join session as host" });
+      }
+    }
+  );
+
+  // Lightweight sync - host requests current player list (used for periodic sync)
+  socket.on(
+    WSMessageType.REQUEST_SYNC,
+    async (data: { sessionCode: string }) => {
+      try {
+        const { sessionCode } = data;
+        
+        // Only hosts should request sync
+        if (!socket.data.isHost) {
+          return;
+        }
+
+        // Get current players from database with scores
+        const session = await prisma.liveSession.findUnique({
+          where: { code: sessionCode },
+          include: { players: true },
+        });
+
+        if (!session) return;
+
+        // Get player scores
+        const playerScores = await prisma.liveAnswer.groupBy({
+          by: ['playerId'],
+          where: { sessionId: session.id },
+          _sum: { score: true },
+        });
+        const scoreMap = new Map(playerScores.map(p => [p.playerId, p._sum.score || 0]));
+
+        // Get connection status
+        const sessionConns = sessionConnections.get(sessionCode);
+
+        const players = session.players.map((p) => {
+          const connection = sessionConns?.get(p.id);
+          return {
+            id: p.id,
+            name: p.name,
+            avatar: p.avatar,
+            score: scoreMap.get(p.id) || 0,
+            isOnline: connection?.isOnline ?? false,
+            connectionQuality: connection ? getConnectionQuality(connection) : 'unknown',
+          };
+        });
+
+        // Send lightweight sync response
+        socket.emit("SYNC_RESPONSE", {
+          players,
+          playerCount: players.length,
+          timestamp: Date.now(),
+        });
+
+        logger.debug({ sessionCode, playerCount: players.length }, "Sync response sent to host");
+      } catch (error) {
+        logger.error({ error }, "Error handling sync request");
       }
     }
   );

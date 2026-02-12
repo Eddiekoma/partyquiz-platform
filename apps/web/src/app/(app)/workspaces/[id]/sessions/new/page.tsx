@@ -36,7 +36,8 @@ export default function NewSessionPage({ params }: NewSessionPageProps) {
         const res = await fetch(`/api/workspaces/${resolvedParams.id}/quizzes`);
         if (!res.ok) throw new Error("Failed to load quizzes");
         const data = await res.json();
-        setQuizzes(data);
+        // API returns { quizzes, pagination }, extract the quizzes array
+        setQuizzes(data.quizzes || []);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load quizzes");
       } finally {
