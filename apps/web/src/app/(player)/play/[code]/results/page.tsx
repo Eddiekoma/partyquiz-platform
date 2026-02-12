@@ -21,32 +21,67 @@ export default function ResultsPage() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [myRank, setMyRank] = useState<number | null>(null);
   const [myStats, setMyStats] = useState<LeaderboardEntry | null>(null);
+  const [playerId, setPlayerId] = useState<string | null>(null);
 
   const { socket, isConnected } = useWebSocket();
+
+  // Get player info from localStorage
+  useEffect(() => {
+    const storedPlayer = localStorage.getItem(`player-${code.toUpperCase()}`);
+    if (storedPlayer) {
+      const player = JSON.parse(storedPlayer);
+      setPlayerId(player.id);
+    }
+    
+    // Check for cached leaderboard from SESSION_ENDED event (immediate display)
+    const cachedLeaderboard = sessionStorage.getItem(`finalLeaderboard-${code.toUpperCase()}`);
+    if (cachedLeaderboard) {
+      try {
+        const parsed = JSON.parse(cachedLeaderboard);
+        console.log("[Results] Using cached leaderboard:", parsed);
+        updateLeaderboardState(parsed);
+      } catch (e) {
+        console.error("[Results] Failed to parse cached leaderboard:", e);
+      }
+    }
+  }, [code]);
+
+  // Helper function to update leaderboard state
+  const updateLeaderboardState = (data: LeaderboardEntry[]) => {
+    setLeaderboard(data);
+    
+    // Find my stats - try by playerId first, then by name
+    const storedPlayer = localStorage.getItem(`player-${code.toUpperCase()}`);
+    const myPlayerId = storedPlayer ? JSON.parse(storedPlayer).id : null;
+    const playerName = sessionStorage.getItem("playerName");
+    
+    let myEntry = null;
+    if (myPlayerId) {
+      myEntry = data.find((entry: LeaderboardEntry) => entry.playerId === myPlayerId);
+    }
+    if (!myEntry && playerName) {
+      myEntry = data.find((entry: LeaderboardEntry) => entry.playerName === playerName);
+    }
+    
+    if (myEntry) {
+      setMyStats(myEntry);
+      setMyRank(data.indexOf(myEntry) + 1);
+    }
+  };
 
   useEffect(() => {
     if (!socket || !isConnected) return;
 
-    // Request final leaderboard
+    // Request final leaderboard (will update/replace cached data)
     socket.emit("GET_LEADERBOARD", {
       sessionCode: code.toUpperCase(),
     });
 
     // Listen for leaderboard update
     socket.on("LEADERBOARD_UPDATE", (data: any) => {
-      console.log("[Results] Leaderboard:", data);
-      setLeaderboard(data.leaderboard || []);
-
-      // Find my stats
-      const playerName = sessionStorage.getItem("playerName");
-      if (playerName) {
-        const myEntry = data.leaderboard?.find(
-          (entry: LeaderboardEntry) => entry.playerName === playerName
-        );
-        if (myEntry) {
-          setMyStats(myEntry);
-          setMyRank(data.leaderboard.indexOf(myEntry) + 1);
-        }
+      console.log("[Results] Leaderboard from server:", data);
+      if (data.leaderboard) {
+        updateLeaderboardState(data.leaderboard);
       }
     });
 
@@ -89,7 +124,7 @@ export default function ResultsPage() {
               </p>
               {myStats && (
                 <p className="text-lg text-white/90">
-                  {myStats.totalScore} points • {myStats.correctAnswers} correct
+                  {myStats.totalScore} points
                 </p>
               )}
             </div>
@@ -109,7 +144,10 @@ export default function ResultsPage() {
             ) : (
               leaderboard.map((entry, index) => {
                 const rank = index + 1;
-                const isMe = entry.playerName === sessionStorage.getItem("playerName");
+                // Check by playerId first (more reliable), then by name
+                const storedPlayer = localStorage.getItem(`player-${code.toUpperCase()}`);
+                const myPlayerId = storedPlayer ? JSON.parse(storedPlayer).id : null;
+                const isMe = myPlayerId ? entry.playerId === myPlayerId : entry.playerName === sessionStorage.getItem("playerName");
 
                 return (
                   <div
@@ -133,15 +171,11 @@ export default function ResultsPage() {
                     {/* Avatar */}
                     <div className="text-4xl">{entry.avatar}</div>
 
-                    {/* Name & Stats */}
+                    {/* Name */}
                     <div className="flex-1">
                       <p className="text-xl font-black text-white">
                         {entry.playerName}
                         {isMe && " (You)"}
-                      </p>
-                      <p className="text-sm text-white/80">
-                        {entry.correctAnswers} correct
-                        {entry.maxStreak > 1 && ` • ${entry.maxStreak}x streak`}
                       </p>
                     </div>
 

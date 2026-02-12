@@ -732,7 +732,24 @@ function schedulePlayerDisconnect(
       const player = await prisma.livePlayer.update({
         where: { id: playerId },
         data: { leftAt: new Date() },
+        include: {
+          session: { select: { id: true } },
+          _count: { select: { answers: true } },
+        },
       });
+      
+      // Get player's score from Redis or calculate from answers
+      const cachedPlayer = await getPlayer(sessionCode, playerId);
+      let playerScore = cachedPlayer?.score || 0;
+      
+      // If no cached score, calculate from database
+      if (!playerScore && player._count.answers > 0) {
+        const scoreResult = await prisma.liveAnswer.aggregate({
+          where: { playerId, sessionId: player.session.id },
+          _sum: { score: true },
+        });
+        playerScore = scoreResult._sum.score || 0;
+      }
       
       // Remove from Redis active players
       await removeActivePlayer(sessionCode, playerId);
@@ -743,10 +760,13 @@ function schedulePlayerDisconnect(
         connections.delete(playerId);
       }
       
-      // Notify others in the session
+      // Notify others in the session - include hasAnswers, score, avatar for host UI
       io.to(sessionCode).emit(WSMessageType.PLAYER_LEFT, {
         playerId: player.id,
         name: player.name,
+        avatar: player.avatar,
+        score: playerScore,
+        hasAnswers: player._count.answers > 0,
       });
       
       // Send updated connection status
@@ -755,7 +775,7 @@ function schedulePlayerDisconnect(
         connections: updatedConnections,
       });
       
-      logger.info({ playerId, sessionCode }, "Player removed after grace period");
+      logger.info({ playerId, sessionCode, hasAnswers: player._count.answers > 0, score: playerScore }, "Player removed after grace period");
     } catch (error) {
       logger.error({ error, playerId, sessionCode }, "Error removing player after grace period");
     }
@@ -1323,12 +1343,11 @@ io.on("connection", (socket: Socket) => {
         const { sessionCode } = data;
         logger.info({ sessionCode, socketId: socket.id }, "Host joining session room");
 
-        // Validate session exists
+        // Validate session exists - get BOTH active and left players
         const session = await prisma.liveSession.findUnique({
           where: { code: sessionCode },
           include: {
             players: {
-              where: { leftAt: null },
               orderBy: { joinedAt: "asc" },
             },
           },
@@ -1342,6 +1361,10 @@ io.on("connection", (socket: Socket) => {
           });
           return;
         }
+        
+        // Separate active and left players
+        const activePlayers = session.players.filter(p => p.leftAt === null);
+        const leftPlayers = session.players.filter(p => p.leftAt !== null);
 
         // Join socket room
         socket.join(sessionCode);
@@ -1423,7 +1446,21 @@ io.on("connection", (socket: Socket) => {
           const options = answer.quizItem.question?.options || [];
           // FIX: Database column is 'payloadJson', not 'answer'
           const rawPayload = answer.payloadJson;
-          const parsedAnswer = typeof rawPayload === 'string' ? JSON.parse(rawPayload) : rawPayload;
+          
+          // Safely parse the answer - might be JSON string, plain string, number, or already parsed
+          let parsedAnswer: any;
+          if (typeof rawPayload === 'string') {
+            // Try to parse as JSON, but if it fails, use the raw string
+            // (Open text answers are stored as plain strings, not JSON)
+            try {
+              parsedAnswer = JSON.parse(rawPayload);
+            } catch {
+              // Not valid JSON - use as-is (e.g., open text answer like "Jaapi")
+              parsedAnswer = rawPayload;
+            }
+          } else {
+            parsedAnswer = rawPayload;
+          }
           
           // Format the answer display using the same logic as PLAYER_ANSWERED
           const formatted = formatAnswerForDisplay(questionType, parsedAnswer, options);
@@ -1454,6 +1491,17 @@ io.on("connection", (socket: Socket) => {
           });
         }
 
+        // Filter left players who have answers (they can rejoin)
+        const leftPlayersWithAnswers = leftPlayers
+          .filter(p => scoreMap.has(p.id) || allAnswers.some(a => a.playerId === p.id))
+          .map(p => ({
+            id: p.id,
+            name: p.name,
+            avatar: p.avatar,
+            score: scoreMap.get(p.id) || 0,
+            leftAt: p.leftAt?.getTime() || Date.now(),
+          }));
+
         // Send current session state to host
         socket.emit(WSMessageType.SESSION_STATE, {
           sessionId: session.id,
@@ -1463,7 +1511,8 @@ io.on("connection", (socket: Socket) => {
           completedItemIds, // NEW: items that have answers
           answerCounts: answerCountMap, // NEW: answer count per item
           answerHistory: answerHistoryMap, // NEW: full answer history for restoration
-          players: session.players.map((p) => {
+          leftPlayersWithAnswers, // NEW: left players who have answers (for rejoin UI)
+          players: activePlayers.map((p) => {
             // Check if player has an active connection
             const sessionConns = sessionConnections.get(sessionCode);
             const connection = sessionConns?.get(p.id);
@@ -1484,9 +1533,14 @@ io.on("connection", (socket: Socket) => {
           connections,
         });
 
-        logger.info({ sessionCode }, "Host joined session room successfully");
+        logger.info({ sessionCode, leftPlayersWithAnswers: leftPlayersWithAnswers.length }, "Host joined session room successfully");
       } catch (error) {
-        logger.error({ error }, "Error joining session as host");
+        const err = error as Error;
+        logger.error({ 
+          errorMessage: err?.message, 
+          errorStack: err?.stack,
+          errorName: err?.name,
+        }, "Error joining session as host");
         socket.emit("error", { message: "Failed to join session as host" });
       }
     }
@@ -1676,6 +1730,11 @@ io.on("connection", (socket: Socket) => {
               logger.warn({ playerId }, "No shuffled options in Redis, using DB order");
             }
 
+            // Calculate timerEndsAt for proper client sync
+            const timerEndsAt = itemStartedAt && timerDuration 
+              ? parseInt(itemStartedAt) + parseInt(timerDuration) * 1000 
+              : Date.now() + remainingMs;
+
             // Send item started event
             socket.emit(WSMessageType.ITEM_STARTED, {
               itemId: item.id,
@@ -1685,18 +1744,30 @@ io.on("connection", (socket: Socket) => {
               options: optionsToSend,
               mediaUrl: item.question.media?.[0]?.reference || null,
               timerDuration: Math.ceil(remainingMs / 1000), // Remaining seconds
+              timerEndsAt: timerEndsAt, // Absolute timestamp for accurate sync
             });
 
-            // If item is locked or player already answered, send locked state immediately after
+            // If item is locked, send locked state
             if (itemLockedAt || remainingMs === 0) {
               socket.emit(WSMessageType.ITEM_LOCKED, {
                 itemId: currentItemId,
                 autoLocked: true,
               });
               logger.info({ playerId, currentItemId }, "Item already locked - sent ITEM_LOCKED to rejoining player");
+              
+              // ALSO send answer status if player already answered (important for score display!)
+              if (existingAnswer) {
+                socket.emit(WSMessageType.ANSWER_RECEIVED, {
+                  playerId,
+                  itemId: currentItemId,
+                  isCorrect: existingAnswer.isCorrect,
+                  score: existingAnswer.score,
+                  alreadyAnswered: true,
+                });
+                logger.info({ playerId, currentItemId, score: existingAnswer.score }, "Sent existing answer status to rejoining player (item locked)");
+              }
             } else if (existingAnswer) {
-              // Player already answered - they shouldn't be able to answer again
-              // Send a custom event or use ANSWER_RECEIVED to indicate already answered
+              // Item NOT locked, but player already answered - lock for this player only
               socket.emit(WSMessageType.ANSWER_RECEIVED, {
                 playerId,
                 itemId: currentItemId,
@@ -1709,6 +1780,14 @@ io.on("connection", (socket: Socket) => {
 
             logger.info({ playerId, currentItemId, remainingMs, alreadyAnswered: !!existingAnswer, isLocked: !!itemLockedAt }, "Sent current item state to rejoining player");
           }
+        }
+
+        // Check if scoreboard is currently active and send to rejoining player
+        const scoreboardState = await redis.get(`session:${sessionCode}:scoreboardActive`);
+        if (scoreboardState) {
+          const scoreboardData = JSON.parse(scoreboardState);
+          socket.emit("SHOW_SCOREBOARD", scoreboardData);
+          logger.info({ playerId, sessionCode }, "Sent active scoreboard to rejoining player");
         }
 
         logger.info({ playerId, sessionCode }, "Player rejoined session successfully");
@@ -1747,6 +1826,18 @@ io.on("connection", (socket: Socket) => {
         if (!session) {
           socket.emit(WSMessageType.ERROR, { message: "Session not found" });
           return;
+        }
+
+        // CLEAN UP: Delete any existing answers for this item (allows restart)
+        // This ensures a question can be restarted without needing to cancel first
+        const deletedAnswers = await prisma.liveAnswer.deleteMany({
+          where: {
+            sessionId: session.id,
+            quizItemId: itemId,
+          },
+        });
+        if (deletedAnswers.count > 0) {
+          logger.info({ sessionCode, itemId, deletedCount: deletedAnswers.count }, "Cleared previous answers for restarted item");
         }
 
         // Get QuizItem with full question data including options and media
@@ -2198,7 +2289,7 @@ io.on("connection", (socket: Socket) => {
         where: { code: sessionCode },
         include: {
           players: {
-            where: { leftAt: null }, // Only active players
+            // Include all players (not just active) - scores should be shown even after session ends
             include: {
               answers: {
                 select: { score: true },
@@ -2233,6 +2324,14 @@ io.on("connection", (socket: Socket) => {
         displayedPlayers = leaderboard.slice(0, 10);
       }
 
+      // Store scoreboard state in Redis for rejoin sync
+      await redis.set(
+        `session:${sessionCode}:scoreboardActive`,
+        JSON.stringify({ displayType, leaderboard: displayedPlayers, totalPlayers: leaderboard.length }),
+        "EX",
+        3600
+      );
+
       // Broadcast to all clients in session
       io.to(sessionCode).emit("SHOW_SCOREBOARD", {
         displayType,
@@ -2252,6 +2351,9 @@ io.on("connection", (socket: Socket) => {
     try {
       const { sessionCode } = data;
       logger.info({ sessionCode }, "Host hiding scoreboard");
+
+      // Clear scoreboard state from Redis
+      await redis.del(`session:${sessionCode}:scoreboardActive`);
 
       // Broadcast to all clients in session
       io.to(sessionCode).emit("HIDE_SCOREBOARD", {
@@ -2792,36 +2894,117 @@ io.on("connection", (socket: Socket) => {
         },
       });
 
-      // Calculate final scores from answers
+      // Calculate final scores from answers with additional stats
       const players = await prisma.livePlayer.findMany({
         where: { sessionId: session.id },
         include: {
           answers: {
             select: {
               score: true,
+              isCorrect: true,
             },
           },
         },
       });
 
-      const finalScores = players
+      // Build leaderboard with stats
+      const leaderboard = players
         .map((p) => ({
-          id: p.id,
-          name: p.name,
-          score: p.answers.reduce((sum, a) => sum + a.score, 0),
+          playerId: p.id,
+          playerName: p.name,
+          avatar: p.avatar || "👤",
+          totalScore: p.answers.reduce((sum, a) => sum + a.score, 0),
+          correctAnswers: p.answers.filter((a) => a.isCorrect === true).length,
+          maxStreak: 0, // Could calculate if we had answeredAt ordering
         }))
-        .sort((a, b) => b.score - a.score);
+        .sort((a, b) => b.totalScore - a.totalScore);
+
+      // Also keep legacy finalScores format for backward compatibility
+      const finalScores = leaderboard.map((p) => ({
+        id: p.playerId,
+        name: p.playerName,
+        score: p.totalScore,
+      }));
+
+      // Store final leaderboard in Redis for GET_LEADERBOARD requests
+      await redis.set(
+        `session:${sessionCode}:finalLeaderboard`,
+        JSON.stringify(leaderboard),
+        { ex: 3600 } // Expire after 1 hour
+      );
 
       io.to(sessionCode).emit(WSMessageType.SESSION_ENDED, {
         sessionId: session.id,
         endedAt: Date.now(),
         finalScores,
+        leaderboard, // Include leaderboard in correct format
       });
 
       logger.info({ sessionCode, playerCount: players.length }, "Session ended");
     } catch (error) {
       logger.error({ error }, "Error ending session");
       socket.emit("error", { message: "Failed to end session" });
+    }
+  });
+
+  // Player requests leaderboard (for results page after session ends)
+  socket.on("GET_LEADERBOARD", async (data: { sessionCode: string }) => {
+    try {
+      const { sessionCode } = data;
+      logger.info({ sessionCode, socketId: socket.id }, "Player requesting leaderboard");
+
+      // First, try to get cached final leaderboard from Redis
+      const cachedLeaderboard = await redis.get(`session:${sessionCode}:finalLeaderboard`);
+      if (cachedLeaderboard) {
+        const leaderboard = JSON.parse(cachedLeaderboard);
+        socket.emit(WSMessageType.LEADERBOARD_UPDATE, {
+          leaderboard,
+        });
+        logger.info({ sessionCode, playerCount: leaderboard.length }, "Sent cached final leaderboard");
+        return;
+      }
+
+      // If no cache, calculate from database
+      const session = await prisma.liveSession.findUnique({
+        where: { code: sessionCode },
+      });
+
+      if (!session) {
+        socket.emit("error", { message: "Session not found" });
+        return;
+      }
+
+      const players = await prisma.livePlayer.findMany({
+        where: { sessionId: session.id },
+        include: {
+          answers: {
+            select: {
+              score: true,
+              isCorrect: true,
+            },
+          },
+        },
+      });
+
+      const leaderboard = players
+        .map((p) => ({
+          playerId: p.id,
+          playerName: p.name,
+          avatar: p.avatar || "👤",
+          totalScore: p.answers.reduce((sum, a) => sum + a.score, 0),
+          correctAnswers: p.answers.filter((a) => a.isCorrect === true).length,
+          maxStreak: 0,
+        }))
+        .sort((a, b) => b.totalScore - a.totalScore);
+
+      socket.emit(WSMessageType.LEADERBOARD_UPDATE, {
+        leaderboard,
+      });
+
+      logger.info({ sessionCode, playerCount: leaderboard.length }, "Sent calculated leaderboard");
+    } catch (error) {
+      logger.error({ error }, "Error getting leaderboard");
+      socket.emit("error", { message: "Failed to get leaderboard" });
     }
   });
 
@@ -3005,14 +3188,31 @@ io.on("connection", (socket: Socket) => {
 
       logger.info({ sessionCode, playerId, reason }, "Host kicking player");
 
-      // Find the player
+      // Find the player with answer count
       const player = await prisma.livePlayer.findUnique({
         where: { id: playerId },
+        include: {
+          session: { select: { id: true } },
+          _count: { select: { answers: true } },
+        },
       });
 
       if (!player) {
         socket.emit(WSMessageType.ERROR, { message: "Player not found" });
         return;
+      }
+      
+      // Get player's score from Redis or calculate from answers
+      const cachedPlayer = await getPlayer(sessionCode, playerId);
+      let playerScore = cachedPlayer?.score || 0;
+      
+      // If no cached score, calculate from database
+      if (!playerScore && player._count.answers > 0) {
+        const scoreResult = await prisma.liveAnswer.aggregate({
+          where: { playerId, sessionId: player.session.id },
+          _sum: { score: true },
+        });
+        playerScore = scoreResult._sum.score || 0;
       }
 
       // Mark player as left in database
@@ -3041,10 +3241,13 @@ io.on("connection", (socket: Socket) => {
         }, 100);
       }
 
-      // Notify all other clients that player left
+      // Notify all other clients that player left - include hasAnswers, score, avatar for host UI
       socket.to(sessionCode).emit(WSMessageType.PLAYER_LEFT, {
         playerId: player.id,
         name: player.name,
+        avatar: player.avatar,
+        score: playerScore,
+        hasAnswers: player._count.answers > 0,
         kicked: true,
       });
 

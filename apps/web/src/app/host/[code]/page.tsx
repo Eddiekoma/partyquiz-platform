@@ -83,6 +83,14 @@ export default function HostControlPage() {
   // Rejoin token state
   const [rejoinTokens, setRejoinTokens] = useState<Map<string, string>>(new Map());
   const [generatingToken, setGeneratingToken] = useState<string | null>(null);
+  // Left players who have answers (can rejoin)
+  const [leftPlayers, setLeftPlayers] = useState<Array<{
+    id: string;
+    name: string;
+    avatar?: string | null;
+    score: number;
+    leftAt: number;
+  }>>([]);
   // Answer panel state
   const [currentItemAnswers, setCurrentItemAnswers] = useState<Array<{
     itemId: string;
@@ -193,6 +201,11 @@ export default function HostControlPage() {
         }
         setAnswerHistory(restoredHistory);
       }
+      // Restore left players with answers (after page refresh)
+      if (data.leftPlayersWithAnswers && Array.isArray(data.leftPlayersWithAnswers)) {
+        console.log("[Host] Restoring leftPlayersWithAnswers:", data.leftPlayersWithAnswers.length);
+        setLeftPlayers(data.leftPlayersWithAnswers);
+      }
     };
 
     // Listen for player joined - handle both nested and flat structure
@@ -201,8 +214,9 @@ export default function HostControlPage() {
       // Support both { player: {...} } and flat { id, name, ... } format
       const playerData = data.player || data;
       if (playerData && (playerData.id || playerData.playerId)) {
+        const playerId = playerData.id || playerData.playerId;
         const newPlayer: Player = {
-          id: playerData.id || playerData.playerId,
+          id: playerId,
           name: playerData.name,
           avatar: playerData.avatar || null,
           score: playerData.score || 0,
@@ -212,6 +226,8 @@ export default function HostControlPage() {
           ...prev,
           players: [...prev.players.filter(p => p.id !== newPlayer.id), newPlayer]
         } : null);
+        // Remove from leftPlayers if they rejoined
+        setLeftPlayers(prev => prev.filter(p => p.id !== playerId));
       }
     };
 
@@ -219,10 +235,41 @@ export default function HostControlPage() {
     const handlePlayerLeft = (data: any) => {
       console.log("[Host] PLAYER_LEFT received:", data);
       if (data.playerId) {
-        setSession(prev => prev ? {
-          ...prev,
-          players: prev.players.filter(p => p.id !== data.playerId)
-        } : null);
+        // If player has answers, move to leftPlayers instead of removing completely
+        if (data.hasAnswers) {
+          // Get the player data before removing from session
+          setSession(prev => {
+            if (!prev) return null;
+            const leavingPlayer = prev.players.find(p => p.id === data.playerId);
+            // Add to leftPlayers with the data from the event or session
+            const leftPlayer = {
+              id: data.playerId,
+              name: data.name || leavingPlayer?.name || 'Unknown',
+              avatar: data.avatar || leavingPlayer?.avatar || null,
+              score: data.score ?? leavingPlayer?.score ?? 0,
+              leftAt: Date.now(),
+            };
+            // Schedule the leftPlayers update
+            setTimeout(() => {
+              setLeftPlayers(current => {
+                // Avoid duplicates
+                if (current.some(p => p.id === leftPlayer.id)) return current;
+                return [...current, leftPlayer];
+              });
+            }, 0);
+            // Remove from active players
+            return {
+              ...prev,
+              players: prev.players.filter(p => p.id !== data.playerId)
+            };
+          });
+        } else {
+          // No answers - just remove completely
+          setSession(prev => prev ? {
+            ...prev,
+            players: prev.players.filter(p => p.id !== data.playerId)
+          } : null);
+        }
         // Also remove from live status
         setLiveConnectionStatus(prev => {
           const newMap = new Map(prev);
@@ -997,6 +1044,50 @@ export default function HostControlPage() {
               </div>
             )}
           </div>
+
+          {/* Left Players Section - players who left but have answers */}
+          {leftPlayers.length > 0 && (
+            <div className="mt-6 pt-4 border-t border-slate-700">
+              <h3 className="text-sm font-semibold text-slate-500 uppercase mb-3 flex items-center gap-2">
+                <span>📴</span>
+                <span>Verlaten ({leftPlayers.length})</span>
+              </h3>
+              <p className="text-xs text-slate-500 mb-3">
+                Spelers die weg zijn maar punten hebben behaald
+              </p>
+              <div className="space-y-2">
+                {leftPlayers
+                  .sort((a, b) => b.score - a.score)
+                  .map((player) => (
+                    <div 
+                      key={player.id}
+                      className="flex items-center gap-3 bg-slate-800/50 rounded-lg px-3 py-2 group opacity-60 hover:opacity-100 transition-opacity"
+                    >
+                      <span className="text-xl grayscale">{player.avatar || "👤"}</span>
+                      <div className="flex-1 min-w-0 overflow-hidden">
+                        <p className="font-medium text-sm text-slate-400" title={player.name}>{player.name}</p>
+                      </div>
+                      <span className="font-mono font-bold flex-shrink-0 text-slate-400">
+                        {player.score}
+                      </span>
+                      <span 
+                        className="w-2 h-2 rounded-full flex-shrink-0 bg-slate-500"
+                        title="Verlaten sessie"
+                      />
+                      <button
+                        onClick={() => generateRejoinLink(player.id)}
+                        disabled={generatingToken === player.id}
+                        className="p-1 text-blue-400 hover:text-blue-300 hover:bg-blue-900/30 rounded transition-all"
+                        title="Genereer rejoin link"
+                      >
+                        {generatingToken === player.id ? "⏳" : "🔗"}
+                      </button>
+                    </div>
+                  ))
+                }
+              </div>
+            </div>
+          )}
         </aside>
 
         {/* Main Content - Current Item & Controls */}
@@ -1052,27 +1143,6 @@ export default function HostControlPage() {
                   {itemState === "locked" && "Locked"}
                   {itemState === "revealed" && "Revealed"}
                 </span>
-                
-                {/* View History button for completed questions */}
-                {completedItemIds.has(currentItem.id) && answerHistory.has(currentItem.id) && itemState === "idle" && (
-                  <button
-                    onClick={() => {
-                      if (selectedHistoryItemId === currentItem.id) {
-                        setSelectedHistoryItemId(null);
-                      } else {
-                        setSelectedHistoryItemId(currentItem.id);
-                        setShowAnswerPanel(true);
-                      }
-                    }}
-                    className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                      selectedHistoryItemId === currentItem.id 
-                        ? "bg-blue-600 text-white" 
-                        : "bg-slate-700 text-slate-300 hover:bg-slate-600"
-                    }`}
-                  >
-                    📊 {selectedHistoryItemId === currentItem.id ? "Verberg" : "Bekijk"} Antwoorden ({answerHistory.get(currentItem.id)?.length || 0})
-                  </button>
-                )}
               </div>
 
               {/* Question Content */}
@@ -1271,12 +1341,25 @@ export default function HostControlPage() {
               {currentItem?.itemType === "QUESTION" && (
                 <>
                   {itemState === "idle" && (
-                    <button
-                      onClick={startItem}
-                      className="px-6 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-medium transition-colors"
-                    >
-                      ▶️ Start Question
-                    </button>
+                    <>
+                      <button
+                        onClick={startItem}
+                        className="px-6 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-medium transition-colors"
+                      >
+                        ▶️ Start Question
+                      </button>
+                      
+                      {/* Re-reveal button for completed questions */}
+                      {completedItemIds.has(currentItem.id) && (
+                        <button
+                          onClick={revealAnswers}
+                          className="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition-colors"
+                          title="Show answers again on display/player screens"
+                        >
+                          👁️ Re-reveal Answers
+                        </button>
+                      )}
+                    </>
                   )}
                   
                   {itemState === "active" && (

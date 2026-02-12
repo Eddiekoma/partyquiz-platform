@@ -11,6 +11,8 @@ interface AvailablePlayer {
   avatar: string | null;
   isYou: boolean;
   isAvailable: boolean;
+  isLeft?: boolean;      // Player left but can rejoin (has answers)
+  hasAnswers?: boolean;  // Player has answered at least one question
 }
 
 interface SessionInfo {
@@ -93,9 +95,27 @@ export default function PlayerNamePage() {
       const data: SessionInfo = await res.json();
       setSessionInfo(data);
 
-      // 3. Check if this device is already a player
+      // 3. Check if this device is already a player (active or left)
       if (data.currentPlayer) {
-        // Auto-rejoin: device recognized
+        // Check if the matched player is a "left" player who needs to be reclaimed
+        const matchedPlayer = data.players.find(p => p.id === data.currentPlayer!.id);
+        
+        if (matchedPlayer?.isLeft) {
+          // Player left but device recognized - need to reclaim first
+          const claimRes = await fetch(`/api/sessions/code/${code.toUpperCase()}/claim`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ playerId: data.currentPlayer.id, deviceIdHash: deviceId }),
+          });
+          
+          if (!claimRes.ok) {
+            // Claim failed, show selection screen
+            setMode("select-player");
+            return;
+          }
+        }
+        
+        // Auto-rejoin: device recognized (active or successfully reclaimed)
         sessionStorage.setItem("playerName", data.currentPlayer.name);
         sessionStorage.setItem("playerAvatar", data.players.find(p => p.id === data.currentPlayer!.id)?.avatar || "🎮");
         localStorage.setItem(`player-${code.toUpperCase()}`, JSON.stringify({
@@ -107,9 +127,11 @@ export default function PlayerNamePage() {
         return;
       }
 
-      // 4. Check if there are unclaimed players to select from
+      // 4. Check if there are claimable players (unclaimed OR left players who can rejoin)
       const availablePlayers = data.players.filter(p => p.isAvailable && !p.isYou);
-      if (availablePlayers.length > 0 && data.status !== "LOBBY") {
+      const leftPlayersWithAnswers = data.players.filter(p => p.isLeft && p.hasAnswers);
+      
+      if ((availablePlayers.length > 0 || leftPlayersWithAnswers.length > 0) && data.status !== "LOBBY") {
         // Session already started, show player selection
         setMode("select-player");
       } else {
@@ -230,7 +252,9 @@ export default function PlayerNamePage() {
 
   // Select existing player mode
   if (mode === "select-player" && sessionInfo) {
-    const availablePlayers = sessionInfo.players.filter(p => p.isAvailable);
+    // Separate active and left players
+    const activePlayers = sessionInfo.players.filter(p => p.isAvailable && !p.isLeft);
+    const leftPlayers = sessionInfo.players.filter(p => p.isLeft && p.hasAnswers);
     
     return (
       <div className="flex-1 flex items-center justify-center p-4">
@@ -243,23 +267,58 @@ export default function PlayerNamePage() {
 
           <div className="bg-white rounded-3xl shadow-2xl p-6">
             <div className="space-y-3 max-h-80 overflow-y-auto mb-4">
-              {availablePlayers.map((player) => (
-                <button
-                  key={player.id}
-                  onClick={() => setSelectedPlayerId(player.id)}
-                  className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all ${
-                    selectedPlayerId === player.id
-                      ? "bg-purple-100 ring-4 ring-purple-500"
-                      : "bg-gray-50 hover:bg-gray-100"
-                  }`}
-                >
-                  <span className="text-3xl">{player.avatar || "👤"}</span>
-                  <span className="text-lg font-bold text-gray-900">{player.name}</span>
-                  {selectedPlayerId === player.id && (
-                    <span className="ml-auto text-purple-600">✓</span>
+              {/* Left players who can rejoin - shown first with special styling */}
+              {leftPlayers.length > 0 && (
+                <>
+                  <p className="text-sm font-semibold text-orange-600 px-2">🔄 Rejoin the game:</p>
+                  {leftPlayers.map((player) => (
+                    <button
+                      key={player.id}
+                      onClick={() => setSelectedPlayerId(player.id)}
+                      className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all border-2 ${
+                        selectedPlayerId === player.id
+                          ? "bg-orange-100 ring-4 ring-orange-500 border-orange-500"
+                          : "bg-orange-50 hover:bg-orange-100 border-orange-200"
+                      }`}
+                    >
+                      <span className="text-3xl">{player.avatar || "👤"}</span>
+                      <div className="flex flex-col items-start">
+                        <span className="text-lg font-bold text-gray-900">{player.name}</span>
+                        <span className="text-xs text-orange-600">Tap to rejoin</span>
+                      </div>
+                      {selectedPlayerId === player.id && (
+                        <span className="ml-auto text-orange-600">✓</span>
+                      )}
+                    </button>
+                  ))}
+                </>
+              )}
+              
+              {/* Active unclaimed players */}
+              {activePlayers.length > 0 && (
+                <>
+                  {leftPlayers.length > 0 && (
+                    <p className="text-sm font-semibold text-gray-500 px-2 pt-2">Or select:</p>
                   )}
-                </button>
-              ))}
+                  {activePlayers.map((player) => (
+                    <button
+                      key={player.id}
+                      onClick={() => setSelectedPlayerId(player.id)}
+                      className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all ${
+                        selectedPlayerId === player.id
+                          ? "bg-purple-100 ring-4 ring-purple-500"
+                          : "bg-gray-50 hover:bg-gray-100"
+                      }`}
+                    >
+                      <span className="text-3xl">{player.avatar || "👤"}</span>
+                      <span className="text-lg font-bold text-gray-900">{player.name}</span>
+                      {selectedPlayerId === player.id && (
+                        <span className="ml-auto text-purple-600">✓</span>
+                      )}
+                    </button>
+                  ))}
+                </>
+              )}
             </div>
 
             {error && (

@@ -42,24 +42,37 @@ export async function POST(
       );
     }
 
-    // Find the player
+    // Find the player (including left players who can rejoin)
     const player = await prisma.livePlayer.findFirst({
       where: {
         id: playerId,
         sessionId: session.id,
-        leftAt: null,
+      },
+      include: {
+        _count: {
+          select: { answers: true },
+        },
       },
     });
 
     if (!player) {
       return NextResponse.json(
-        { error: "Player not found or no longer active" },
+        { error: "Player not found" },
         { status: 404 }
       );
     }
 
-    // Check if player is already claimed by another device
-    if (player.deviceIdHash && player.deviceIdHash !== deviceIdHash) {
+    // If player left and has no answers, they can't rejoin (didn't participate)
+    if (player.leftAt && player._count.answers === 0) {
+      return NextResponse.json(
+        { error: "This player slot is no longer available" },
+        { status: 410 }
+      );
+    }
+
+    // Check if player is already claimed by another device (only for active players)
+    // Left players can be reclaimed by any device
+    if (!player.leftAt && player.deviceIdHash && player.deviceIdHash !== deviceIdHash) {
       return NextResponse.json(
         { error: "This player has already been claimed by another device" },
         { status: 409 }
@@ -83,14 +96,20 @@ export async function POST(
       );
     }
 
-    // Claim the player
+    // Claim the player (and reactivate if they had left)
     const updatedPlayer = await prisma.livePlayer.update({
       where: { id: player.id },
       data: {
         deviceIdHash,
         lastActiveAt: new Date(),
+        leftAt: null, // Reactivate the player if they had left
       },
     });
+
+    // Log if this was a rejoin
+    if (player.leftAt) {
+      console.log(`[CLAIM] Player ${player.name} rejoined session after leaving`);
+    }
 
     return NextResponse.json({
       success: true,
@@ -98,6 +117,7 @@ export async function POST(
       name: updatedPlayer.name,
       avatar: updatedPlayer.avatar,
       accessToken: updatedPlayer.accessToken,
+      wasRejoined: !!player.leftAt, // Let frontend know this was a rejoin
     });
   } catch (error) {
     console.error("[POST /api/sessions/code/[code]/claim] Error:", error);

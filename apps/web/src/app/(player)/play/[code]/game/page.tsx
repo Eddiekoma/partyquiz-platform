@@ -261,8 +261,12 @@ export default function GamePage() {
     });
 
     // Listen for session ended
-    socket.on("SESSION_ENDED", () => {
-      console.log("[Player] Session ended");
+    socket.on("SESSION_ENDED", (data: any) => {
+      console.log("[Player] Session ended:", data);
+      // If leaderboard data is included, cache it for the results page
+      if (data.leaderboard) {
+        sessionStorage.setItem(`finalLeaderboard-${code.toUpperCase()}`, JSON.stringify(data.leaderboard));
+      }
       router.push(`/play/${code}/results`);
     });
 
