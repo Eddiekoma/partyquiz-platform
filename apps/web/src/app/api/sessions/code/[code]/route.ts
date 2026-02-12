@@ -68,6 +68,18 @@ export async function GET(
       );
     }
 
+    // Check if session is archived
+    if (session.status === "ARCHIVED") {
+      return NextResponse.json(
+        { 
+          error: "Session is archived",
+          message: "This session has been archived and can no longer be played. The quiz was updated after this session was created.",
+          archived: true
+        },
+        { status: 410 } // 410 Gone
+      );
+    }
+
     // Transform players to include score (from answers)
     const playersWithScores = await Promise.all(
       session.players.map(async (player) => {

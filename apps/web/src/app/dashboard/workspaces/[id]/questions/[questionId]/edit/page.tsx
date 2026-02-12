@@ -137,6 +137,36 @@ export default function EditQuestionPage() {
         setTrueFalseAnswer(trueOption?.isCorrect || true);
       }
 
+      // Load ESTIMATION answer and margin from options
+      if (question.type === "ESTIMATION" && question.options && question.options.length > 0) {
+        const estOption = question.options[0];
+        setEstimationAnswer(parseFloat(estOption.text) || 0);
+        setEstimationMargin(estOption.order || 10);
+      }
+
+      // Load ORDER items from options
+      if (question.type === "ORDER" && question.options && question.options.length > 0) {
+        const sortedOptions = question.options
+          .sort((a: any, b: any) => a.order - b.order)
+          .map((opt: any) => ({
+            text: opt.text,
+            correctOrder: opt.order,
+          }));
+        setOrderItems(sortedOptions);
+      }
+
+      // Load OPEN_TEXT answer from options
+      if (
+        (question.type === "OPEN_TEXT" ||
+          question.type === "PHOTO_OPEN" ||
+          question.type === "AUDIO_OPEN" ||
+          question.type === "VIDEO_OPEN") &&
+        question.options &&
+        question.options.length > 0
+      ) {
+        setOpenTextAnswer(question.options[0].text || "");
+      }
+
       // Load media
       if (question.media) {
         setMedia(question.media);
@@ -312,6 +342,30 @@ export default function EditQuestionPage() {
       return;
     }
 
+    // Validate ESTIMATION fields - correctAnswer must be > 0 and margin must be >= 0
+    if (selectedType === "ESTIMATION") {
+      if (!estimationAnswer || estimationAnswer <= 0) {
+        alert("Please enter a correct answer greater than 0 for estimation questions");
+        return;
+      }
+      if (estimationMargin === undefined || estimationMargin < 0) {
+        alert("Please enter a valid margin percentage (0 or higher) for estimation questions");
+        return;
+      }
+    }
+
+    // Validate correct answer for open text types
+    if (
+      (selectedType === "OPEN_TEXT" ||
+        selectedType === "PHOTO_OPEN" ||
+        selectedType === "AUDIO_OPEN" ||
+        selectedType === "VIDEO_OPEN") &&
+      !openTextAnswer.trim()
+    ) {
+      alert("Please enter the correct answer - this is required for automatic scoring with fuzzy matching");
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -340,8 +394,14 @@ export default function EditQuestionPage() {
             }));
           break;
         case "ESTIMATION":
-          // Store estimation answer in prompt for now
-          // In production, you might want a separate field
+          // Store correctAnswer in text field, margin in order field
+          questionOptions = [
+            { 
+              text: String(estimationAnswer), 
+              isCorrect: true, 
+              order: estimationMargin 
+            },
+          ];
           break;
         case "OPEN_TEXT":
         case "PHOTO_OPEN":

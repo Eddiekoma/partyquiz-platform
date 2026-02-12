@@ -18,7 +18,7 @@ export async function POST(
 
     if (!playerId || !deviceIdHash) {
       return NextResponse.json(
-        { error: "Player ID en Device ID zijn vereist" },
+        { error: "Player ID and Device ID are required" },
         { status: 400 }
       );
     }
@@ -30,14 +30,14 @@ export async function POST(
 
     if (!session) {
       return NextResponse.json(
-        { error: "Sessie niet gevonden" },
+        { error: "Session not found" },
         { status: 404 }
       );
     }
 
     if (session.status === "ENDED") {
       return NextResponse.json(
-        { error: "Deze sessie is beëindigd" },
+        { error: "This session has ended" },
         { status: 400 }
       );
     }
@@ -53,7 +53,7 @@ export async function POST(
 
     if (!player) {
       return NextResponse.json(
-        { error: "Speler niet gevonden of niet meer actief" },
+        { error: "Player not found or no longer active" },
         { status: 404 }
       );
     }
@@ -61,7 +61,7 @@ export async function POST(
     // Check if player is already claimed by another device
     if (player.deviceIdHash && player.deviceIdHash !== deviceIdHash) {
       return NextResponse.json(
-        { error: "Deze speler is al geclaimd door een ander apparaat" },
+        { error: "This player has already been claimed by another device" },
         { status: 409 }
       );
     }
@@ -78,7 +78,7 @@ export async function POST(
 
     if (existingPlayer) {
       return NextResponse.json(
-        { error: `Dit apparaat is al gekoppeld aan ${existingPlayer.name}` },
+        { error: `This device is already linked to ${existingPlayer.name}` },
         { status: 409 }
       );
     }
@@ -102,7 +102,7 @@ export async function POST(
   } catch (error) {
     console.error("[POST /api/sessions/code/[code]/claim] Error:", error);
     return NextResponse.json(
-      { error: "Fout bij claimen speler" },
+      { error: "Error claiming player" },
       { status: 500 }
     );
   }

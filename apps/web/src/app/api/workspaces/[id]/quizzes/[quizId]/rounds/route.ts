@@ -158,6 +158,20 @@ export async function DELETE(
       return NextResponse.json({ error: "Round not found" }, { status: 404 });
     }
 
+    // Get all quiz items in this round
+    const itemIds = await prisma.quizItem.findMany({
+      where: { quizRoundId: roundId },
+      select: { id: true },
+    });
+    const itemIdList = itemIds.map(item => item.id);
+
+    // Delete related LiveAnswers first (foreign key constraint)
+    if (itemIdList.length > 0) {
+      await prisma.liveAnswer.deleteMany({
+        where: { quizItemId: { in: itemIdList } },
+      });
+    }
+
     // Delete round (cascade deletes items)
     await prisma.quizRound.delete({
       where: { id: roundId },

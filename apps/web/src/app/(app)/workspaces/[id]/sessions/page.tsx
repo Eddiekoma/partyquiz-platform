@@ -76,9 +76,11 @@ function SessionCard({ session }: { session: any }) {
     ACTIVE: "bg-green-500/20 text-green-400 border-green-500/30",
     PAUSED: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
     ENDED: "bg-slate-500/20 text-slate-400 border-slate-500/30",
+    ARCHIVED: "bg-amber-500/20 text-amber-400 border-amber-500/30",
   };
 
   const statusColor = statusColors[session.status as keyof typeof statusColors] || "bg-slate-500/20 text-slate-400";
+  const isArchived = session.status === "ARCHIVED";
 
   // Calculate total items across all rounds
   const totalItems = session.quiz.rounds?.reduce(
@@ -108,6 +110,7 @@ function SessionCard({ session }: { session: any }) {
               className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full border ${statusColor}`}
             >
               {session.status === "PAUSED" && "⏸️ "}
+              {session.status === "ARCHIVED" && "📦 "}
               {session.status}
             </span>
           </div>
@@ -123,7 +126,7 @@ function SessionCard({ session }: { session: any }) {
             <span>✓ {session._count.answers} answers</span>
             {hasProgress && (
               <span className="flex items-center gap-2">
-                📊 Vraag {currentItem}/{totalItems} ({progressPercent}%)
+                📊 Question {currentItem}/{totalItems} ({progressPercent}%)
               </span>
             )}
           </div>
@@ -156,6 +159,13 @@ function SessionCard({ session }: { session: any }) {
                 : `Created ${formatDistanceToNow(new Date(session.createdAt), { addSuffix: true })}`}
             </span>
           </div>
+          
+          {/* Archived notice */}
+          {isArchived && (
+            <div className="mt-3 text-xs text-amber-400/80 bg-amber-500/10 px-3 py-1.5 rounded-md">
+              📦 This session is archived and cannot be played anymore. View only.
+            </div>
+          )}
         </Link>
 
         {/* Action Buttons */}
@@ -188,6 +198,7 @@ function StatusFilter({ currentStatus }: { currentStatus?: string }) {
     { value: "active", label: "Active" },
     { value: "paused", label: "Paused" },
     { value: "ended", label: "Ended" },
+    { value: "archived", label: "📦 Archived" },
   ];
 
   return (

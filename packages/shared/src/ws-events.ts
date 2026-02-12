@@ -258,6 +258,31 @@ export const answerCountUpdateEventSchema = z.object({
 export type AnswerCountUpdateEvent = z.infer<typeof answerCountUpdateEventSchema>;
 
 /**
+ * Player answered event (sent to host with full answer details)
+ * Allows host to see who answered what in real-time
+ */
+export const playerAnsweredEventSchema = z.object({
+  itemId: z.string(),
+  playerId: z.string(),
+  playerName: z.string(),
+  playerAvatar: z.string().nullable().optional(),
+  questionType: z.string(), // QuestionType enum value
+  // Answer display - formatted for human reading based on question type
+  answerDisplay: z.string(), // e.g. "Paris", "True", "1, 2, 3, 4", "42", "A, C"
+  // Raw answer for detailed views
+  rawAnswer: z.any(),
+  isCorrect: z.boolean().nullable(), // null for POLL type
+  score: z.number(),
+  answeredAt: z.number(), // timestamp
+  // For MC questions: which option(s) were selected
+  selectedOptionIds: z.array(z.string()).optional(),
+  // For ORDER questions: the order they submitted
+  submittedOrder: z.array(z.string()).optional(),
+});
+
+export type PlayerAnsweredEvent = z.infer<typeof playerAnsweredEventSchema>;
+
+/**
  * Leaderboard update
  */
 export const leaderboardUpdateEventSchema = z.object({

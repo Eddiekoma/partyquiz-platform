@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
@@ -9,28 +9,36 @@ import { SpotifyTrackSelector } from "@/components/SpotifyTrackSelector";
 import { FileUploader } from "@/components/media/FileUploader";
 import { ScoringInfoCard } from "@/components/ScoringInfoCard";
 
-type QuestionType =
+interface QuestionSet {
+  id: string;
+  name: string;
+  description: string | null;
+  questionCount: number;
+}
+
+// Question types - matches the QuestionType enum in @partyquiz/shared
+type QuestionTypeValue =
   | "MC_SINGLE"
   | "MC_MULTIPLE"
   | "TRUE_FALSE"
   | "OPEN_TEXT"
   | "ESTIMATION"
   | "ORDER"
+  | "POLL"
   | "PHOTO_QUESTION"
+  | "PHOTO_OPEN"
   | "AUDIO_QUESTION"
+  | "AUDIO_OPEN"
   | "VIDEO_QUESTION"
+  | "VIDEO_OPEN"
   | "MUSIC_GUESS_TITLE"
   | "MUSIC_GUESS_ARTIST"
   | "MUSIC_GUESS_YEAR"
-  | "POLL"
-  | "PHOTO_OPEN"
-  | "AUDIO_OPEN"
-  | "VIDEO_OPEN"
   | "YOUTUBE_SCENE_QUESTION"
   | "YOUTUBE_NEXT_LINE"
   | "YOUTUBE_WHO_SAID_IT";
 
-const QUESTION_TYPES: { value: QuestionType; label: string; description: string }[] = [
+const QUESTION_TYPES: { value: QuestionTypeValue; label: string; description: string }[] = [
   { value: "MC_SINGLE", label: "Multiple Choice (Single)", description: "Choose one correct answer" },
   { value: "MC_MULTIPLE", label: "Multiple Choice (Multiple)", description: "Choose multiple correct answers" },
   { value: "TRUE_FALSE", label: "True/False", description: "Simple true or false question" },
@@ -60,7 +68,7 @@ interface Category {
   label: string;
   icon: string;
   description: string;
-  types: QuestionType[];
+  types: QuestionTypeValue[];
 }
 
 const QUESTION_CATEGORIES: Category[] = [
@@ -111,11 +119,18 @@ const QUESTION_CATEGORIES: Category[] = [
 export default function NewQuestionPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const workspaceId = params.id as string;
+  const preselectedSetId = searchParams.get("setId");
 
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [selectedType, setSelectedType] = useState<QuestionType | null>(null);
+  const [selectedType, setSelectedType] = useState<QuestionTypeValue | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Question Sets
+  const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
+  const [selectedSetId, setSelectedSetId] = useState<string>(preselectedSetId || "");
+  const [loadingSets, setLoadingSets] = useState(true);
 
   // Basic fields
   const [title, setTitle] = useState("");
@@ -124,6 +139,29 @@ export default function NewQuestionPage() {
   const [difficulty, setDifficulty] = useState<1 | 2 | 3 | 4 | 5>(3);
   const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
+
+  // Fetch question sets on mount
+  useEffect(() => {
+    const fetchQuestionSets = async () => {
+      try {
+        const response = await fetch(`/api/workspaces/${workspaceId}/question-sets`);
+        if (response.ok) {
+          const data = await response.json();
+          setQuestionSets(data.questionSets || []);
+          // Set preselected set if provided via URL
+          if (preselectedSetId && data.questionSets.some((s: QuestionSet) => s.id === preselectedSetId)) {
+            setSelectedSetId(preselectedSetId);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch question sets:", error);
+      } finally {
+        setLoadingSets(false);
+      }
+    };
+
+    fetchQuestionSets();
+  }, [workspaceId, preselectedSetId]);
 
   // MC_SINGLE / MC_MULTIPLE / POLL fields
   const [options, setOptions] = useState<Array<{ text: string; isCorrect: boolean; order: number }>>([
@@ -239,6 +277,30 @@ export default function NewQuestionPage() {
       return;
     }
 
+    // Validate correct answer for open text types (required for fuzzy matching)
+    if (
+      (selectedType === "OPEN_TEXT" ||
+        selectedType === "PHOTO_OPEN" ||
+        selectedType === "AUDIO_OPEN" ||
+        selectedType === "VIDEO_OPEN") &&
+      !openTextAnswer.trim()
+    ) {
+      alert("Please enter the correct answer - this is required for automatic scoring with fuzzy matching");
+      return;
+    }
+
+    // Validate ESTIMATION fields - correctAnswer must be > 0 and margin must be >= 0
+    if (selectedType === "ESTIMATION") {
+      if (!estimationAnswer || estimationAnswer <= 0) {
+        alert("Please enter a correct answer greater than 0 for estimation questions");
+        return;
+      }
+      if (estimationMargin === undefined || estimationMargin < 0) {
+        alert("Please enter a valid margin percentage (0 or higher) for estimation questions");
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
@@ -271,6 +333,16 @@ export default function NewQuestionPage() {
               order: item.correctOrder,
             }));
           break;
+        case "ESTIMATION":
+          // Store correctAnswer in text field, margin in order field
+          questionOptions = [
+            { 
+              text: String(estimationAnswer), 
+              isCorrect: true, 
+              order: estimationMargin 
+            }
+          ];
+          break;
         case "OPEN_TEXT":
         case "PHOTO_OPEN":
         case "AUDIO_OPEN":
@@ -292,6 +364,7 @@ export default function NewQuestionPage() {
           difficulty,
           tags,
           status: "DRAFT",
+          questionSetId: selectedSetId || undefined,
           options: questionOptions,
           spotifyTrackId: spotifyTrackId || undefined,
           youtubeVideoId: youtubeVideoId || undefined,
@@ -304,8 +377,12 @@ export default function NewQuestionPage() {
         throw new Error(error.error || "Failed to create question");
       }
 
-      // Redirect back to questions overview after successful creation
-      router.push(`/dashboard/workspaces/${workspaceId}/questions`);
+      // Redirect back to the set detail page if a set was selected, otherwise to questions overview
+      if (selectedSetId) {
+        router.push(`/dashboard/workspaces/${workspaceId}/questions/sets/${selectedSetId}`);
+      } else {
+        router.push(`/dashboard/workspaces/${workspaceId}/questions`);
+      }
     } catch (error) {
       console.error("Failed to create question:", error);
       alert(error instanceof Error ? error.message : "Failed to create question");
@@ -400,6 +477,26 @@ export default function NewQuestionPage() {
       )}
 
       <div className="space-y-6">
+        {/* Question Set Selection */}
+        <Card className="p-6">
+          <label className="block text-sm font-semibold mb-2">
+            Question Set
+          </label>
+          <select
+            value={selectedSetId}
+            onChange={(e) => setSelectedSetId(e.target.value)}
+            className="w-full px-4 py-3 border border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-slate-800 text-white"
+          >
+            <option value="">Select a question set...</option>
+            {questionSets.map((set) => (
+              <option key={set.id} value={set.id}>
+                {set.name} ({set.questionCount} questions)
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-slate-400 mt-1">Choose which set this question belongs to</p>
+        </Card>
+
         {/* Title - Internal Name */}
         <Card className="p-6">
           <label className="block text-sm font-semibold mb-2">
@@ -640,17 +737,18 @@ export default function NewQuestionPage() {
           selectedType === "VIDEO_OPEN") && (
           <Card className="p-6">
             <label className="block text-sm font-semibold mb-2">
-              Expected Answer (optional - for host reference)
+              Correct Answer <span className="text-red-400">*</span>
             </label>
             <textarea
               value={openTextAnswer}
               onChange={(e) => setOpenTextAnswer(e.target.value)}
-              placeholder="Enter the expected answer or leave blank for fully open questions..."
+              placeholder="Enter the correct answer..."
               className="w-full px-4 py-3 border border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               rows={3}
+              required
             />
             <p className="text-sm text-slate-400 mt-2">
-              Players will type their answer. Host reviews manually.
+              <strong>Fuzzy matching:</strong> Player answers with 85%+ similarity are accepted. Small typos are allowed.
             </p>
           </Card>
         )}

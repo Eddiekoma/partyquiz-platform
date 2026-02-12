@@ -24,28 +24,28 @@ model User {
   updatedAt     DateTime  @updatedAt
 
   // Password authentication (bcrypt hashed)
-  passwordHash       String?
-  
+  passwordHash String?
+
   // Email verification with 6-digit code
   emailVerifyCode    String?
   emailVerifyExpires DateTime?
 
   // Spotify OAuth tokens (PKCE flow)
-  spotifyAccessToken  String? @db.Text
-  spotifyRefreshToken String? @db.Text
+  spotifyAccessToken  String?   @db.Text
+  spotifyRefreshToken String?   @db.Text
   spotifyTokenExpiry  DateTime?
 
-  accounts      Account[]
-  sessions      Session[]
-  passwordResets PasswordResetToken[]
-  ownedWorkspaces Workspace[] @relation("WorkspaceOwner")
-  memberships   WorkspaceMember[]
-  invitesSent   WorkspaceInvite[] @relation("WorkspaceInvitedBy")
-  createdQuestions Question[] @relation("QuestionCreator")
-  updatedQuestions Question[] @relation("QuestionUpdater")
-  createdAssets Asset[] @relation("AssetCreator")
-  hostedSessions LiveSession[] @relation("SessionHost")
-  auditLogs     AuditLog[]
+  accounts         Account[]
+  sessions         Session[]
+  passwordResets   PasswordResetToken[]
+  ownedWorkspaces  Workspace[]          @relation("WorkspaceOwner")
+  memberships      WorkspaceMember[]
+  invitesSent      WorkspaceInvite[]    @relation("WorkspaceInvitedBy")
+  createdQuestions Question[]           @relation("QuestionCreator")
+  updatedQuestions Question[]           @relation("QuestionUpdater")
+  createdAssets    Asset[]              @relation("AssetCreator")
+  hostedSessions   LiveSession[]        @relation("SessionHost")
+  auditLogs        AuditLog[]
 
   @@index([email])
 }
@@ -92,7 +92,7 @@ model PasswordResetToken {
   id        String   @id @default(cuid())
   userId    String
   token     String   @unique
-  code      String   // 6-digit verification code
+  code      String // 6-digit verification code
   expires   DateTime
   used      Boolean  @default(false)
   createdAt DateTime @default(now())
@@ -113,21 +113,22 @@ model Workspace {
   description  String?
   slug         String   @unique
   ownerId      String
-  logo         String?  // URL to uploaded logo image in S3
-  themeColor   String?  // Hex color code for brand theme (e.g., "#3B82F6")
+  logo         String? // URL to uploaded logo image in S3
+  themeColor   String? // Hex color code for brand theme (e.g., "#3B82F6")
   brandingJson Json?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  owner        User     @relation("WorkspaceOwner", fields: [ownerId], references: [id])
-  members      WorkspaceMember[]
-  invites      WorkspaceInvite[]
-  questions    Question[]
-  assets       Asset[]
-  quizzes      Quiz[]
-  sessions     LiveSession[]
+  owner              User                @relation("WorkspaceOwner", fields: [ownerId], references: [id])
+  members            WorkspaceMember[]
+  invites            WorkspaceInvite[]
+  questionSets       QuestionSet[]
+  questions          Question[]
+  assets             Asset[]
+  quizzes            Quiz[]
+  sessions           LiveSession[]
   spotifyIntegration SpotifyIntegration?
-  auditLogs    AuditLog[]
+  auditLogs          AuditLog[]
 
   @@index([slug])
   @@index([ownerId])
@@ -137,7 +138,7 @@ model WorkspaceMember {
   id          String   @id @default(cuid())
   workspaceId String
   userId      String
-  role        String   // OWNER, ADMIN, EDITOR, CONTRIBUTOR, VIEWER
+  role        String // OWNER, ADMIN, EDITOR, CONTRIBUTOR, VIEWER
   createdAt   DateTime @default(now())
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -149,18 +150,18 @@ model WorkspaceMember {
 }
 
 model WorkspaceInvite {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   workspaceId String
   email       String
   role        String
-  token       String   @unique
+  token       String    @unique
   invitedById String
   expiresAt   DateTime
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
   acceptedAt  DateTime?
 
-  workspace  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  invitedBy  User      @relation("WorkspaceInvitedBy", fields: [invitedById], references: [id])
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedBy User      @relation("WorkspaceInvitedBy", fields: [invitedById], references: [id])
 
   @@index([workspaceId])
   @@index([token])
@@ -176,13 +177,13 @@ model Asset {
   id          String   @id @default(cuid())
   workspaceId String
   filename    String
-  type        String   // IMAGE, AUDIO, VIDEO, OTHER
+  type        String // IMAGE, AUDIO, VIDEO, OTHER
   storageKey  String
   mime        String
   size        Int
   width       Int?
   height      Int?
-  duration    Int?     // seconds for audio/video
+  duration    Int? // seconds for audio/video
   createdBy   String
   createdAt   DateTime @default(now())
 
@@ -195,12 +196,12 @@ model Asset {
 }
 
 model SpotifyIntegration {
-  id                     String   @id @default(cuid())
-  workspaceId            String   @unique
-  encryptedRefreshToken  String   @db.Text
-  scopesJson             Json
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  workspaceId           String   @unique
+  encryptedRefreshToken String   @db.Text
+  scopesJson            Json
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }
@@ -209,30 +210,48 @@ model SpotifyIntegration {
 // QUESTIONS & QUESTION BANK
 // ============================================
 
-model Question {
+model QuestionSet {
   id          String   @id @default(cuid())
   workspaceId String
-  type        String   // QuestionType enum
-  title       String
-  prompt      String   @db.Text
-  explanation String?  @db.Text
-  difficulty  Int      @default(3)
-  tagsJson    Json     @default("[]")
-  status      String   @default("DRAFT") // DRAFT, PUBLISHED, ARCHIVED
-  createdBy   String
-  updatedBy   String?
+  name        String
+  description String?  @db.Text
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  creator   User      @relation("QuestionCreator", fields: [createdBy], references: [id])
-  updater   User?     @relation("QuestionUpdater", fields: [updatedBy], references: [id])
+  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  questions Question[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
+}
+
+model Question {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  questionSetId String?
+  type          String // QuestionType enum
+  title         String
+  prompt        String   @db.Text
+  explanation   String?  @db.Text
+  difficulty    Int      @default(3)
+  tagsJson      Json     @default("[]")
+  status        String   @default("DRAFT") // DRAFT, PUBLISHED, ARCHIVED
+  createdBy     String
+  updatedBy     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  questionSet QuestionSet? @relation(fields: [questionSetId], references: [id], onDelete: SetNull)
+  creator     User         @relation("QuestionCreator", fields: [createdBy], references: [id])
+  updater     User?        @relation("QuestionUpdater", fields: [updatedBy], references: [id])
 
   options   QuestionOption[]
   media     QuestionMedia[]
   quizItems QuizItem[]
 
   @@index([workspaceId])
+  @@index([questionSetId])
   @@index([createdBy])
   @@index([type])
   @@index([status])
@@ -256,8 +275,8 @@ model QuestionMedia {
   questionId String
   provider   String // UPLOAD, SPOTIFY, YOUTUBE
   mediaType  String // IMAGE, AUDIO, VIDEO
-  reference  Json   // Flexible: {trackId, videoId, assetId, etc.}
-  metadata   Json?  // Optional: {startMs, durationMs, title, etc.}
+  reference  Json // Flexible: {trackId, videoId, assetId, etc.}
+  metadata   Json? // Optional: {startMs, durationMs, title, etc.}
   order      Int
 
   question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
@@ -278,9 +297,9 @@ model Quiz {
   createdBy           String
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
-  scoringSettingsJson Json?    // Quiz-level scoring settings: timeBonus, streakBonus, basePoints
+  scoringSettingsJson Json? // Quiz-level scoring settings: timeBonus, streakBonus, basePoints
 
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   rounds    QuizRound[]
   sessions  LiveSession[]
 
@@ -293,7 +312,7 @@ model QuizRound {
   quizId       String
   title        String
   order        Int
-  defaultsJson Json?  // {timer, points, theme}
+  defaultsJson Json? // {timer, points, theme}
 
   quiz  Quiz       @relation(fields: [quizId], references: [id], onDelete: Cascade)
   items QuizItem[]
@@ -305,13 +324,13 @@ model QuizItem {
   id           String  @id @default(cuid())
   quizRoundId  String
   order        Int
-  itemType     String  // QUESTION, MINIGAME, BREAK
+  itemType     String // QUESTION, MINIGAME, BREAK
   questionId   String?
   minigameType String? // SWAN_RACE
   settingsJson Json?
 
-  round    QuizRound @relation(fields: [quizRoundId], references: [id], onDelete: Cascade)
-  question Question? @relation(fields: [questionId], references: [id], onDelete: SetNull)
+  round    QuizRound    @relation(fields: [quizRoundId], references: [id], onDelete: Cascade)
+  question Question?    @relation(fields: [questionId], references: [id], onDelete: SetNull)
   answers  LiveAnswer[]
 
   @@index([quizRoundId])
@@ -327,23 +346,23 @@ model LiveSession {
   workspaceId String
   quizId      String
   code        String    @unique // 6-char code for joining
-  status      String    // LOBBY, ACTIVE, PAUSED, ENDED
+  status      String // LOBBY, ACTIVE, PAUSED, ENDED
   hostUserId  String
   startedAt   DateTime  @default(now())
   endedAt     DateTime?
 
   // Progress tracking for resume capability
-  currentRoundIndex Int?      // 0-based index of current round
-  currentItemIndex  Int?      // 0-based index of current item in round
+  currentRoundIndex Int? // 0-based index of current round
+  currentItemIndex  Int? // 0-based index of current item in round
   pausedAt          DateTime? // When session was paused (null = not paused)
-  displayName       String?   // Optional friendly name for session
+  displayName       String? // Optional friendly name for session
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   quiz      Quiz      @relation(fields: [quizId], references: [id])
   host      User      @relation("SessionHost", fields: [hostUserId], references: [id])
 
-  players   LivePlayer[]
-  answers   LiveAnswer[]
+  players LivePlayer[]
+  answers LiveAnswer[]
 
   @@index([workspaceId])
   @@index([quizId])
@@ -361,10 +380,10 @@ model LivePlayer {
   leftAt       DateTime?
 
   // Permanent access token for rejoining
-  accessToken  String    @unique @default(cuid())
-  lastActiveAt DateTime  @default(now())
+  accessToken  String   @unique @default(cuid())
+  lastActiveAt DateTime @default(now())
 
-  session LiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  session LiveSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   answers LiveAnswer[]
 
   @@index([sessionId])
@@ -377,7 +396,7 @@ model LiveAnswer {
   sessionId   String
   playerId    String
   quizItemId  String
-  payloadJson Json     // Flexible answer format
+  payloadJson Json // Flexible answer format
   isCorrect   Boolean?
   score       Int      @default(0)
   answeredAt  DateTime @default(now())

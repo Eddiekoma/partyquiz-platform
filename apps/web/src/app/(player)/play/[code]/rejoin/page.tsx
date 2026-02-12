@@ -21,7 +21,7 @@ export default function RejoinPage() {
   useEffect(() => {
     if (!token) {
       setStatus("error");
-      setError("Geen geldige rejoin link. Vraag de host om een nieuwe link.");
+      setError("Invalid rejoin link. Please ask the host for a new link.");
       return;
     }
 
@@ -32,7 +32,7 @@ export default function RejoinPage() {
         if (!response.ok) {
           const data = await response.json();
           setStatus("error");
-          setError(data.error || "Link is verlopen of ongeldig. Vraag de host om een nieuwe link.");
+          setError(data.error || "Link has expired or is invalid. Please ask the host for a new link.");
           return;
         }
 
@@ -58,7 +58,7 @@ export default function RejoinPage() {
         }, 1500);
       } catch (err) {
         setStatus("error");
-        setError("Er is iets misgegaan. Probeer het opnieuw.");
+        setError("Something went wrong. Please try again.");
       }
     };
 
@@ -70,8 +70,8 @@ export default function RejoinPage() {
       <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-purple-700 flex items-center justify-center p-4">
         <div className="text-center">
           <div className="text-6xl mb-4 animate-spin">🔄</div>
-          <h1 className="text-2xl font-bold text-white mb-2">Even geduld...</h1>
-          <p className="text-white/80">Je wordt opnieuw verbonden met het spel</p>
+          <h1 className="text-2xl font-bold text-white mb-2">One moment...</h1>
+          <p className="text-white/80">Reconnecting you to the game</p>
         </div>
       </div>
     );
@@ -82,13 +82,13 @@ export default function RejoinPage() {
       <div className="min-h-screen bg-gradient-to-br from-red-600 to-red-800 flex items-center justify-center p-4">
         <div className="text-center max-w-md">
           <div className="text-6xl mb-4">❌</div>
-          <h1 className="text-2xl font-bold text-white mb-4">Oeps!</h1>
+          <h1 className="text-2xl font-bold text-white mb-4">Oops!</h1>
           <p className="text-white/90 mb-6">{error}</p>
           <button
             onClick={() => router.push("/join")}
             className="px-6 py-3 bg-white/20 hover:bg-white/30 text-white font-bold rounded-xl transition-colors"
           >
-            Terug naar home
+            Back to home
           </button>
         </div>
       </div>
@@ -99,8 +99,8 @@ export default function RejoinPage() {
     <div className="min-h-screen bg-gradient-to-br from-green-600 to-green-700 flex items-center justify-center p-4">
       <div className="text-center">
         <div className="text-6xl mb-4">✅</div>
-        <h1 className="text-2xl font-bold text-white mb-2">Welkom terug, {playerName}!</h1>
-        <p className="text-white/80">Je wordt doorgestuurd naar het spel...</p>
+        <h1 className="text-2xl font-bold text-white mb-2">Welcome back, {playerName}!</h1>
+        <p className="text-white/80">Redirecting you to the game...</p>
         <div className="mt-4">
           <div className="inline-block w-8 h-8 border-4 border-white/30 border-t-white rounded-full animate-spin"></div>
         </div>

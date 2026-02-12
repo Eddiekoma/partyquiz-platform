@@ -25,13 +25,13 @@ function ForgotPasswordForm() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || "Er ging iets mis");
+        setError(data.error || "Something went wrong");
         return;
       }
 
       setSent(true);
     } catch {
-      setError("Er ging iets mis. Probeer het opnieuw.");
+      setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -48,10 +48,10 @@ function ForgotPasswordForm() {
           <div className="text-center space-y-4">
             <div className="text-6xl">✉️</div>
             <h1 className="text-3xl font-bold text-slate-100 font-display">
-              Check je Email!
+              Check Your Email!
             </h1>
             <p className="text-slate-400">
-              Als dit emailadres bij ons bekend is, ontvang je een email met instructies om je wachtwoord te resetten.
+              If this email address is registered with us, you will receive an email with instructions to reset your password.
             </p>
             <p className="text-blue-400 font-medium">{email}</p>
             <div className="pt-4">
@@ -59,7 +59,7 @@ function ForgotPasswordForm() {
                 href="/auth/signin"
                 className="text-sm text-slate-400 hover:text-cyan-400 transition-colors"
               >
-                ← Terug naar inloggen
+                ← Back to sign in
               </Link>
             </div>
           </div>
@@ -83,10 +83,10 @@ function ForgotPasswordForm() {
             <span className="ml-2 text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-1 rounded-md">by Databridge360</span>
           </div>
           <h1 className="text-3xl font-bold text-slate-100 font-display">
-            Wachtwoord Vergeten?
+            Forgot Password?
           </h1>
           <p className="text-slate-400">
-            Geen probleem! Voer je email in en we sturen je een reset link.
+            No problem! Enter your email and we'll send you a reset link.
           </p>
         </div>
 
@@ -104,7 +104,7 @@ function ForgotPasswordForm() {
             id="email"
             type="email"
             label="Email"
-            placeholder="jouw@email.com"
+            placeholder="your@email.com"
             value={email}
             onChange={(e) => {
               setEmail(e.target.value);
@@ -121,14 +121,14 @@ function ForgotPasswordForm() {
             loading={loading}
             disabled={!email || loading}
           >
-            Reset Link Versturen
+            Send Reset Link
           </Button>
         </form>
 
         <div className="text-center text-sm text-slate-400 mt-6">
-          Weet je je wachtwoord weer?{" "}
+          Remember your password?{" "}
           <Link href="/auth/signin" className="text-blue-400 hover:text-cyan-400 font-medium transition-colors">
-            Inloggen
+            Sign In
           </Link>
         </div>
       </Card>

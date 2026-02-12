@@ -38,14 +38,21 @@ export async function GET(
 
     if (!session) {
       return NextResponse.json(
-        { error: "Sessie niet gevonden" },
+        { error: "Session not found" },
         { status: 404 }
+      );
+    }
+
+    if (session.status === "ARCHIVED") {
+      return NextResponse.json(
+        { error: "This session has been archived and can no longer be joined. The quiz was updated after this session was created." },
+        { status: 410 }
       );
     }
 
     if (session.status === "ENDED") {
       return NextResponse.json(
-        { error: "Deze sessie is beëindigd" },
+        { error: "This session has ended" },
         { status: 400 }
       );
     }
@@ -83,7 +90,7 @@ export async function GET(
   } catch (error) {
     console.error("[GET /api/sessions/code/[code]/players] Error:", error);
     return NextResponse.json(
-      { error: "Fout bij ophalen spelers" },
+      { error: "Error fetching players" },
       { status: 500 }
     );
   }

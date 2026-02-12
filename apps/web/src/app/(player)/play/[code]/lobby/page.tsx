@@ -244,10 +244,10 @@ export default function LobbyPage() {
         <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 max-w-md w-full text-center">
           <div className="text-6xl mb-4">📱</div>
           <h1 className="text-2xl font-black text-white mb-4">
-            Welkom terug!
+            Welcome back!
           </h1>
           <p className="text-white/90 mb-6">
-            Dit apparaat was al in deze sessie als:
+            This device was already in this session as:
           </p>
           
           <div className="bg-white/20 rounded-xl p-4 mb-6">
@@ -262,14 +262,14 @@ export default function LobbyPage() {
               onClick={handleContinueAsExisting}
               className="w-full px-6 py-4 text-lg font-bold text-white bg-green-500 hover:bg-green-400 rounded-xl transition-all"
             >
-              ✅ Doorgaan als {recognizedPlayer.name}
+              ✅ Continue as {recognizedPlayer.name}
             </button>
             
             <button
               onClick={handleJoinAsNew}
               className="w-full px-6 py-4 text-lg font-bold text-white bg-white/20 hover:bg-white/30 rounded-xl transition-all"
             >
-              👤 Nieuwe speler ({newPlayerName})
+              👤 New player ({newPlayerName})
             </button>
           </div>
         </div>
@@ -291,7 +291,7 @@ export default function LobbyPage() {
         <div className="text-center">
           <div className="text-6xl mb-4">{isNameTaken ? "👤" : "❌"}</div>
           <h1 className="text-3xl font-black text-white mb-2">
-            {isNameTaken ? "Naam al in gebruik" : "Oops!"}
+            {isNameTaken ? "Name already in use" : "Oops!"}
           </h1>
           <p className="text-lg text-white/90 mb-6">{error}</p>
           <button
@@ -305,7 +305,7 @@ export default function LobbyPage() {
             }}
             className="px-6 py-3 text-lg font-bold text-white bg-white/20 backdrop-blur-sm rounded-xl hover:bg-white/30 transition-all"
           >
-            {isNameTaken ? "Andere naam kiezen" : "Try Again"}
+            {isNameTaken ? "Choose another name" : "Try Again"}
           </button>
         </div>
       </div>

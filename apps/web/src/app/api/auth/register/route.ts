@@ -5,9 +5,9 @@ import { sendVerificationEmail, generateVerificationCode } from "@/lib/email";
 import { z } from "zod";
 
 const registerSchema = z.object({
-  email: z.string().email("Ongeldig emailadres"),
-  password: z.string().min(8, "Wachtwoord moet minimaal 8 tekens bevatten"),
-  name: z.string().min(2, "Naam moet minimaal 2 tekens bevatten").optional(),
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+  name: z.string().min(2, "Name must be at least 2 characters").optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
       // If user exists and is verified, don't reveal this for security
       if (existingUser.emailVerified) {
         return NextResponse.json(
-          { error: "Er is al een account met dit emailadres. Probeer in te loggen." },
+          { error: "An account with this email already exists. Try logging in." },
           { status: 400 }
         );
       }
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         success: true,
-        message: "Verificatiecode verzonden naar je email",
+        message: "Verification code sent to your email",
         email: email.toLowerCase(),
       });
     }
@@ -91,13 +91,13 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "Account aangemaakt! Verificatiecode verzonden naar je email",
+      message: "Account created! Verification code sent to your email",
       email: email.toLowerCase(),
     });
   } catch (error) {
     console.error("Register error:", error);
     return NextResponse.json(
-      { error: "Er is iets misgegaan. Probeer het opnieuw." },
+      { error: "Something went wrong. Please try again." },
       { status: 500 }
     );
   }

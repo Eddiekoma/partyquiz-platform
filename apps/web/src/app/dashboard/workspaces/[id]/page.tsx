@@ -35,6 +35,12 @@ export default function WorkspaceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [showInviteModal, setShowInviteModal] = useState(false);
 
+  // Edit workspace modal
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [savingWorkspace, setSavingWorkspace] = useState(false);
+
   useEffect(() => {
     fetchWorkspace();
   }, [params.id]);
@@ -76,12 +82,53 @@ export default function WorkspaceDetailPage() {
     }
   };
 
+  const handleOpenEditModal = () => {
+    if (workspace) {
+      setEditName(workspace.name);
+      setEditDescription(workspace.description || "");
+      setShowEditModal(true);
+    }
+  };
+
+  const handleSaveWorkspace = async () => {
+    if (!editName.trim()) {
+      alert("Name is required");
+      return;
+    }
+
+    try {
+      setSavingWorkspace(true);
+      const res = await fetch(`/api/workspaces/${params.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editName.trim(),
+          description: editDescription.trim() || null,
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to update workspace");
+      }
+
+      const updatedWorkspace = await res.json();
+      setWorkspace((prev) => prev ? { ...prev, name: updatedWorkspace.name, description: updatedWorkspace.description } : null);
+      setShowEditModal(false);
+    } catch (error) {
+      console.error("Failed to update workspace:", error);
+      alert(error instanceof Error ? error.message : "Failed to update workspace");
+    } finally {
+      setSavingWorkspace(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-slate-400 flex items-center gap-3">
           <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-          Workspace laden...
+          Loading workspace...
         </div>
       </div>
     );
@@ -92,6 +139,7 @@ export default function WorkspaceDetailPage() {
   }
 
   const canInvite = ["OWNER", "ADMIN"].includes(workspace.role);
+  const canEdit = ["OWNER", "ADMIN"].includes(workspace.role);
   const canDelete = workspace.role === "OWNER";
 
   const getRoleBadge = (role: string) => {
@@ -113,7 +161,7 @@ export default function WorkspaceDetailPage() {
             href="/dashboard/workspaces"
             className="text-slate-400 hover:text-white text-sm flex items-center gap-1 mb-2"
           >
-            ← Alle workspaces
+            ← All workspaces
           </Link>
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
@@ -122,6 +170,15 @@ export default function WorkspaceDetailPage() {
             <span className={`text-xs px-2 py-1 rounded-full text-white bg-gradient-to-r ${getRoleBadge(workspace.role)}`}>
               {workspace.role}
             </span>
+            {canEdit && (
+              <button
+                onClick={handleOpenEditModal}
+                className="text-slate-400 hover:text-white transition-colors p-1"
+                title="Edit workspace"
+              >
+                ✏️
+              </button>
+            )}
           </div>
           {workspace.description && (
             <p className="mt-2 text-slate-400">{workspace.description}</p>
@@ -133,7 +190,7 @@ export default function WorkspaceDetailPage() {
               onClick={handleDelete}
               className="px-4 py-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl transition-all duration-200"
             >
-              Verwijderen
+              Delete
             </button>
           )}
         </div>
@@ -145,13 +202,13 @@ export default function WorkspaceDetailPage() {
           href={`/dashboard/workspaces/${workspace.id}/questions`}
           className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-all duration-200 flex items-center gap-2"
         >
-          <span>📝</span> Vragen
+          <span>📝</span> Questions
         </Link>
         <Link 
           href={`/dashboard/workspaces/${workspace.id}/quizzes`}
           className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-all duration-200 flex items-center gap-2"
         >
-          <span>🎯</span> Quizzen
+          <span>🎯</span> Quizzes
         </Link>
         <Link 
           href={`/dashboard/workspaces/${workspace.id}/members`}
@@ -183,10 +240,10 @@ export default function WorkspaceDetailPage() {
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
               <span className="text-lg">📝</span>
             </div>
-            <h3 className="text-sm font-medium text-slate-400">Vragen</h3>
+            <h3 className="text-sm font-medium text-slate-400">Questions</h3>
           </div>
           <div className="text-4xl font-bold text-white">{workspace._count.questions}</div>
-          <p className="text-slate-500 text-sm mt-1">in de vragenbank</p>
+          <p className="text-slate-500 text-sm mt-1">in the question bank</p>
         </Link>
 
         <Link 
@@ -197,10 +254,10 @@ export default function WorkspaceDetailPage() {
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
               <span className="text-lg">🎯</span>
             </div>
-            <h3 className="text-sm font-medium text-slate-400">Quizzen</h3>
+            <h3 className="text-sm font-medium text-slate-400">Quizzes</h3>
           </div>
           <div className="text-4xl font-bold text-white">{workspace._count.quizzes}</div>
-          <p className="text-slate-500 text-sm mt-1">klaar om te spelen</p>
+          <p className="text-slate-500 text-sm mt-1">ready to play</p>
         </Link>
 
         <Link 
@@ -214,7 +271,7 @@ export default function WorkspaceDetailPage() {
             <h3 className="text-sm font-medium text-slate-400">Team</h3>
           </div>
           <div className="text-4xl font-bold text-white">{workspace.members.length}</div>
-          <p className="text-slate-500 text-sm mt-1">teamleden</p>
+          <p className="text-slate-500 text-sm mt-1">team members</p>
         </Link>
       </div>
 
@@ -222,7 +279,7 @@ export default function WorkspaceDetailPage() {
       <div className="glass-card p-6">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-            <span>👥</span> Team Leden
+            <span>👥</span> Team Members
           </h3>
           <div className="flex gap-2">
             {canInvite && (
@@ -230,14 +287,14 @@ export default function WorkspaceDetailPage() {
                 onClick={() => setShowInviteModal(true)}
                 className="px-3 py-1.5 text-sm bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:from-blue-600 hover:to-cyan-600 transition-all duration-200"
               >
-                + Uitnodigen
+                + Invite
               </button>
             )}
             <Link 
               href={`/dashboard/workspaces/${workspace.id}/members`}
               className="px-3 py-1.5 text-sm text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-200"
             >
-              Alle bekijken →
+              View all →
             </Link>
           </div>
         </div>
@@ -268,7 +325,7 @@ export default function WorkspaceDetailPage() {
           ))}
           {workspace.members.length > 5 && (
             <p className="text-center text-sm text-slate-500 pt-2">
-              En {workspace.members.length - 5} meer...
+              And {workspace.members.length - 5} more...
             </p>
           )}
         </div>
@@ -277,7 +334,7 @@ export default function WorkspaceDetailPage() {
       {/* Quick Actions */}
       <div className="glass-card p-6">
         <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-          <span>⚡</span> Snelle Acties
+          <span>⚡</span> Quick Actions
         </h3>
         <div className="grid md:grid-cols-3 gap-4">
           <Link 
@@ -285,24 +342,24 @@ export default function WorkspaceDetailPage() {
             className="p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors group"
           >
             <div className="text-2xl mb-2">➕</div>
-            <h4 className="font-medium text-white group-hover:text-blue-400 transition-colors">Nieuwe Vraag</h4>
-            <p className="text-xs text-slate-500">Voeg een vraag toe aan de bank</p>
+            <h4 className="font-medium text-white group-hover:text-blue-400 transition-colors">New Question</h4>
+            <p className="text-xs text-slate-500">Add a question to the bank</p>
           </Link>
           <Link 
             href={`/dashboard/workspaces/${workspace.id}/quizzes/new`}
             className="p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors group"
           >
             <div className="text-2xl mb-2">🎯</div>
-            <h4 className="font-medium text-white group-hover:text-purple-400 transition-colors">Nieuwe Quiz</h4>
-            <p className="text-xs text-slate-500">Maak een quiz van je vragen</p>
+            <h4 className="font-medium text-white group-hover:text-purple-400 transition-colors">New Quiz</h4>
+            <p className="text-xs text-slate-500">Create a quiz from your questions</p>
           </Link>
           <Link 
             href={`/workspaces/${workspace.id}/sessions`}
             className="p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors group"
           >
             <div className="text-2xl mb-2">🚀</div>
-            <h4 className="font-medium text-white group-hover:text-green-400 transition-colors">Live Sessies</h4>
-            <p className="text-xs text-slate-500">Bekijk en beheer live sessies</p>
+            <h4 className="font-medium text-white group-hover:text-green-400 transition-colors">Live Sessions</h4>
+            <p className="text-xs text-slate-500">View and manage live sessions</p>
           </Link>
         </div>
       </div>
@@ -316,6 +373,68 @@ export default function WorkspaceDetailPage() {
             fetchWorkspace();
           }}
         />
+      )}
+
+      {/* Edit Workspace Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 rounded-xl p-6 w-full max-w-md border border-slate-700 shadow-xl">
+            <h2 className="text-xl font-bold mb-4 text-white">Edit Workspace</h2>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2 text-slate-300">
+                  Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  placeholder="Enter workspace name"
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2 text-slate-300">
+                  Description
+                </label>
+                <textarea
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                  placeholder="Optional description"
+                  rows={3}
+                  className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-6">
+              <button
+                type="button"
+                onClick={() => setShowEditModal(false)}
+                disabled={savingWorkspace}
+                className="flex-1 px-4 py-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveWorkspace}
+                disabled={savingWorkspace || !editName.trim()}
+                className="flex-1 px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl hover:from-blue-600 hover:to-cyan-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {savingWorkspace ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Saving...
+                  </>
+                ) : (
+                  "Save Changes"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -364,12 +483,12 @@ function InviteMemberModal({
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
       <div className="glass-card max-w-md w-full p-6">
         <h2 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
-          <span>✉️</span> Team Lid Uitnodigen
+          <span>✉️</span> Invite Team Member
         </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-slate-300 mb-2">
-              Email Adres *
+              Email Address *
             </label>
             <input
               id="email"
@@ -378,13 +497,13 @@ function InviteMemberModal({
               onChange={(e) => setEmail(e.target.value)}
               required
               className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white placeholder-slate-500"
-              placeholder="collega@voorbeeld.com"
+              placeholder="colleague@example.com"
             />
           </div>
 
           <div>
             <label htmlFor="role" className="block text-sm font-medium text-slate-300 mb-2">
-              Rol *
+              Role *
             </label>
             <select
               id="role"
@@ -392,9 +511,9 @@ function InviteMemberModal({
               onChange={(e) => setRole(e.target.value as "ADMIN" | "EDITOR" | "VIEWER")}
               className="w-full px-4 py-2 bg-white/5 border border-white/10 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-white"
             >
-              <option value="VIEWER" className="bg-slate-900">Viewer - Kan vragen en quizzen bekijken</option>
-              <option value="EDITOR" className="bg-slate-900">Editor - Kan content maken en bewerken</option>
-              <option value="ADMIN" className="bg-slate-900">Admin - Kan leden en settings beheren</option>
+              <option value="VIEWER" className="bg-slate-900">Viewer - Can view questions and quizzes</option>
+              <option value="EDITOR" className="bg-slate-900">Editor - Can create and edit content</option>
+              <option value="ADMIN" className="bg-slate-900">Admin - Can manage members and settings</option>
             </select>
           </div>
 
@@ -404,7 +523,7 @@ function InviteMemberModal({
               onClick={onClose} 
               className="flex-1 px-4 py-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-200"
             >
-              Annuleren
+              Cancel
             </button>
             <button 
               type="submit" 
@@ -414,10 +533,10 @@ function InviteMemberModal({
               {loading ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Versturen...
+                  Sending...
                 </>
               ) : (
-                "Uitnodiging Versturen"
+                "Send Invitation"
               )}
             </button>
           </div>

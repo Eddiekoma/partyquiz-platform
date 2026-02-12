@@ -10,10 +10,10 @@ export default async function DashboardPage() {
       {/* Welcome Header */}
       <div>
         <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 via-cyan-400 to-purple-400 bg-clip-text text-transparent">
-          Welkom terug, {session?.user?.name || session?.user?.email}!
+          Welcome back, {session?.user?.name || session?.user?.email}!
         </h1>
         <p className="mt-2 text-slate-400">
-          Hier is een overzicht van je PartyQuiz platform.
+          Here is an overview of your PartyQuiz platform.
         </p>
       </div>
 
@@ -28,13 +28,13 @@ export default async function DashboardPage() {
             <h3 className="text-lg font-semibold text-white">Workspaces</h3>
           </div>
           <p className="text-slate-400 mb-4 text-sm">
-            Organiseer je quizzen en werk samen met je team.
+            Organize your quizzes and collaborate with your team.
           </p>
           <Link
             href="/dashboard/workspaces"
             className="inline-flex items-center text-blue-400 font-semibold text-sm hover:text-blue-300 transition-colors group-hover:gap-2"
           >
-            Bekijk Workspaces 
+            View Workspaces 
             <span className="ml-1 transition-transform group-hover:translate-x-1">→</span>
           </Link>
         </div>
@@ -45,16 +45,16 @@ export default async function DashboardPage() {
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
               <span className="text-xl">🎮</span>
             </div>
-            <h3 className="text-lg font-semibold text-white">Live Sessies</h3>
+            <h3 className="text-lg font-semibold text-white">Live Sessions</h3>
           </div>
           <p className="text-slate-400 mb-4 text-sm">
-            Start een live quiz sessie met real-time interactie.
+            Start a live quiz session with real-time interaction.
           </p>
           <Link
             href="/dashboard/workspaces"
             className="inline-flex items-center text-purple-400 font-semibold text-sm hover:text-purple-300 transition-colors"
           >
-            Kies een Workspace 
+            Choose a Workspace 
             <span className="ml-1 transition-transform group-hover:translate-x-1">→</span>
           </Link>
         </div>
@@ -65,16 +65,16 @@ export default async function DashboardPage() {
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-teal-500 flex items-center justify-center">
               <span className="text-xl">👥</span>
             </div>
-            <h3 className="text-lg font-semibold text-white">Spelers Joinen</h3>
+            <h3 className="text-lg font-semibold text-white">Player Join</h3>
           </div>
           <p className="text-slate-400 mb-4 text-sm">
-            Deel de join code zodat spelers kunnen meedoen.
+            Share the join code so players can participate.
           </p>
           <Link
             href="/join"
             className="inline-flex items-center text-cyan-400 font-semibold text-sm hover:text-cyan-300 transition-colors"
           >
-            Naar Join Pagina 
+            Go to Join Page 
             <span className="ml-1 transition-transform group-hover:translate-x-1">→</span>
           </Link>
         </div>
@@ -95,9 +95,9 @@ export default async function DashboardPage() {
               1
             </div>
             <div>
-              <h4 className="font-semibold text-white text-sm">Maak een Workspace</h4>
+              <h4 className="font-semibold text-white text-sm">Create a Workspace</h4>
               <p className="text-xs text-slate-400 mt-1">
-                Organiseer quizzen en nodig teamleden uit.
+                Organize quizzes and invite team members.
               </p>
             </div>
           </div>
@@ -107,9 +107,9 @@ export default async function DashboardPage() {
               2
             </div>
             <div>
-              <h4 className="font-semibold text-white text-sm">Voeg Vragen Toe</h4>
+              <h4 className="font-semibold text-white text-sm">Add Questions</h4>
               <p className="text-xs text-slate-400 mt-1">
-                15+ vraag types met multimedia support.
+                15+ question types with multimedia support.
               </p>
             </div>
           </div>
@@ -119,9 +119,9 @@ export default async function DashboardPage() {
               3
             </div>
             <div>
-              <h4 className="font-semibold text-white text-sm">Bouw een Quiz</h4>
+              <h4 className="font-semibold text-white text-sm">Build a Quiz</h4>
               <p className="text-xs text-slate-400 mt-1">
-                Combineer vragen, media en minigames.
+                Combine questions, media, and minigames.
               </p>
             </div>
           </div>
@@ -131,9 +131,9 @@ export default async function DashboardPage() {
               4
             </div>
             <div>
-              <h4 className="font-semibold text-white text-sm">Start Live!</h4>
+              <h4 className="font-semibold text-white text-sm">Go Live!</h4>
               <p className="text-xs text-slate-400 mt-1">
-                Deel de code en laat spelers joinen.
+                Share the code and let players join.
               </p>
             </div>
           </div>
@@ -142,7 +142,7 @@ export default async function DashboardPage() {
 
       {/* Footer info */}
       <div className="text-center text-slate-500 text-sm">
-        <p>PartyQuiz Platform door Databridge360</p>
+        <p>PartyQuiz Platform by Databridge360</p>
       </div>
     </div>
   );

@@ -80,7 +80,23 @@ export async function GET(
       return NextResponse.json({ error: "Quiz not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ quiz });
+    // Count active (non-archived) sessions separately
+    const activeSessionCount = await prisma.liveSession.count({
+      where: {
+        quizId,
+        status: { not: "ARCHIVED" },
+      },
+    });
+
+    // Quiz is locked if it has any ACTIVE (non-archived) sessions
+    const isLocked = activeSessionCount > 0;
+
+    return NextResponse.json({ 
+      quiz,
+      isLocked,
+      sessionCount: activeSessionCount,
+      totalSessionCount: quiz._count.sessions,
+    });
   } catch (error) {
     console.error("Error fetching quiz:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });

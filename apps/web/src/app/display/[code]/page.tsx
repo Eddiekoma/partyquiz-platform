@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { WSMessageType } from "@partyquiz/shared";
 import { SwanRace } from "@/components/SwanRace";
+import { QuestionTypeBadge } from "@/components/QuestionTypeBadge";
 import QRCode from "react-qr-code";
 
 interface Player {
@@ -18,7 +19,7 @@ interface CurrentQuestion {
   id: string;
   prompt: string;
   type: string;
-  options?: { id: string; text: string; isCorrect: boolean }[];
+  options?: { id: string; text: string; isCorrect: boolean; order?: number }[];
   mediaUrl?: string;
 }
 
@@ -45,13 +46,18 @@ export default function DisplayPage() {
 
   const [session, setSession] = useState<SessionData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [displayState, setDisplayState] = useState<DisplayState>("lobby");
   const [currentQuestion, setCurrentQuestion] = useState<CurrentQuestion | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const [answeredCount, setAnsweredCount] = useState(0);
+  const [totalPlayerCount, setTotalPlayerCount] = useState(0); // Live count from server
   const [scoreboardData, setScoreboardData] = useState<{ type: string; players: Player[] }>({ type: "top10", players: [] });
   const [minigameType, setMinigameType] = useState<string | null>(null);
   const [explanation, setExplanation] = useState<string | null>(null);
+  // ORDER question reveal data
+  const [correctOrder, setCorrectOrder] = useState<Array<{ id: string; text: string; position: number }> | null>(null);
+  const [correctText, setCorrectText] = useState<string | null>(null);
 
   // Use WebSocket without onMessage - we'll set up direct listeners
   const { socket, isConnected } = useWebSocket({
@@ -141,6 +147,8 @@ export default function DisplayPage() {
       setTimeRemaining(data.timerDuration);
       setAnsweredCount(0);
       setExplanation(null); // Reset explanation for new question
+      setCorrectOrder(null); // Reset ORDER reveal data
+      setCorrectText(null); // Reset open text reveal data
       setDisplayState("question");
     };
 
@@ -153,7 +161,22 @@ export default function DisplayPage() {
     // Listen for answer reveal
     const handleRevealAnswers = (data: any) => {
       console.log("[Display] REVEAL_ANSWERS:", data);
-      if (data.correctOptionId) {
+      
+      // Handle different question types
+      if (data.correctOrder) {
+        // ORDER question: store correct order for display
+        setCorrectOrder(data.correctOrder);
+      } else if (data.correctOptionIds && data.correctOptionIds.length > 0) {
+        // MC_MULTIPLE: mark all correct options
+        setCurrentQuestion(prev => prev ? {
+          ...prev,
+          options: prev.options?.map(opt => ({
+            ...opt,
+            isCorrect: data.correctOptionIds.includes(opt.id),
+          })),
+        } : null);
+      } else if (data.correctOptionId) {
+        // MC_SINGLE/TRUE_FALSE: mark single correct option
         setCurrentQuestion(prev => prev ? {
           ...prev,
           options: prev.options?.map(opt => ({
@@ -161,23 +184,63 @@ export default function DisplayPage() {
             isCorrect: opt.id === data.correctOptionId,
           })),
         } : null);
+      } else if (data.correctText) {
+        // Open text types: store correct text
+        setCorrectText(data.correctText);
       }
+      
       // Set explanation if provided
       setExplanation(data.explanation || null);
       setDisplayState("reveal");
     };
 
-    // Listen for answer received
+    // Listen for answer received (fallback)
     const handleAnswerReceived = () => {
       setAnsweredCount(prev => prev + 1);
+    };
+
+    // Listen for answer count updated (more reliable - from database)
+    const handleAnswerCountUpdated = (data: { itemId: string; count: number; total: number }) => {
+      console.log("[Display] ANSWER_COUNT_UPDATED:", data);
+      setAnsweredCount(data.count);
+      setTotalPlayerCount(data.total);
+    };
+
+    // Listen for leaderboard updates (real-time score changes)
+    const handleLeaderboardUpdate = (data: any) => {
+      console.log("[Display] LEADERBOARD_UPDATE:", data);
+      if (data.leaderboard) {
+        // Update session players with new scores from leaderboard
+        setSession(prev => {
+          if (!prev) return null;
+          const updatedPlayers = prev.players.map(player => {
+            const leaderboardEntry = data.leaderboard.find(
+              (entry: any) => entry.playerId === player.id
+            );
+            if (leaderboardEntry) {
+              return { ...player, score: leaderboardEntry.totalScore || 0 };
+            }
+            return player;
+          });
+          return { ...prev, players: updatedPlayers };
+        });
+      }
     };
 
     // Listen for scoreboard
     const handleShowScoreboard = (data: any) => {
       console.log("[Display] SHOW_SCOREBOARD:", data);
+      // Use leaderboard data from the event (calculated fresh by WS server)
+      const players = data.leaderboard?.map((entry: any) => ({
+        id: entry.playerId,
+        name: entry.playerName,
+        avatar: entry.avatar || "👤",
+        score: entry.totalScore || 0,
+      })) || [];
+      
       setScoreboardData({
         type: data.displayType || "top10",
-        players: session?.players.sort((a, b) => b.score - a.score) || [],
+        players: players,
       });
       setDisplayState("scoreboard");
     };
@@ -212,8 +275,34 @@ export default function DisplayPage() {
       }
     };
 
-    const handleSessionEnded = () => {
+    const handleSessionEnded = (data: any) => {
+      console.log("[Display] SESSION_ENDED:", data);
+      // Store final scores from the event
+      if (data.finalScores) {
+        const players = data.finalScores.map((entry: any) => ({
+          id: entry.id,
+          name: entry.name,
+          avatar: entry.avatar || "👤",
+          score: entry.score || 0,
+        }));
+        setScoreboardData({
+          type: "final",
+          players: players,
+        });
+      }
       setDisplayState("ended");
+    };
+
+    // Listen for item cancelled (host cancelled the current question)
+    const handleItemCancelled = () => {
+      console.log("[Display] ITEM_CANCELLED - returning to lobby");
+      setCurrentQuestion(null);
+      setTimeRemaining(null);
+      setAnsweredCount(0);
+      setExplanation(null);
+      setCorrectOrder(null);
+      setCorrectText(null);
+      setDisplayState("lobby");
     };
 
     // Set up all listeners
@@ -224,12 +313,15 @@ export default function DisplayPage() {
     socket.on(WSMessageType.ITEM_LOCKED, handleItemLocked);
     socket.on(WSMessageType.REVEAL_ANSWERS, handleRevealAnswers);
     socket.on(WSMessageType.ANSWER_RECEIVED, handleAnswerReceived);
+    socket.on(WSMessageType.ANSWER_COUNT_UPDATED, handleAnswerCountUpdated);
+    socket.on(WSMessageType.LEADERBOARD_UPDATE, handleLeaderboardUpdate);
     socket.on("SHOW_SCOREBOARD", handleShowScoreboard);
     socket.on("HIDE_SCOREBOARD", handleHideScoreboard);
     socket.on(WSMessageType.SWAN_RACE_STARTED, handleSwanRaceStarted);
     socket.on(WSMessageType.SESSION_PAUSED, handleSessionPaused);
     socket.on(WSMessageType.SESSION_RESUMED, handleSessionResumed);
     socket.on(WSMessageType.SESSION_ENDED, handleSessionEnded);
+    socket.on(WSMessageType.ITEM_CANCELLED, handleItemCancelled);
 
     console.log("[Display] Event listeners registered successfully");
 
@@ -244,12 +336,15 @@ export default function DisplayPage() {
       socket.off(WSMessageType.ITEM_LOCKED, handleItemLocked);
       socket.off(WSMessageType.REVEAL_ANSWERS, handleRevealAnswers);
       socket.off(WSMessageType.ANSWER_RECEIVED, handleAnswerReceived);
+      socket.off(WSMessageType.ANSWER_COUNT_UPDATED, handleAnswerCountUpdated);
+      socket.off(WSMessageType.LEADERBOARD_UPDATE, handleLeaderboardUpdate);
       socket.off("SHOW_SCOREBOARD", handleShowScoreboard);
       socket.off("HIDE_SCOREBOARD", handleHideScoreboard);
       socket.off(WSMessageType.SWAN_RACE_STARTED, handleSwanRaceStarted);
       socket.off(WSMessageType.SESSION_PAUSED, handleSessionPaused);
       socket.off(WSMessageType.SESSION_RESUMED, handleSessionResumed);
       socket.off(WSMessageType.SESSION_ENDED, handleSessionEnded);
+      socket.off(WSMessageType.ITEM_CANCELLED, handleItemCancelled);
     };
   }, [socket, session, currentQuestion]);
 
@@ -258,11 +353,21 @@ export default function DisplayPage() {
     async function fetchSession() {
       try {
         const response = await fetch(`/api/sessions/code/${code}`);
-        if (!response.ok) return;
+        if (!response.ok) {
+          if (response.status === 404) {
+            setError("Session not found");
+          } else if (response.status === 410) {
+            setError("This session has been archived and can no longer be displayed. The quiz was updated after this session was created.");
+          } else {
+            setError("Failed to load session");
+          }
+          return;
+        }
         const data = await response.json();
         setSession(data.session);
       } catch (err) {
         console.error("Failed to fetch session:", err);
+        setError("Failed to load session");
       } finally {
         setLoading(false);
       }
@@ -291,6 +396,18 @@ export default function DisplayPage() {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
         <div className="text-white text-2xl">Loading...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+        <div className="max-w-md text-center">
+          <div className="text-6xl mb-4">📦</div>
+          <h1 className="text-white text-2xl font-bold mb-2">Session Unavailable</h1>
+          <p className="text-slate-400">{error}</p>
+        </div>
       </div>
     );
   }
@@ -396,6 +513,11 @@ export default function DisplayPage() {
         {/* QUESTION STATE */}
         {(displayState === "question" || displayState === "locked" || displayState === "reveal") && currentQuestion && (
           <div className="w-full max-w-6xl mx-auto">
+            {/* Question Type Badge */}
+            <div className="flex justify-center mb-4">
+              <QuestionTypeBadge type={currentQuestion.type} size="lg" />
+            </div>
+
             {/* Timer */}
             {displayState === "question" && timeRemaining !== null && (
               <div className="text-center mb-8">
@@ -416,8 +538,45 @@ export default function DisplayPage() {
               </h2>
             </div>
 
-            {/* Options */}
-            {currentQuestion.options && (
+            {/* Options - different display per question type */}
+            
+            {/* ORDER Question - during question just show instruction, don't show options */}
+            {currentQuestion.type === "ORDER" && displayState !== "reveal" && (
+              <div className="text-center py-12">
+                <div className="text-6xl mb-6">📋</div>
+                <p className="text-3xl font-bold text-white mb-4">Put the items in order!</p>
+                <p className="text-xl text-white/60">Players are ordering {currentQuestion.options?.length || 0} items on their devices</p>
+              </div>
+            )}
+            
+            {/* ORDER Question Reveal - show numbered list in correct order */}
+            {displayState === "reveal" && correctOrder && correctOrder.length > 0 && (
+              <div className="space-y-4">
+                <p className="text-center text-white/60 text-lg mb-4">Correct order:</p>
+                {correctOrder.map((item, idx) => (
+                  <div
+                    key={item.id}
+                    className="p-6 rounded-2xl text-2xl font-bold bg-green-500/80 text-white flex items-center gap-4"
+                  >
+                    <span className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center text-3xl font-black">
+                      {idx + 1}
+                    </span>
+                    <span>{item.text}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {/* Open Text Reveal - show correct text answer */}
+            {displayState === "reveal" && correctText && (
+              <div className="p-8 rounded-2xl bg-green-500/80 text-white text-center">
+                <p className="text-4xl font-bold">{correctText}</p>
+              </div>
+            )}
+            
+            {/* MC/TRUE_FALSE Options - show grid with correct highlighted on reveal */}
+            {/* Exclude ORDER type since it has its own display */}
+            {currentQuestion.options && currentQuestion.type !== "ORDER" && !correctOrder && !correctText && (
               <div className="grid grid-cols-2 gap-6">
                 {currentQuestion.options.map((option, idx) => {
                   const colors = [
@@ -465,7 +624,7 @@ export default function DisplayPage() {
               <div className="inline-flex items-center gap-4 bg-slate-800/80 backdrop-blur px-6 py-3 rounded-full">
                 <span className="text-slate-400">Answered:</span>
                 <span className="text-3xl font-bold">{answeredCount}</span>
-                <span className="text-slate-400">/ {session.players.length}</span>
+                <span className="text-slate-400">/ {totalPlayerCount || session.players.length}</span>
               </div>
             </div>
           </div>
@@ -476,42 +635,47 @@ export default function DisplayPage() {
           <div className="w-full max-w-4xl mx-auto">
             <h2 className="text-5xl font-bold text-center mb-12">🏆 Scoreboard</h2>
             
-            <div className="space-y-4">
-              {session.players
-                .sort((a, b) => b.score - a.score)
-                .slice(0, scoreboardData.type === "top3" ? 3 : scoreboardData.type === "top5" ? 5 : 10)
-                .map((player, index) => {
-                  const medals = ["🥇", "🥈", "🥉"];
-                  const isTopThree = index < 3;
-                  
-                  return (
-                    <div 
-                      key={player.id}
-                      className={`flex items-center gap-6 p-6 rounded-2xl transition-all ${
-                        isTopThree 
-                          ? "bg-gradient-to-r from-slate-800 to-slate-700 scale-105" 
-                          : "bg-slate-800/50"
-                      }`}
-                      style={{
-                        animationDelay: `${index * 100}ms`,
-                      }}
-                    >
-                      <span className="text-4xl font-bold w-16 text-center">
-                        {index < 3 ? medals[index] : index + 1}
-                      </span>
-                      <span className="text-4xl">{player.avatar || "👤"}</span>
-                      <span className="flex-1 text-2xl font-bold">{player.name}</span>
-                      <span 
-                        className="text-4xl font-mono font-bold"
-                        style={{ color: themeColor }}
+            {scoreboardData.players.length > 0 ? (
+              <div className="space-y-4">
+                {scoreboardData.players
+                  .slice(0, scoreboardData.type === "top_3" ? 3 : scoreboardData.type === "top_5" ? 5 : 10)
+                  .map((player, index) => {
+                    const medals = ["🥇", "🥈", "🥉"];
+                    const isTopThree = index < 3;
+                    
+                    return (
+                      <div 
+                        key={player.id}
+                        className={`flex items-center gap-6 p-6 rounded-2xl transition-all ${
+                          isTopThree 
+                            ? "bg-gradient-to-r from-slate-800 to-slate-700 scale-105" 
+                            : "bg-slate-800/50"
+                        }`}
+                        style={{
+                          animationDelay: `${index * 100}ms`,
+                        }}
                       >
-                        {player.score}
-                      </span>
-                    </div>
-                  );
-                })
-              }
-            </div>
+                        <span className="text-4xl font-bold w-16 text-center">
+                          {index < 3 ? medals[index] : index + 1}
+                        </span>
+                        <span className="text-4xl">{player.avatar || "👤"}</span>
+                        <span className="flex-1 text-2xl font-bold">{player.name}</span>
+                        <span 
+                          className="text-4xl font-mono font-bold"
+                          style={{ color: themeColor }}
+                        >
+                          {player.score}
+                        </span>
+                      </div>
+                    );
+                  })
+                }
+              </div>
+            ) : (
+              <div className="text-center">
+                <p className="text-2xl text-slate-400">No scores yet</p>
+              </div>
+            )}
           </div>
         )}
 
@@ -541,36 +705,41 @@ export default function DisplayPage() {
             <div className="text-8xl mb-8">🎉</div>
             <h2 className="text-5xl font-bold mb-12">Game Over!</h2>
             
-            {/* Top 3 Winners */}
-            <div className="flex justify-center items-end gap-8 mb-12">
-              {session.players
-                .sort((a, b) => b.score - a.score)
-                .slice(0, 3)
-                .map((player, index) => {
-                  const heights = ["h-48", "h-40", "h-32"];
-                  const positions = [1, 0, 2]; // 2nd, 1st, 3rd for podium order
-                  const medals = ["🥇", "🥈", "🥉"];
-                  const actualIndex = positions[index];
-                  const actualPlayer = session.players.sort((a, b) => b.score - a.score)[actualIndex];
-                  
-                  if (!actualPlayer) return null;
-                  
-                  return (
-                    <div key={actualPlayer.id} className="text-center">
-                      <div className="text-6xl mb-4">{actualPlayer.avatar || "👤"}</div>
-                      <p className="text-2xl font-bold mb-2">{actualPlayer.name}</p>
-                      <p className="text-xl text-slate-400 mb-4">{actualPlayer.score} pts</p>
-                      <div 
-                        className={`${heights[actualIndex]} w-32 rounded-t-xl flex items-start justify-center pt-4`}
-                        style={{ backgroundColor: themeColor }}
-                      >
-                        <span className="text-5xl">{medals[actualIndex]}</span>
+            {/* Top 3 Winners - use scoreboardData.players (from SESSION_ENDED event) */}
+            {scoreboardData.players.length > 0 ? (
+              <div className="flex justify-center items-end gap-8 mb-12">
+                {scoreboardData.players
+                  .slice(0, 3)
+                  .map((player, index) => {
+                    const heights = ["h-48", "h-40", "h-32"];
+                    const positions = [1, 0, 2]; // 2nd, 1st, 3rd for podium order
+                    const medals = ["🥇", "🥈", "🥉"];
+                    const actualIndex = positions[index];
+                    const actualPlayer = scoreboardData.players[actualIndex];
+                    
+                    if (!actualPlayer) return null;
+                    
+                    return (
+                      <div key={actualPlayer.id} className="text-center">
+                        <div className="text-6xl mb-4">{actualPlayer.avatar || "👤"}</div>
+                        <p className="text-2xl font-bold mb-2">{actualPlayer.name}</p>
+                        <p className="text-xl text-slate-400 mb-4">{actualPlayer.score} pts</p>
+                        <div 
+                          className={`${heights[actualIndex]} w-32 rounded-t-xl flex items-start justify-center pt-4`}
+                          style={{ backgroundColor: themeColor }}
+                        >
+                          <span className="text-5xl">{medals[actualIndex]}</span>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })
-              }
-            </div>
+                    );
+                  })
+                }
+              </div>
+            ) : (
+              <div className="mb-12">
+                <p className="text-2xl text-slate-400">No scores recorded</p>
+              </div>
+            )}
 
             <p className="text-xl text-slate-400">Thanks for playing!</p>
           </div>

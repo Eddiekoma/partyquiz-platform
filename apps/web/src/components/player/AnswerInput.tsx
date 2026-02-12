@@ -25,8 +25,8 @@ export function AnswerInput({
     onSubmit(answer);
   };
 
-  // Multiple Choice Question (handles both MCQ and MC_SINGLE/MC_MULTIPLE from database)
-  if (questionType === "MCQ" || questionType === "MC_SINGLE" || questionType === "MC_MULTIPLE") {
+  // Multiple Choice Question - MC_SINGLE (single answer) or MC_MULTIPLE (multiple answers)
+  if (questionType === "MC_SINGLE" || questionType === "MC_MULTIPLE") {
     const isMultiple = settingsJson?.allowMultiple || questionType === "MC_MULTIPLE";
 
     if (isMultiple) {
@@ -86,8 +86,8 @@ export function AnswerInput({
     );
   }
 
-  // Open Text Question (handles both OPEN and OPEN_TEXT from database)
-  if (questionType === "OPEN" || questionType === "OPEN_TEXT") {
+  // Open Text Question - OPEN_TEXT
+  if (questionType === "OPEN_TEXT") {
     return (
       <div className="space-y-4">
         <input
@@ -110,8 +110,8 @@ export function AnswerInput({
     );
   }
 
-  // Ordering Question (handles both ORDERING and ORDER from database)
-  if (questionType === "ORDERING" || questionType === "ORDER") {
+  // Ordering Question - ORDER
+  if (questionType === "ORDER") {
     return (
       <OrderingInput
         options={options || []}
@@ -121,10 +121,8 @@ export function AnswerInput({
     );
   }
 
-  // Photo questions (all use text input) - handles database types too
+  // Photo questions - PHOTO_QUESTION (MCQ with photo) and PHOTO_OPEN (open answer)
   if (
-    questionType === "PHOTO_GUESS" ||
-    questionType === "PHOTO_ZOOM_REVEAL" ||
     questionType === "PHOTO_QUESTION" ||
     questionType === "PHOTO_OPEN"
   ) {
@@ -150,18 +148,61 @@ export function AnswerInput({
     );
   }
 
-  // Photo Timeline (uses ordering of photo IDs)
-  if (questionType === "PHOTO_TIMELINE") {
+  // Audio questions - AUDIO_QUESTION (MCQ with audio) and AUDIO_OPEN (open answer)
+  if (
+    questionType === "AUDIO_QUESTION" ||
+    questionType === "AUDIO_OPEN"
+  ) {
     return (
-      <OrderingInput
-        options={options || []}
-        onSubmit={onSubmit}
-        disabled={disabled}
-      />
+      <div className="space-y-4">
+        <input
+          type="text"
+          value={answer || ""}
+          onChange={(e) => setAnswer(e.target.value)}
+          placeholder="What do you hear?"
+          disabled={disabled}
+          className="w-full px-6 py-4 text-xl font-bold text-white bg-slate-800 rounded-xl focus:ring-4 focus:ring-purple-300 outline-none transition-all disabled:opacity-50"
+          autoFocus
+        />
+        <button
+          onClick={handleSubmit}
+          disabled={disabled || !answer?.trim()}
+          className="w-full py-4 text-xl font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 active:scale-95 transition-all disabled:opacity-50"
+        >
+          Submit Answer
+        </button>
+      </div>
     );
   }
 
-  // Music Title/Artist (text input)
+  // Video questions - VIDEO_QUESTION (MCQ with video) and VIDEO_OPEN (open answer)
+  if (
+    questionType === "VIDEO_QUESTION" ||
+    questionType === "VIDEO_OPEN"
+  ) {
+    return (
+      <div className="space-y-4">
+        <input
+          type="text"
+          value={answer || ""}
+          onChange={(e) => setAnswer(e.target.value)}
+          placeholder="What did you see?"
+          disabled={disabled}
+          className="w-full px-6 py-4 text-xl font-bold text-white bg-slate-800 rounded-xl focus:ring-4 focus:ring-purple-300 outline-none transition-all disabled:opacity-50"
+          autoFocus
+        />
+        <button
+          onClick={handleSubmit}
+          disabled={disabled || !answer?.trim()}
+          className="w-full py-4 text-xl font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 active:scale-95 transition-all disabled:opacity-50"
+        >
+          Submit Answer
+        </button>
+      </div>
+    );
+  }
+
+  // Spotify Music Title/Artist (text input) - MUSIC_GUESS_TITLE, MUSIC_GUESS_ARTIST
   if (
     questionType === "MUSIC_GUESS_TITLE" ||
     questionType === "MUSIC_GUESS_ARTIST"
@@ -192,7 +233,7 @@ export function AnswerInput({
     );
   }
 
-  // Music Year or Estimation (number input)
+  // Spotify Music Year or Estimation (number input) - MUSIC_GUESS_YEAR, ESTIMATION
   if (questionType === "MUSIC_GUESS_YEAR" || questionType === "ESTIMATION") {
     return (
       <div className="space-y-4">
@@ -218,46 +259,7 @@ export function AnswerInput({
     );
   }
 
-  // Music Timeline (ordering)
-  if (questionType === "MUSIC_HITSTER_TIMELINE") {
-    return (
-      <OrderingInput
-        options={options || []}
-        onSubmit={onSubmit}
-        disabled={disabled}
-      />
-    );
-  }
-
-  // Music Older/Newer (binary choice)
-  if (questionType === "MUSIC_OLDER_NEWER_THAN") {
-    return (
-      <div className="grid grid-cols-2 gap-4">
-        <button
-          onClick={() => {
-            setAnswer("older");
-            setTimeout(() => onSubmit("older"), 100);
-          }}
-          disabled={disabled}
-          className="p-6 text-2xl font-black text-white bg-blue-500/80 backdrop-blur-sm rounded-2xl hover:bg-blue-600/80 active:scale-95 transition-all disabled:opacity-50"
-        >
-          ⏪ OLDER
-        </button>
-        <button
-          onClick={() => {
-            setAnswer("newer");
-            setTimeout(() => onSubmit("newer"), 100);
-          }}
-          disabled={disabled}
-          className="p-6 text-2xl font-black text-white bg-orange-500/80 backdrop-blur-sm rounded-2xl hover:bg-orange-600/80 active:scale-95 transition-all disabled:opacity-50"
-        >
-          ⏩ NEWER
-        </button>
-      </div>
-    );
-  }
-
-  // YouTube questions (text input)
+  // YouTube questions (text input) - YOUTUBE_SCENE_QUESTION, YOUTUBE_NEXT_LINE, YOUTUBE_WHO_SAID_IT
   if (
     questionType === "YOUTUBE_SCENE_QUESTION" ||
     questionType === "YOUTUBE_NEXT_LINE" ||
@@ -285,7 +287,7 @@ export function AnswerInput({
     );
   }
 
-  // Poll (radio buttons)
+  // Poll - POLL (shows options like MC_SINGLE but without scoring)
   if (questionType === "POLL") {
     return (
       <div className="space-y-3">
@@ -303,45 +305,6 @@ export function AnswerInput({
           </button>
         ))}
       </div>
-    );
-  }
-
-  // Emoji Vote (emoji selector)
-  if (questionType === "EMOJI_VOTE") {
-    const emojis = settingsJson?.emojis || ["👍", "👎", "❤️", "😂", "😮"];
-    return (
-      <div className="grid grid-cols-5 gap-3">
-        {emojis.map((emoji: string) => (
-          <button
-            key={emoji}
-            onClick={() => {
-              setAnswer(emoji);
-              setTimeout(() => onSubmit(emoji), 100);
-            }}
-            disabled={disabled}
-            className="aspect-square text-5xl bg-slate-800/20 backdrop-blur-sm rounded-2xl hover:bg-slate-800/30 hover:scale-110 active:scale-95 transition-all disabled:opacity-50"
-          >
-            {emoji}
-          </button>
-        ))}
-      </div>
-    );
-  }
-
-  // Chaos Event (game input)
-  if (questionType === "CHAOS_EVENT") {
-    return (
-      <button
-        onClick={() => {
-          const input = Math.random(); // Random game input
-          setAnswer(input);
-          onSubmit(input);
-        }}
-        disabled={disabled}
-        className="w-full py-8 text-3xl font-black text-white bg-gradient-to-r from-red-600 via-yellow-500 to-purple-600 rounded-2xl hover:scale-105 active:scale-95 transition-all disabled:opacity-50 animate-pulse"
-      >
-        🎮 TAP TO PLAY!
-      </button>
     );
   }
 

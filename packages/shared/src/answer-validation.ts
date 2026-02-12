@@ -17,6 +17,30 @@ import { QuestionType } from "./types";
 // TYPES & INTERFACES
 // ============================================
 
+/**
+ * Answer format enum - describes what format the player answer should be in
+ * Maps to the 19 official question types from the editor
+ */
+export enum AnswerFormat {
+  OPTION_ID = "OPTION_ID",           // MC_SINGLE, PHOTO_QUESTION, AUDIO_QUESTION, VIDEO_QUESTION, YOUTUBE_WHO_SAID_IT
+  OPTION_IDS = "OPTION_IDS",         // MC_MULTIPLE - player sends array of option IDs
+  BOOLEAN = "BOOLEAN",               // TRUE_FALSE - player sends true/false
+  TEXT = "TEXT",                     // OPEN_TEXT, *_OPEN, MUSIC_GUESS_*, YOUTUBE_NEXT_LINE, YOUTUBE_SCENE_QUESTION
+  NUMBER = "NUMBER",                 // ESTIMATION, MUSIC_GUESS_YEAR
+  ORDER_ARRAY = "ORDER_ARRAY",       // ORDER - player sends ordered array of IDs
+  NO_ANSWER = "NO_ANSWER",           // POLL - no correct answer, just opinion
+}
+
+/**
+ * Option interface for question options
+ */
+export interface QuestionOption {
+  id: string;
+  text: string;
+  isCorrect?: boolean;
+  order?: number;
+}
+
 export enum ScoringMode {
   EXACT_MATCH = "EXACT_MATCH",
   PARTIAL_MULTI = "PARTIAL_MULTI",
@@ -76,36 +100,36 @@ export function getScoringInfo(questionType: string): ScoringInfo {
       return {
         mode,
         title: "Exact Match",
-        description: "Het antwoord moet exact correct zijn.",
+        description: "The answer must be exactly correct.",
         tiers: [
-          { threshold: "Correct", percentage: 100, description: "Volledig juist" },
-          { threshold: "Incorrect", percentage: 0, description: "Fout antwoord" },
+          { threshold: "Correct", percentage: 100, description: "Fully correct" },
+          { threshold: "Incorrect", percentage: 0, description: "Wrong answer" },
         ],
       };
       
     case ScoringMode.PARTIAL_MULTI:
       return {
         mode,
-        title: "Partiële Punten (Meerkeuze)",
-        description: "Punten per correct gekozen optie. Foute keuzes geven aftrek.",
+        title: "Partial Points (Multiple Choice)",
+        description: "Points per correctly chosen option. Wrong choices deduct points.",
         tiers: [
-          { threshold: "Alle correct", percentage: 100, description: "Alle juiste opties geselecteerd" },
-          { threshold: "Gedeeltelijk", percentage: 50, description: "Sommige juist, sommige fout" },
-          { threshold: "Geen correct", percentage: 0, description: "Geen juiste opties" },
+          { threshold: "All correct", percentage: 100, description: "All correct options selected" },
+          { threshold: "Partial", percentage: 50, description: "Some correct, some wrong" },
+          { threshold: "None correct", percentage: 0, description: "No correct options" },
         ],
       };
       
     case ScoringMode.PARTIAL_ORDER:
       return {
         mode,
-        title: "Partiële Punten (Volgorde)",
-        description: "Punten per item op de juiste positie.",
+        title: "Partial Points (Ordering)",
+        description: "Points per item in the correct position.",
         tiers: [
-          { threshold: "Alles goed", percentage: 100, description: "Alle items op juiste plek" },
-          { threshold: "3 van 4 goed", percentage: 75, description: "75% op juiste positie" },
-          { threshold: "2 van 4 goed", percentage: 50, description: "50% op juiste positie" },
-          { threshold: "1 van 4 goed", percentage: 25, description: "25% op juiste positie" },
-          { threshold: "Niets goed", percentage: 0, description: "Geen items correct" },
+          { threshold: "All correct", percentage: 100, description: "All items in correct position" },
+          { threshold: "3 of 4 correct", percentage: 75, description: "75% in correct position" },
+          { threshold: "2 of 4 correct", percentage: 50, description: "50% in correct position" },
+          { threshold: "1 of 4 correct", percentage: 25, description: "25% in correct position" },
+          { threshold: "None correct", percentage: 0, description: "No items correct" },
         ],
       };
       
@@ -113,48 +137,48 @@ export function getScoringInfo(questionType: string): ScoringInfo {
       return {
         mode,
         title: "Fuzzy Text Match",
-        description: "Punten op basis van hoe goed het antwoord overeenkomt. Kleine typfouten zijn toegestaan.",
+        description: "Points based on how well the answer matches. Small typos are allowed.",
         tiers: [
-          { threshold: "100% match", percentage: 100, description: "Exact correct" },
-          { threshold: "95-99%", percentage: 90, description: "Bijna perfect, 1 kleine typo" },
-          { threshold: "90-94%", percentage: 80, description: "Kleine afwijking" },
-          { threshold: "85-89%", percentage: 70, description: "Herkenbaar correct" },
-          { threshold: "80-84%", percentage: 50, description: "Nog acceptabel" },
-          { threshold: "< 80%", percentage: 0, description: "Te veel fouten" },
+          { threshold: "100% match", percentage: 100, description: "Exactly correct" },
+          { threshold: "95-99%", percentage: 90, description: "Almost perfect, 1 small typo" },
+          { threshold: "90-94%", percentage: 80, description: "Minor deviation" },
+          { threshold: "85-89%", percentage: 70, description: "Recognizably correct" },
+          { threshold: "80-84%", percentage: 50, description: "Still acceptable" },
+          { threshold: "< 80%", percentage: 0, description: "Too many errors" },
         ],
       };
       
     case ScoringMode.NUMERIC_DISTANCE:
       return {
         mode,
-        title: "Numerieke Schatting",
-        description: "Punten op basis van hoe dicht bij het juiste antwoord. Binnen de marge = volle punten.",
+        title: "Numeric Estimation",
+        description: "Points based on how close to the correct answer. Within margin = full points.",
         tiers: [
-          { threshold: "Exact", percentage: 100, description: "Precies goed" },
-          { threshold: "Binnen 5%", percentage: 90, description: "Heel dichtbij" },
-          { threshold: "Binnen 10%", percentage: 80, description: "Dichtbij" },
-          { threshold: "Binnen 15%", percentage: 60, description: "Redelijk" },
-          { threshold: "Binnen 25%", percentage: 40, description: "In de buurt" },
-          { threshold: "Binnen 50%", percentage: 20, description: "Ver weg maar richting goed" },
-          { threshold: "> 50%", percentage: 0, description: "Te ver van correct" },
+          { threshold: "Exact", percentage: 100, description: "Exactly right" },
+          { threshold: "Within 5%", percentage: 90, description: "Very close" },
+          { threshold: "Within 10%", percentage: 80, description: "Close" },
+          { threshold: "Within 15%", percentage: 60, description: "Reasonable" },
+          { threshold: "Within 25%", percentage: 40, description: "In the ballpark" },
+          { threshold: "Within 50%", percentage: 20, description: "Far but right direction" },
+          { threshold: "> 50%", percentage: 0, description: "Too far from correct" },
         ],
       };
       
     case ScoringMode.NO_SCORE:
       return {
         mode,
-        title: "Geen Punten",
-        description: "Dit is een poll of stemming. Er worden geen punten toegekend.",
+        title: "No Points",
+        description: "This is a poll or vote. No points are awarded.",
         tiers: [
-          { threshold: "Alle antwoorden", percentage: 0, description: "Meningen, geen goed/fout" },
+          { threshold: "All answers", percentage: 0, description: "Opinions, no right/wrong" },
         ],
       };
       
     default:
       return {
         mode: ScoringMode.EXACT_MATCH,
-        title: "Standaard",
-        description: "Standaard scoring",
+        title: "Default",
+        description: "Default scoring",
         tiers: [],
       };
   }
@@ -162,46 +186,48 @@ export function getScoringInfo(questionType: string): ScoringInfo {
 
 /**
  * Get the scoring mode for a question type
- * Maps both shared QuestionType enum values and database type strings
+ * Uses the 19 official question types from the editor
  */
 export function getQuestionScoringMode(questionType: string): ScoringMode {
   // Normalize the type string
   const type = questionType.toUpperCase();
   
-  // Exact match types (100% or 0%)
+  // Exact match types (100% or 0%) - single correct answer
   const exactMatchTypes = [
-    "MC_SINGLE", "MCQ", "TRUE_FALSE", 
-    "MUSIC_OLDER_NEWER_THAN", "YOUTUBE_WHO_SAID_IT",
-    "PHOTO_QUESTION", "AUDIO_QUESTION", "VIDEO_QUESTION", // When used as MCQ
+    "MC_SINGLE", 
+    "TRUE_FALSE", 
+    "PHOTO_QUESTION", 
+    "AUDIO_QUESTION", 
+    "VIDEO_QUESTION",
+    "YOUTUBE_WHO_SAID_IT",
   ];
   
   // Partial multi types (multiple correct answers)
   const partialMultiTypes = ["MC_MULTIPLE"];
   
-  // Partial order types (ordering)
-  const partialOrderTypes = [
-    "ORDER", "ORDERING", 
-    "PHOTO_TIMELINE", "MUSIC_HITSTER_TIMELINE",
-  ];
+  // Partial order types (ordering) - points per correct position
+  const partialOrderTypes = ["ORDER"];
   
-  // Fuzzy text types (text similarity)
+  // Fuzzy text types (text similarity matching)
   const fuzzyTextTypes = [
-    "OPEN", "OPEN_TEXT", 
-    "PHOTO_GUESS", "PHOTO_ZOOM_REVEAL", "PHOTO_OPEN",
-    "AUDIO_OPEN", "VIDEO_OPEN",
-    "MUSIC_GUESS_TITLE", "MUSIC_GUESS_ARTIST",
-    "YOUTUBE_NEXT_LINE", "YOUTUBE_SCENE_QUESTION",
+    "OPEN_TEXT", 
+    "PHOTO_OPEN",
+    "AUDIO_OPEN", 
+    "VIDEO_OPEN",
+    "MUSIC_GUESS_TITLE", 
+    "MUSIC_GUESS_ARTIST",
+    "YOUTUBE_NEXT_LINE", 
+    "YOUTUBE_SCENE_QUESTION",
   ];
   
-  // Numeric distance types (estimation)
+  // Numeric distance types (closer = more points)
   const numericDistanceTypes = [
-    "ESTIMATION", "MUSIC_GUESS_YEAR",
+    "ESTIMATION", 
+    "MUSIC_GUESS_YEAR",
   ];
   
-  // No score types (polls, votes)
-  const noScoreTypes = [
-    "POLL", "EMOJI_VOTE", "CHAOS_EVENT",
-  ];
+  // No score types (just opinions, no right/wrong)
+  const noScoreTypes = ["POLL"];
   
   if (exactMatchTypes.includes(type)) return ScoringMode.EXACT_MATCH;
   if (partialMultiTypes.includes(type)) return ScoringMode.PARTIAL_MULTI;
@@ -210,8 +236,277 @@ export function getQuestionScoringMode(questionType: string): ScoringMode {
   if (numericDistanceTypes.includes(type)) return ScoringMode.NUMERIC_DISTANCE;
   if (noScoreTypes.includes(type)) return ScoringMode.NO_SCORE;
   
-  // Default to exact match
+  // Default to exact match for unknown types
   return ScoringMode.EXACT_MATCH;
+}
+
+// ============================================
+// ANSWER FORMAT DETECTION
+// ============================================
+
+/**
+ * Get the expected answer format for a question type
+ * Uses the 19 official question types from the editor
+ */
+export function getAnswerFormat(questionType: string): AnswerFormat {
+  const type = questionType.toUpperCase();
+  
+  // Boolean types (true/false)
+  if (type === "TRUE_FALSE") {
+    return AnswerFormat.BOOLEAN;
+  }
+  
+  // Multiple option IDs
+  if (type === "MC_MULTIPLE") {
+    return AnswerFormat.OPTION_IDS;
+  }
+  
+  // Ordering (array of IDs in order)
+  if (type === "ORDER") {
+    return AnswerFormat.ORDER_ARRAY;
+  }
+  
+  // Numeric types
+  if (["ESTIMATION", "MUSIC_GUESS_YEAR"].includes(type)) {
+    return AnswerFormat.NUMBER;
+  }
+  
+  // Text types (fuzzy matching)
+  if ([
+    "OPEN_TEXT",
+    "PHOTO_OPEN",
+    "AUDIO_OPEN", 
+    "VIDEO_OPEN",
+    "MUSIC_GUESS_TITLE", 
+    "MUSIC_GUESS_ARTIST",
+    "YOUTUBE_NEXT_LINE", 
+    "YOUTUBE_SCENE_QUESTION",
+  ].includes(type)) {
+    return AnswerFormat.TEXT;
+  }
+  
+  // No answer types (polls - just opinions)
+  if (type === "POLL") {
+    return AnswerFormat.NO_ANSWER;
+  }
+  
+  // Default: option ID (MC_SINGLE, PHOTO_QUESTION, AUDIO_QUESTION, VIDEO_QUESTION, YOUTUBE_WHO_SAID_IT)
+  return AnswerFormat.OPTION_ID;
+}
+
+/**
+ * Extract the correct answer from question options in the right format
+ * This is the KEY function that fixes the TRUE_FALSE and OLDER_NEWER issues
+ */
+export function extractCorrectAnswer(
+  questionType: string,
+  options: QuestionOption[],
+  settingsJson?: Record<string, any>
+): any {
+  const format = getAnswerFormat(questionType);
+  
+  // Find correct options
+  const correctOptions = options.filter((opt) => opt.isCorrect);
+  
+  switch (format) {
+    case AnswerFormat.BOOLEAN: {
+      // TRUE_FALSE: Return boolean based on which option is correct
+      if (correctOptions.length > 0) {
+        const correctText = correctOptions[0].text.toLowerCase().trim();
+        // Check if correct answer is "true", "yes", "waar", "ja"
+        return ["true", "yes", "waar", "ja", "correct", "juist"].includes(correctText);
+      }
+      // Fallback to settingsJson
+      return settingsJson?.correctAnswer === true || settingsJson?.correctAnswer === "true";
+    }
+    
+    case AnswerFormat.OPTION_IDS: {
+      // MC_MULTIPLE: Return array of correct option IDs
+      return correctOptions.map((opt) => opt.id);
+    }
+    
+    case AnswerFormat.ORDER_ARRAY: {
+      // ORDERING: Return options sorted by their correct order
+      const sortedOptions = [...options].sort((a, b) => (a.order || 0) - (b.order || 0));
+      return sortedOptions.map((opt) => opt.id);
+    }
+    
+    case AnswerFormat.NUMBER: {
+      // ESTIMATION/MUSIC_GUESS_YEAR: Return numeric value
+      if (settingsJson?.correctAnswer !== undefined) {
+        return parseFloat(settingsJson.correctAnswer);
+      }
+      if (correctOptions.length > 0) {
+        return parseFloat(correctOptions[0].text);
+      }
+      return 0;
+    }
+    
+    case AnswerFormat.TEXT: {
+      // OPEN text: Return correct text answer
+      if (settingsJson?.correctAnswer) {
+        return String(settingsJson.correctAnswer);
+      }
+      if (correctOptions.length > 0) {
+        return correctOptions[0].text;
+      }
+      if (options.length > 0) {
+        return options[0].text;
+      }
+      return "";
+    }
+    
+    case AnswerFormat.NO_ANSWER: {
+      // POLL: No correct answer
+      return null;
+    }
+    
+    case AnswerFormat.OPTION_ID:
+    default: {
+      // MCQ/MC_SINGLE: Return option ID
+      if (correctOptions.length > 0) {
+        return correctOptions[0].id;
+      }
+      return options[0]?.id || "";
+    }
+  }
+}
+
+/**
+ * Normalize player answer to match the expected format
+ * Converts player input to the format needed for comparison
+ */
+export function normalizePlayerAnswer(
+  questionType: string,
+  playerAnswer: any
+): any {
+  const format = getAnswerFormat(questionType);
+  
+  switch (format) {
+    case AnswerFormat.BOOLEAN: {
+      // Convert to boolean
+      if (typeof playerAnswer === "boolean") {
+        return playerAnswer;
+      }
+      if (typeof playerAnswer === "string") {
+        const lower = playerAnswer.toLowerCase().trim();
+        return ["true", "yes", "waar", "ja", "correct", "juist", "1"].includes(lower);
+      }
+      if (typeof playerAnswer === "number") {
+        return playerAnswer === 1;
+      }
+      return Boolean(playerAnswer);
+    }
+    
+    case AnswerFormat.OPTION_IDS: {
+      // Ensure array of strings
+      if (Array.isArray(playerAnswer)) {
+        return playerAnswer.map(String);
+      }
+      return [String(playerAnswer)];
+    }
+    
+    case AnswerFormat.ORDER_ARRAY: {
+      // Ensure array
+      if (Array.isArray(playerAnswer)) {
+        return playerAnswer;
+      }
+      return [];
+    }
+    
+    case AnswerFormat.NUMBER: {
+      // Convert to number
+      if (typeof playerAnswer === "number") {
+        return playerAnswer;
+      }
+      return parseFloat(String(playerAnswer)) || 0;
+    }
+    
+    case AnswerFormat.TEXT: {
+      // Convert to string
+      return String(playerAnswer || "");
+    }
+    
+    case AnswerFormat.NO_ANSWER: {
+      // Poll - just return as-is
+      return playerAnswer;
+    }
+    
+    case AnswerFormat.OPTION_ID:
+    default: {
+      // Return as string
+      return String(playerAnswer);
+    }
+  }
+}
+
+/**
+ * Complete answer validation with automatic format handling
+ * This is the main function to use in the WS server
+ */
+export function validateAnswerComplete(
+  questionType: string,
+  playerAnswer: any,
+  options: QuestionOption[],
+  settingsJson?: Record<string, any>,
+  scoringOptions?: {
+    basePoints?: number;
+    timeSpentMs?: number;
+    timeLimitMs?: number;
+    currentStreak?: number;
+    estimationMargin?: number;
+    acceptableAnswers?: string[];
+  }
+): ValidationResult & { 
+  normalizedPlayerAnswer: any;
+  correctAnswer: any;
+  answerFormat: AnswerFormat;
+} {
+  const format = getAnswerFormat(questionType);
+  
+  // Extract correct answer in proper format
+  const correctAnswer = extractCorrectAnswer(questionType, options, settingsJson);
+  
+  // Normalize player answer
+  const normalizedPlayerAnswer = normalizePlayerAnswer(questionType, playerAnswer);
+  
+  // Validate and score
+  const { isCorrect, scorePercentage } = validateAndScorePercentage(
+    questionType,
+    normalizedPlayerAnswer,
+    correctAnswer,
+    {
+      allOptions: options,
+      estimationMargin: scoringOptions?.estimationMargin,
+      acceptableAnswers: scoringOptions?.acceptableAnswers,
+    }
+  );
+  
+  // Calculate final score with bonuses
+  const config: ScoringConfig = {
+    basePoints: scoringOptions?.basePoints || 10,
+    timeBonus: true,
+    timeBonusPercentage: 50,
+    streakBonus: true,
+    streakBonusPoints: 1,
+  };
+  
+  const score = calculateScore(
+    scorePercentage,
+    config,
+    scoringOptions?.timeSpentMs,
+    scoringOptions?.timeLimitMs,
+    scoringOptions?.currentStreak
+  );
+  
+  return {
+    isCorrect,
+    score,
+    scorePercentage,
+    normalizedPlayerAnswer,
+    correctAnswer,
+    answerFormat: format,
+  };
 }
 
 // ============================================

@@ -6,35 +6,35 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button, Input, Card } from "@/components/ui";
 
-// Map NextAuth error codes to user-friendly Dutch messages
+// Map NextAuth error codes to user-friendly English messages
 function getErrorMessage(error: string | null): string {
   if (!error) return "";
   
   const errorMessages: Record<string, string> = {
     // NextAuth built-in errors
-    "Configuration": "Er is een probleem met de login configuratie. Neem contact op met support.",
-    "AccessDenied": "Toegang geweigerd. Je hebt geen toestemming om in te loggen.",
-    "Verification": "De verificatielink is verlopen of al gebruikt.",
-    "OAuthSignin": "Fout bij het starten van de Google login.",
-    "OAuthCallback": "Fout bij het verwerken van de Google login.",
-    "OAuthCreateAccount": "Kon geen account aanmaken met Google.",
-    "EmailCreateAccount": "Kon geen account aanmaken met dit emailadres.",
-    "Callback": "Er ging iets mis bij het inloggen.",
-    "OAuthAccountNotLinked": "Dit emailadres is al in gebruik met een andere inlogmethode.",
-    "EmailSignin": "Kon geen magic link verzenden.",
-    "CredentialsSignin": "Onjuiste email of wachtwoord.",
-    "SessionRequired": "Je moet ingelogd zijn om deze pagina te bekijken.",
-    "Default": "Er ging iets mis. Probeer het opnieuw.",
+    "Configuration": "There is a problem with the login configuration. Please contact support.",
+    "AccessDenied": "Access denied. You do not have permission to sign in.",
+    "Verification": "The verification link has expired or has already been used.",
+    "OAuthSignin": "Error starting Google sign in.",
+    "OAuthCallback": "Error processing Google sign in.",
+    "OAuthCreateAccount": "Could not create account with Google.",
+    "EmailCreateAccount": "Could not create account with this email address.",
+    "Callback": "Something went wrong while signing in.",
+    "OAuthAccountNotLinked": "This email address is already in use with a different sign-in method.",
+    "EmailSignin": "Could not send magic link.",
+    "CredentialsSignin": "Incorrect email or password.",
+    "SessionRequired": "You must be signed in to view this page.",
+    "Default": "Something went wrong. Please try again.",
     
     // Custom error codes from our credentials provider
-    "email_password_required": "Email en wachtwoord zijn verplicht.",
-    "user_not_found": "Geen account gevonden met dit emailadres.",
-    "no_password_set": "Dit account heeft nog geen wachtwoord. Stel eerst een wachtwoord in via je accountinstellingen, of log in via Google.",
-    "email_not_verified": "Verifieer eerst je email. Check je inbox voor de verificatielink.",
-    "invalid_password": "Het wachtwoord is onjuist. Probeer het opnieuw.",
+    "email_password_required": "Email and password are required.",
+    "user_not_found": "No account found with this email address.",
+    "no_password_set": "This account does not have a password yet. Set a password via your account settings, or sign in with Google.",
+    "email_not_verified": "Please verify your email first. Check your inbox for the verification link.",
+    "invalid_password": "The password is incorrect. Please try again.",
   };
 
-  return errorMessages[error] || `Er ging iets mis: ${error}`;
+  return errorMessages[error] || `Something went wrong: ${error}`;
 }
 
 function SignInForm() {
@@ -89,7 +89,7 @@ function SignInForm() {
         return; // Don't setLoading(false) since we're navigating away
       }
     } catch {
-      setError("Er ging iets mis. Probeer het opnieuw.");
+      setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -116,12 +116,12 @@ function SignInForm() {
       });
 
       if (result?.error) {
-        setError("Kon geen magic link verzenden");
+        setError("Could not send magic link");
       } else {
         setMagicLinkSent(true);
       }
     } catch {
-      setError("Er ging iets mis. Probeer het opnieuw.");
+      setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -144,21 +144,21 @@ function SignInForm() {
           <div className="text-center space-y-4">
             <div className="text-6xl">✉️</div>
             <h1 className="text-3xl font-bold text-slate-100 font-display">
-              Check je Email!
+              Check your Email!
             </h1>
             <p className="text-slate-400">
-              We hebben een magic link gestuurd naar{" "}
+              We have sent a magic link to{" "}
               <strong className="text-blue-400">{formData.email}</strong>
             </p>
             <p className="text-sm text-slate-500">
-              Klik op de link in de email om in te loggen. De link is 24 uur geldig.
+              Click the link in the email to sign in. The link is valid for 24 hours.
             </p>
             <Button
               variant="ghost"
               onClick={() => setMagicLinkSent(false)}
               className="mt-4 btn btn-ghost"
             >
-              Ander email proberen
+              Try a different email
             </Button>
           </div>
         </Card>
@@ -182,10 +182,10 @@ function SignInForm() {
             <span className="ml-2 text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-1 rounded-md">by Databridge360</span>
           </div>
           <h1 className="text-3xl font-bold text-slate-100 font-display">
-            Welkom Terug!
+            Welcome Back!
           </h1>
           <p className="text-slate-400">
-            Log in om je quizzes en workspaces te beheren
+            Sign in to manage your quizzes and workspaces
           </p>
         </div>
 
@@ -194,7 +194,7 @@ function SignInForm() {
             <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
-            <span>Email geverifieerd! Je kunt nu inloggen.</span>
+            <span>Email verified! You can now sign in.</span>
           </div>
         )}
 
@@ -210,7 +210,7 @@ function SignInForm() {
                   href="/auth/set-password" 
                   className="text-sm underline hover:text-red-200 transition-colors"
                 >
-                  → Wachtwoord instellen
+                  → Set password
                 </Link>
               )}
             </div>
@@ -232,24 +232,24 @@ function SignInForm() {
           />
 
           <div>
-            <Input
-              id="password"
-              name="password"
-              type="password"
-              label="Wachtwoord"
-              placeholder="Je wachtwoord"
-              value={formData.password}
-              onChange={handleChange}
-              required
-              autoComplete="current-password"
-              className="input"
-            />
+          <Input
+            id="password"
+            name="password"
+            type="password"
+            label="Password"
+            placeholder="Your password"
+            value={formData.password}
+            onChange={handleChange}
+            required
+            autoComplete="current-password"
+            className="input"
+          />
             <div className="flex justify-end mt-1">
               <Link
                 href="/auth/forgot-password"
                 className="text-sm text-blue-400 hover:text-cyan-400 transition-colors"
               >
-                Wachtwoord vergeten?
+                Forgot password?
               </Link>
             </div>
           </div>
@@ -260,7 +260,7 @@ function SignInForm() {
             loading={loading}
             disabled={loading}
           >
-            Inloggen
+            Sign In
           </Button>
         </form>
 
@@ -269,7 +269,7 @@ function SignInForm() {
             <div className="divider w-full"></div>
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="px-4 bg-[rgba(15,23,42,0.8)] text-slate-500">of</span>
+            <span className="px-4 bg-[rgba(15,23,42,0.8)] text-slate-500">or</span>
           </div>
         </div>
 
@@ -285,7 +285,7 @@ function SignInForm() {
               <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
-            Doorgaan met Google
+            Continue with Google
           </button>
 
           {!showMagicLink ? (
@@ -294,7 +294,7 @@ function SignInForm() {
               onClick={() => setShowMagicLink(true)}
               className="w-full text-center text-sm text-slate-400 hover:text-cyan-400 py-2 transition-colors"
             >
-              Liever een magic link? →
+              Prefer a magic link? →
             </button>
           ) : (
             <button
@@ -304,15 +304,15 @@ function SignInForm() {
               className="w-full btn btn-secondary flex items-center justify-center gap-2 disabled:opacity-50"
             >
               <span>✉️</span>
-              Magic Link Versturen
+              Send Magic Link
             </button>
           )}
         </div>
 
         <div className="text-center text-sm text-slate-400 mt-6">
-          Nog geen account?{" "}
+          Don't have an account?{" "}
           <Link href="/auth/signup" className="text-blue-400 hover:text-cyan-400 font-medium transition-colors">
-            Registreren
+            Sign Up
           </Link>
         </div>
       </Card>

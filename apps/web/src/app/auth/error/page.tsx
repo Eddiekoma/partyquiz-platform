@@ -7,94 +7,94 @@ import { Card } from "@/components/ui";
 
 const errorMessages: Record<string, { title: string; description: string; icon: string }> = {
   Configuration: {
-    title: "Server Configuratie Fout",
-    description: "Er is een probleem met de server configuratie. Neem contact op met de beheerder.",
+    title: "Server Configuration Error",
+    description: "There is a problem with the server configuration. Please contact the administrator.",
     icon: "⚙️",
   },
   AccessDenied: {
-    title: "Toegang Geweigerd",
-    description: "Je hebt geen toegang tot deze resource.",
+    title: "Access Denied",
+    description: "You do not have access to this resource.",
     icon: "🚫",
   },
   Verification: {
-    title: "Verificatie Mislukt",
-    description: "De verificatie link is verlopen of al gebruikt. Vraag een nieuwe aan.",
+    title: "Verification Failed",
+    description: "The verification link has expired or has already been used. Please request a new one.",
     icon: "⏰",
   },
   OAuthSignin: {
-    title: "OAuth Fout",
-    description: "Er ging iets mis bij het inloggen met een externe provider.",
+    title: "OAuth Error",
+    description: "Something went wrong while signing in with an external provider.",
     icon: "🔐",
   },
   OAuthCallback: {
-    title: "OAuth Callback Fout",
-    description: "Er ging iets mis bij het verwerken van de login respons.",
+    title: "OAuth Callback Error",
+    description: "Something went wrong while processing the login response.",
     icon: "🔄",
   },
   OAuthCreateAccount: {
-    title: "Account Aanmaken Mislukt",
-    description: "Er ging iets mis bij het aanmaken van je account.",
+    title: "Account Creation Failed",
+    description: "Something went wrong while creating your account.",
     icon: "👤",
   },
   EmailCreateAccount: {
-    title: "Account Aanmaken Mislukt",
-    description: "Er ging iets mis bij het aanmaken van je account via email.",
+    title: "Account Creation Failed",
+    description: "Something went wrong while creating your account via email.",
     icon: "📧",
   },
   Callback: {
-    title: "Callback Fout",
-    description: "Er ging iets mis bij het verwerken van je verzoek.",
+    title: "Callback Error",
+    description: "Something went wrong while processing your request.",
     icon: "❌",
   },
   OAuthAccountNotLinked: {
-    title: "Account Niet Gekoppeld",
-    description: "Dit emailadres is al geregistreerd met een andere inlogmethode. Probeer in te loggen met de originele methode.",
+    title: "Account Not Linked",
+    description: "This email address is already registered with a different sign-in method. Try signing in with the original method.",
     icon: "🔗",
   },
   EmailSignin: {
-    title: "Email Verzenden Mislukt",
-    description: "Er ging iets mis bij het verzenden van de verificatie email. Probeer het opnieuw.",
+    title: "Email Sending Failed",
+    description: "Something went wrong while sending the verification email. Please try again.",
     icon: "📬",
   },
   CredentialsSignin: {
-    title: "Inloggen Mislukt",
-    description: "De inloggegevens zijn onjuist. Controleer je email en wachtwoord.",
+    title: "Sign In Failed",
+    description: "The credentials are incorrect. Please check your email and password.",
     icon: "🔑",
   },
   SessionRequired: {
-    title: "Sessie Vereist",
-    description: "Je moet ingelogd zijn om deze pagina te bekijken.",
+    title: "Session Required",
+    description: "You must be signed in to view this page.",
     icon: "🔒",
   },
   // Custom error codes from credentials provider
   email_password_required: {
-    title: "Gegevens Ontbreken",
-    description: "Vul zowel je email als wachtwoord in om in te loggen.",
+    title: "Missing Information",
+    description: "Please enter both your email and password to sign in.",
     icon: "📝",
   },
   user_not_found: {
-    title: "Account Niet Gevonden",
-    description: "Er is geen account met dit emailadres. Maak eerst een account aan of gebruik een ander emailadres.",
+    title: "Account Not Found",
+    description: "There is no account with this email address. Please create an account first or use a different email address.",
     icon: "🔍",
   },
   no_password_set: {
-    title: "Geen Wachtwoord Ingesteld",
-    description: "Dit account heeft nog geen wachtwoord. Stel een wachtwoord in via je accountinstellingen, of log in via Google.",
-    icon: "�",
+    title: "No Password Set",
+    description: "This account does not have a password yet. Set a password via your account settings, or sign in with Google.",
+    icon: "🔒",
   },
   email_not_verified: {
-    title: "Email Niet Geverifieerd",
-    description: "Verifieer eerst je email voordat je kunt inloggen. Check je inbox voor de verificatielink.",
+    title: "Email Not Verified",
+    description: "Please verify your email before signing in. Check your inbox for the verification link.",
     icon: "✉️",
   },
   invalid_password: {
-    title: "Onjuist Wachtwoord",
-    description: "Het wachtwoord is onjuist. Probeer het opnieuw of gebruik 'Wachtwoord vergeten'.",
+    title: "Incorrect Password",
+    description: "The password is incorrect. Please try again or use 'Forgot Password'.",
     icon: "🔑",
   },
   Default: {
-    title: "Er Ging Iets Mis",
-    description: "Er is een onverwachte fout opgetreden. Probeer het opnieuw.",
+    title: "Something Went Wrong",
+    description: "An unexpected error occurred. Please try again.",
     icon: "😕",
   },
 };
@@ -124,7 +124,7 @@ function AuthErrorContent() {
           
           {error && error !== "Default" && (
             <p className="text-xs text-slate-600 font-mono">
-              Foutcode: {error}
+              Error code: {error}
             </p>
           )}
 
@@ -133,7 +133,7 @@ function AuthErrorContent() {
               href="/auth/signin"
               className="block w-full btn btn-primary text-center"
             >
-              Terug naar Inloggen
+              Back to Sign In
             </Link>
             
             {error === "Verification" && (
@@ -141,7 +141,7 @@ function AuthErrorContent() {
                 href="/auth/signin"
                 className="block w-full btn btn-secondary text-center"
               >
-                Nieuwe Link Aanvragen
+                Request New Link
               </Link>
             )}
             
@@ -150,7 +150,7 @@ function AuthErrorContent() {
                 href="/auth/forgot-password"
                 className="block w-full btn btn-secondary text-center"
               >
-                Wachtwoord Vergeten?
+                Forgot Password?
               </Link>
             )}
 
@@ -159,7 +159,7 @@ function AuthErrorContent() {
                 href="/auth/signup"
                 className="block w-full btn btn-secondary text-center"
               >
-                Account Aanmaken
+                Create Account
               </Link>
             )}
 
@@ -168,7 +168,7 @@ function AuthErrorContent() {
                 href="/auth/signin"
                 className="block w-full btn btn-secondary text-center"
               >
-                Verificatie Email Opnieuw Verzenden
+                Resend Verification Email
               </Link>
             )}
 
@@ -177,7 +177,7 @@ function AuthErrorContent() {
                 href="/auth/set-password"
                 className="block w-full btn btn-secondary text-center"
               >
-                Wachtwoord Instellen
+                Set Password
               </Link>
             )}
           </div>

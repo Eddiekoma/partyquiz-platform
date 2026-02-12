@@ -33,14 +33,14 @@ export async function GET(
 
     if (!player) {
       return NextResponse.json(
-        { error: "Ongeldige speler link" },
+        { error: "Invalid player link" },
         { status: 404 }
       );
     }
 
     if (player.session.status === "ENDED") {
       return NextResponse.json(
-        { error: "Deze sessie is beëindigd" },
+        { error: "This session has ended" },
         { status: 400 }
       );
     }
@@ -71,7 +71,7 @@ export async function GET(
   } catch (error) {
     console.error("[GET /api/sessions/player/[token]] Error:", error);
     return NextResponse.json(
-      { error: "Fout bij valideren speler" },
+      { error: "Error validating player" },
       { status: 500 }
     );
   }
@@ -93,7 +93,7 @@ export async function POST(
 
     if (!deviceIdHash) {
       return NextResponse.json(
-        { error: "Device ID is vereist" },
+        { error: "Device ID is required" },
         { status: 400 }
       );
     }
@@ -107,14 +107,14 @@ export async function POST(
 
     if (!player) {
       return NextResponse.json(
-        { error: "Ongeldige speler link" },
+        { error: "Invalid player link" },
         { status: 404 }
       );
     }
 
     if (player.session.status === "ENDED") {
       return NextResponse.json(
-        { error: "Deze sessie is beëindigd" },
+        { error: "This session has ended" },
         { status: 400 }
       );
     }
@@ -131,7 +131,7 @@ export async function POST(
 
     if (existingPlayer) {
       return NextResponse.json(
-        { error: `Dit apparaat is al gekoppeld aan ${existingPlayer.name}` },
+        { error: `This device is already linked to ${existingPlayer.name}` },
         { status: 409 }
       );
     }
@@ -139,7 +139,7 @@ export async function POST(
     // Check if player is already claimed by another device
     if (player.deviceIdHash && player.deviceIdHash !== deviceIdHash) {
       return NextResponse.json(
-        { error: "Deze speler is al geclaimd door een ander apparaat" },
+        { error: "This player has already been claimed by another device" },
         { status: 409 }
       );
     }
@@ -166,7 +166,7 @@ export async function POST(
   } catch (error) {
     console.error("[POST /api/sessions/player/[token]/claim] Error:", error);
     return NextResponse.json(
-      { error: "Fout bij claimen speler" },
+      { error: "Error claiming player" },
       { status: 500 }
     );
   }

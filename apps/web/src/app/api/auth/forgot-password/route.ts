@@ -5,7 +5,7 @@ import { z } from "zod";
 import { getEnv } from "@/lib/env";
 
 const forgotPasswordSchema = z.object({
-  email: z.string().email("Ongeldig emailadres"),
+  email: z.string().email("Invalid email address"),
 });
 
 export async function POST(request: NextRequest) {
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({
         success: true,
-        message: "Als dit emailadres bij ons bekend is, ontvang je een reset link.",
+        message: "If this email address is registered, you will receive a reset link.",
       });
     }
 
@@ -66,12 +66,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "Als dit emailadres bij ons bekend is, ontvang je een reset link.",
+      message: "If this email address is registered, you will receive a reset link.",
     });
   } catch (error) {
     console.error("Forgot password error:", error);
     return NextResponse.json(
-      { error: "Er is iets misgegaan. Probeer het opnieuw." },
+      { error: "Something went wrong. Please try again." },
       { status: 500 }
     );
   }

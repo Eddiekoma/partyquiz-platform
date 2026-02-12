@@ -9,6 +9,14 @@ import { AnswerInput } from "@/components/player/AnswerInput";
 import { Timer } from "@/components/player/Timer";
 import { ScoreDisplay } from "@/components/player/ScoreDisplay";
 import { SwanRace } from "@/components/SwanRace";
+import { Leaderboard } from "@/components/player/Leaderboard";
+
+interface LeaderboardEntry {
+  playerId: string;
+  playerName: string;
+  avatar: string;
+  totalScore: number;
+}
 
 interface CurrentItem {
   id: string;
@@ -41,6 +49,11 @@ export default function GamePage() {
   const [playerName, setPlayerName] = useState<string>("");
   const [explanation, setExplanation] = useState<string | null>(null);
   const [showReveal, setShowReveal] = useState(false);
+  const [showScoreboard, setShowScoreboard] = useState(false);
+  const [scoreboardData, setScoreboardData] = useState<LeaderboardEntry[]>([]);
+  // ORDER question reveal data
+  const [correctOrder, setCorrectOrder] = useState<Array<{ id: string; text: string; position: number }> | null>(null);
+  const [correctText, setCorrectText] = useState<string | null>(null);
 
   const { socket, isConnected } = useWebSocket();
 
@@ -115,6 +128,8 @@ export default function GamePage() {
       setAnswerResult(null);
       setExplanation(null); // Reset explanation
       setShowReveal(false); // Reset reveal state
+      setCorrectOrder(null); // Reset ORDER reveal data
+      setCorrectText(null); // Reset open text reveal data
     });
 
     // Listen for item locked (time's up)
@@ -143,11 +158,20 @@ export default function GamePage() {
     // Listen for answer feedback
     socket.on("ANSWER_RECEIVED", (data: any) => {
       console.log("[Player] Answer received:", data);
+      
+      // If player already answered (on rejoin), lock and show their previous result
+      if (data.alreadyAnswered) {
+        console.log("[Player] Already answered this question - locking input");
+        setIsLocked(true);
+        setMyAnswer({ alreadyAnswered: true }); // Mark as already answered
+      }
+      
       setAnswerResult({
         isCorrect: data.isCorrect,
         score: data.score,
       });
-      if (data.isCorrect) {
+      if (data.isCorrect && !data.alreadyAnswered) {
+        // Only add score if this is a new answer (not a rejoin)
         setCurrentScore((prev) => prev + data.score);
       }
     });
@@ -155,8 +179,22 @@ export default function GamePage() {
     // Listen for reveal answers (show correct answer)
     socket.on("REVEAL_ANSWERS", (data: any) => {
       console.log("[Player] Reveal answers:", data);
-      // Mark correct option in current item
-      if (data.correctOptionId) {
+      
+      // Handle different question types
+      if (data.correctOrder) {
+        // ORDER question: store correct order for display
+        setCorrectOrder(data.correctOrder);
+      } else if (data.correctOptionIds && data.correctOptionIds.length > 0) {
+        // MC_MULTIPLE: mark all correct options
+        setCurrentItem(prev => prev ? {
+          ...prev,
+          options: prev.options?.map(opt => ({
+            ...opt,
+            isCorrect: data.correctOptionIds.includes(opt.id),
+          })),
+        } : null);
+      } else if (data.correctOptionId) {
+        // MC_SINGLE/TRUE_FALSE: mark single correct option
         setCurrentItem(prev => prev ? {
           ...prev,
           options: prev.options?.map(opt => ({
@@ -164,7 +202,11 @@ export default function GamePage() {
             isCorrect: opt.id === data.correctOptionId,
           })),
         } : null);
+      } else if (data.correctText) {
+        // Open text types: store correct text
+        setCorrectText(data.correctText);
       }
+      
       // Show correct answer feedback and explanation if provided
       setExplanation(data.explanation || null);
       setShowReveal(true);
@@ -176,6 +218,27 @@ export default function GamePage() {
       router.push(`/play/${code}/results`);
     });
 
+    // Listen for scoreboard show/hide
+    socket.on("SHOW_SCOREBOARD", (data: any) => {
+      console.log("[Player] Show scoreboard:", data);
+      if (data.leaderboard) {
+        setScoreboardData(data.leaderboard);
+      }
+      setShowScoreboard(true);
+    });
+
+    socket.on("HIDE_SCOREBOARD", () => {
+      console.log("[Player] Hide scoreboard");
+      setShowScoreboard(false);
+    });
+
+    // Listen for leaderboard updates (to keep data fresh)
+    socket.on("LEADERBOARD_UPDATE", (data: any) => {
+      if (data.leaderboard) {
+        setScoreboardData(data.leaderboard);
+      }
+    });
+
     // Listen for being kicked by host
     socket.on(WSMessageType.PLAYER_KICKED, (data: any) => {
       console.log("[Player] Kicked from session:", data);
@@ -184,6 +247,21 @@ export default function GamePage() {
       // Show message and redirect
       alert(data.reason || "You have been removed from the session by the host.");
       router.push("/join");
+    });
+
+    // Listen for item cancelled (host cancelled the current question)
+    socket.on(WSMessageType.ITEM_CANCELLED, () => {
+      console.log("[Player] Item cancelled by host");
+      setCurrentItem(null);
+      setIsLocked(false);
+      setTimerEndsAt(null);
+      setTimeRemaining(0);
+      setMyAnswer(null);
+      setAnswerResult(null);
+      setExplanation(null);
+      setShowReveal(false);
+      setCorrectOrder(null);
+      setCorrectText(null);
     });
 
     // Listen for errors - handle gracefully
@@ -207,7 +285,11 @@ export default function GamePage() {
       socket.off("ANSWER_RECEIVED");
       socket.off("REVEAL_ANSWERS");
       socket.off("SESSION_ENDED");
+      socket.off("SHOW_SCOREBOARD");
+      socket.off("HIDE_SCOREBOARD");
+      socket.off("LEADERBOARD_UPDATE");
       socket.off(WSMessageType.PLAYER_KICKED);
+      socket.off(WSMessageType.ITEM_CANCELLED);
       socket.off("ERROR");
     };
   }, [socket, isConnected, code, router]);
@@ -247,6 +329,12 @@ export default function GamePage() {
   if (!isConnected) {
     return (
       <div className="flex-1 flex items-center justify-center">
+        <Leaderboard
+          sessionCode={code.toUpperCase()}
+          visible={showScoreboard}
+          entries={scoreboardData}
+          currentPlayerId={playerId}
+        />
         <div className="text-center">
           <div className="text-6xl mb-4 animate-bounce">🔌</div>
           <p className="text-xl font-bold text-white">Reconnecting...</p>
@@ -259,6 +347,12 @@ export default function GamePage() {
   if (showSwanRace) {
     return (
       <div className="flex-1 flex flex-col p-4">
+        <Leaderboard
+          sessionCode={code.toUpperCase()}
+          visible={showScoreboard}
+          entries={scoreboardData}
+          currentPlayerId={playerId}
+        />
         <SwanRace
           sessionCode={code.toUpperCase()}
           playerId={playerId}
@@ -276,6 +370,12 @@ export default function GamePage() {
   if (!currentItem) {
     return (
       <div className="flex-1 flex items-center justify-center">
+        <Leaderboard
+          sessionCode={code.toUpperCase()}
+          visible={showScoreboard}
+          entries={scoreboardData}
+          currentPlayerId={playerId}
+        />
         <div className="text-center">
           <div className="text-6xl mb-4 animate-pulse">⏳</div>
           <p className="text-xl font-bold text-white">Waiting for next question...</p>
@@ -286,6 +386,14 @@ export default function GamePage() {
 
   return (
     <div className="flex-1 flex flex-col p-4 relative">
+      {/* Scoreboard Overlay */}
+      <Leaderboard
+        sessionCode={code.toUpperCase()}
+        visible={showScoreboard}
+        entries={scoreboardData}
+        currentPlayerId={playerId}
+      />
+
       {/* Timer */}
       <div className="absolute top-4 right-4 z-10">
         <Timer
@@ -356,42 +464,81 @@ export default function GamePage() {
           </div>
         )}
 
-        {/* Correct Answer Reveal - show options with correct one highlighted */}
-        {showReveal && currentItem?.options && currentItem.options.length > 0 && (
+        {/* Correct Answer Reveal - different display per question type */}
+        {showReveal && (
           <div className="mt-8 w-full">
             <p className="text-center text-white/60 text-sm mb-4 font-semibold uppercase tracking-wide">Correct Answer</p>
-            <div className="grid grid-cols-2 gap-3">
-              {currentItem.options.map((option, idx) => {
-                // Same colors as Display/Host
-                const colors = [
-                  "bg-red-600",
-                  "bg-blue-600", 
-                  "bg-yellow-600",
-                  "bg-green-600",
-                ];
-                const baseColor = colors[idx % 4];
-                
-                return (
-                  <div
-                    key={option.id}
-                    className={`p-4 rounded-xl text-base font-bold transition-all ${
-                      option.isCorrect
-                        ? "bg-green-500 text-white ring-4 ring-green-300 scale-105 shadow-lg shadow-green-500/50"
-                        : myAnswer === option.id && !option.isCorrect
-                          ? "bg-red-900/80 text-white/60 ring-2 ring-red-500"
-                          : `${baseColor} opacity-40 text-white/50`
-                    }`}
-                  >
-                    <span className="opacity-70 mr-2 text-sm">
-                      {String.fromCharCode(65 + idx)}
-                    </span>
-                    {option.isCorrect && <span className="mr-1">✅</span>}
-                    {myAnswer === option.id && !option.isCorrect && <span className="mr-1">❌</span>}
-                    {option.text}
-                  </div>
-                );
-              })}
-            </div>
+            
+            {/* ORDER Question Reveal - show numbered list in correct order */}
+            {correctOrder && correctOrder.length > 0 && (
+              <div className="space-y-2">
+                {correctOrder.map((item, idx) => {
+                  // Check if player had this item in the correct position
+                  const playerAnswer = Array.isArray(myAnswer) ? myAnswer : [];
+                  const isCorrectPosition = playerAnswer[idx] === item.id;
+                  
+                  return (
+                    <div
+                      key={item.id}
+                      className={`p-4 rounded-xl text-base font-bold transition-all flex items-center gap-3 ${
+                        isCorrectPosition
+                          ? "bg-green-500/80 text-white ring-2 ring-green-300"
+                          : "bg-slate-700/60 text-white"
+                      }`}
+                    >
+                      <span className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-lg font-black">
+                        {idx + 1}
+                      </span>
+                      <span>{item.text}</span>
+                      {isCorrectPosition && <span className="ml-auto">✅</span>}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            
+            {/* Open Text Reveal - show correct text answer */}
+            {correctText && (
+              <div className="p-6 rounded-xl bg-green-500/80 text-white text-center">
+                <p className="text-xl font-bold">{correctText}</p>
+              </div>
+            )}
+            
+            {/* MC/TRUE_FALSE Reveal - show options with correct one highlighted */}
+            {!correctOrder && !correctText && currentItem?.options && currentItem.options.length > 0 && (
+              <div className="grid grid-cols-2 gap-3">
+                {currentItem.options.map((option, idx) => {
+                  // Same colors as Display/Host
+                  const colors = [
+                    "bg-red-600",
+                    "bg-blue-600", 
+                    "bg-yellow-600",
+                    "bg-green-600",
+                  ];
+                  const baseColor = colors[idx % 4];
+                  
+                  return (
+                    <div
+                      key={option.id}
+                      className={`p-4 rounded-xl text-base font-bold transition-all ${
+                        option.isCorrect
+                          ? "bg-green-500 text-white ring-4 ring-green-300 scale-105 shadow-lg shadow-green-500/50"
+                          : myAnswer === option.id && !option.isCorrect
+                            ? "bg-red-900/80 text-white/60 ring-2 ring-red-500"
+                            : `${baseColor} opacity-40 text-white/50`
+                      }`}
+                    >
+                      <span className="opacity-70 mr-2 text-sm">
+                        {String.fromCharCode(65 + idx)}
+                      </span>
+                      {option.isCorrect && <span className="mr-1">✅</span>}
+                      {myAnswer === option.id && !option.isCorrect && <span className="mr-1">❌</span>}
+                      {option.text}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 

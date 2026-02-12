@@ -45,20 +45,20 @@ export default function DeleteSessionButton({
   if (showConfirm) {
     return (
       <div className="flex items-center gap-2">
-        <span className="text-sm text-slate-400">Weet je het zeker?</span>
+        <span className="text-sm text-slate-400">Are you sure?</span>
         <button
           onClick={handleDelete}
           disabled={isDeleting}
           className="px-3 py-1.5 bg-red-600 text-white text-sm font-medium rounded hover:bg-red-700 disabled:opacity-50 transition-colors"
         >
-          {isDeleting ? "Verwijderen..." : "Ja, verwijder"}
+          {isDeleting ? "Deleting..." : "Yes, delete"}
         </button>
         <button
           onClick={() => setShowConfirm(false)}
           disabled={isDeleting}
           className="px-3 py-1.5 bg-slate-600 text-white text-sm font-medium rounded hover:bg-slate-500 disabled:opacity-50 transition-colors"
         >
-          Annuleren
+          Cancel
         </button>
         {error && <span className="text-sm text-red-400">{error}</span>}
       </div>
@@ -70,7 +70,7 @@ export default function DeleteSessionButton({
       onClick={() => setShowConfirm(true)}
       className="inline-flex items-center px-4 py-2 bg-red-600/20 text-red-400 border border-red-600/30 font-medium rounded-lg hover:bg-red-600/30 transition-colors"
     >
-      🗑️ Verwijderen
+      🗑️ Delete
     </button>
   );
 }

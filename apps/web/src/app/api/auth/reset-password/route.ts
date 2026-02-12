@@ -4,9 +4,9 @@ import { hashPassword, validatePassword } from "@/lib/password";
 import { z } from "zod";
 
 const resetPasswordSchema = z.object({
-  token: z.string().min(1, "Token is verplicht"),
-  code: z.string().length(6, "Code moet 6 cijfers bevatten"),
-  password: z.string().min(8, "Wachtwoord moet minimaal 8 tekens bevatten"),
+  token: z.string().min(1, "Token is required"),
+  code: z.string().length(6, "Code must be 6 digits"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
 export async function POST(request: NextRequest) {
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
 
     if (!resetToken) {
       return NextResponse.json(
-        { error: "Ongeldige of verlopen reset link" },
+        { error: "Invalid or expired reset link" },
         { status: 400 }
       );
     }
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
     // Check if token is used
     if (resetToken.used) {
       return NextResponse.json(
-        { error: "Deze reset link is al gebruikt" },
+        { error: "This reset link has already been used" },
         { status: 400 }
       );
     }
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     // Check if token is expired
     if (new Date() > resetToken.expires) {
       return NextResponse.json(
-        { error: "Deze reset link is verlopen" },
+        { error: "This reset link has expired" },
         { status: 400 }
       );
     }
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     // Check verification code
     if (resetToken.code !== code) {
       return NextResponse.json(
-        { error: "Ongeldige verificatiecode" },
+        { error: "Invalid verification code" },
         { status: 400 }
       );
     }
@@ -90,12 +90,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "Wachtwoord is gewijzigd. Je kunt nu inloggen.",
+      message: "Password has been changed. You can now log in.",
     });
   } catch (error) {
     console.error("Reset password error:", error);
     return NextResponse.json(
-      { error: "Er is iets misgegaan. Probeer het opnieuw." },
+      { error: "Something went wrong. Please try again." },
       { status: 500 }
     );
   }

@@ -15,14 +15,14 @@ export default function VerifyRequestPage() {
         <div className="text-center space-y-4">
           <div className="text-6xl">✉️</div>
           <h1 className="text-3xl font-bold text-slate-100 font-display">
-            Check je Email!
+            Check your Email!
           </h1>
           <p className="text-slate-400">
-            We hebben een magic link naar je email gestuurd. 
-            Klik op de link om in te loggen.
+            We have sent a magic link to your email. 
+            Click on the link to sign in.
           </p>
           <p className="text-sm text-slate-500">
-            De link is 24 uur geldig.
+            The link is valid for 24 hours.
           </p>
           
           <div className="pt-6">
@@ -30,7 +30,7 @@ export default function VerifyRequestPage() {
               href="/auth/signin"
               className="text-sm text-slate-400 hover:text-cyan-400 transition-colors"
             >
-              ← Terug naar inloggen
+              ← Back to sign in
             </Link>
           </div>
         </div>

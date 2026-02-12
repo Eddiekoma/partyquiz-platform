@@ -29,6 +29,7 @@ const createQuestionSchema = z.object({
   difficulty: z.number().int().min(1).max(5).optional(),
   tags: z.array(z.string()).optional(),
   status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]).optional(),
+  questionSetId: z.string().optional(), // Question Set ID
   options: z.array(z.object({
     text: z.string(),
     isCorrect: z.boolean(),
@@ -217,6 +218,7 @@ export async function POST(
     const question = await prisma.question.create({
       data: {
         workspaceId,
+        questionSetId: data.questionSetId || null,
         type: data.type,
         title: data.title,
         prompt: data.prompt || "",

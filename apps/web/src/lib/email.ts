@@ -139,7 +139,7 @@ function createEmailTemplate(content: string): string {
     </div>
     <div style="${emailStyles.footer}">
       © ${new Date().getFullYear()} <strong>Databridge360</strong> — PartyQuiz Platform<br>
-      <span style="color: #475569;">Deze email is automatisch verzonden. Niet beantwoorden.</span>
+      <span style="color: #475569;">This email was sent automatically. Please do not reply.</span>
     </div>
   </div>
 </body>
@@ -158,9 +158,9 @@ export async function sendVerificationEmail(
   }
 
   const content = `
-    <h1 style="${emailStyles.heading}">Welkom bij PartyQuiz!</h1>
+    <h1 style="${emailStyles.heading}">Welcome to PartyQuiz!</h1>
     <p style="${emailStyles.subheading}">
-      ${name ? `Hoi ${name}, ` : ""}Gebruik onderstaande code om je email te verifiëren.
+      ${name ? `Hi ${name}, ` : ""}Use the code below to verify your email.
     </p>
     
     <div style="${emailStyles.codeBox}">
@@ -168,20 +168,20 @@ export async function sendVerificationEmail(
     </div>
     
     <p style="text-align: center; color: #94a3b8; font-size: 14px;">
-      Deze code is 15 minuten geldig.
+      This code is valid for 15 minutes.
     </p>
     
     <hr style="${emailStyles.divider}">
     
     <p style="color: #64748b; font-size: 13px; text-align: center;">
-      Heb je geen account aangemaakt? Dan kun je deze email veilig negeren.
+      Didn't create an account? You can safely ignore this email.
     </p>
   `;
 
   await transporter.sendMail({
     from: env.EMAIL_FROM,
     to: email,
-    subject: "🎉 Verifieer je PartyQuiz account",
+    subject: "🎉 Verify your PartyQuiz account",
     html: createEmailTemplate(content),
   });
 }
@@ -197,36 +197,36 @@ export async function sendPasswordResetEmail(
   }
 
   const content = `
-    <h1 style="${emailStyles.heading}">Wachtwoord resetten</h1>
+    <h1 style="${emailStyles.heading}">Reset Password</h1>
     <p style="${emailStyles.subheading}">
-      We hebben een aanvraag ontvangen om je wachtwoord te resetten.
+      We received a request to reset your password.
     </p>
     
     <div style="${emailStyles.codeBox}">
-      <p style="color: #94a3b8; font-size: 14px; margin: 0 0 8px 0;">Je verificatiecode:</p>
+      <p style="color: #94a3b8; font-size: 14px; margin: 0 0 8px 0;">Your verification code:</p>
       <p style="${emailStyles.code}">${code}</p>
     </div>
     
     <div style="${emailStyles.buttonContainer}">
-      <a href="${resetUrl}" style="${emailStyles.button}">Wachtwoord resetten</a>
+      <a href="${resetUrl}" style="${emailStyles.button}">Reset Password</a>
     </div>
     
     <p style="text-align: center; color: #94a3b8; font-size: 14px;">
-      Of kopieer deze link: <span style="color: #60a5fa;">${resetUrl}</span>
+      Or copy this link: <span style="color: #60a5fa;">${resetUrl}</span>
     </p>
     
     <hr style="${emailStyles.divider}">
     
     <p style="color: #64748b; font-size: 13px; text-align: center;">
-      Deze link en code zijn 1 uur geldig.<br>
-      Heb je geen wachtwoord reset aangevraagd? Dan kun je deze email veilig negeren.
+      This link and code are valid for 1 hour.<br>
+      Didn't request a password reset? You can safely ignore this email.
     </p>
   `;
 
   await transporter.sendMail({
     from: env.EMAIL_FROM,
     to: email,
-    subject: "🔐 Reset je PartyQuiz wachtwoord",
+    subject: "🔐 Reset your PartyQuiz password",
     html: createEmailTemplate(content),
   });
 }
@@ -241,31 +241,31 @@ export async function sendMagicLinkEmail(
   }
 
   const content = `
-    <h1 style="${emailStyles.heading}">Inloggen bij PartyQuiz</h1>
+    <h1 style="${emailStyles.heading}">Log in to PartyQuiz</h1>
     <p style="${emailStyles.subheading}">
-      Klik op de knop hieronder om direct in te loggen.
+      Click the button below to log in directly.
     </p>
     
     <div style="${emailStyles.buttonContainer}">
-      <a href="${url}" style="${emailStyles.button}">Inloggen</a>
+      <a href="${url}" style="${emailStyles.button}">Log in</a>
     </div>
     
     <p style="text-align: center; color: #94a3b8; font-size: 14px;">
-      Of kopieer deze link: <span style="color: #60a5fa; word-break: break-all;">${url}</span>
+      Or copy this link: <span style="color: #60a5fa; word-break: break-all;">${url}</span>
     </p>
     
     <hr style="${emailStyles.divider}">
     
     <p style="color: #64748b; font-size: 13px; text-align: center;">
-      Deze link is 24 uur geldig.<br>
-      Heb je niet geprobeerd in te loggen? Dan kun je deze email veilig negeren.
+      This link is valid for 24 hours.<br>
+      Didn't try to log in? You can safely ignore this email.
     </p>
   `;
 
   await transporter.sendMail({
     from: env.EMAIL_FROM,
     to: email,
-    subject: "🎉 Log in bij PartyQuiz",
+    subject: "🎉 Log in to PartyQuiz",
     html: createEmailTemplate(content),
   });
 }

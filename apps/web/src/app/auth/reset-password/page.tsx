@@ -20,7 +20,7 @@ function ResetPasswordForm() {
 
   useEffect(() => {
     if (!token) {
-      setError("Ongeldige reset link. Vraag een nieuwe aan.");
+      setError("Invalid reset link. Please request a new one.");
     }
     inputRefs.current[0]?.focus();
   }, [token]);
@@ -58,17 +58,17 @@ function ResetPasswordForm() {
 
     const verificationCode = code.join("");
     if (verificationCode.length !== 6) {
-      setError("Voer alle 6 cijfers in");
+      setError("Please enter all 6 digits");
       return;
     }
 
     if (password !== confirmPassword) {
-      setError("Wachtwoorden komen niet overeen");
+      setError("Passwords do not match");
       return;
     }
 
     if (password.length < 8) {
-      setError("Wachtwoord moet minimaal 8 tekens bevatten");
+      setError("Password must be at least 8 characters");
       return;
     }
 
@@ -84,7 +84,7 @@ function ResetPasswordForm() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || "Kon wachtwoord niet resetten");
+        setError(data.error || "Could not reset password");
         return;
       }
 
@@ -93,7 +93,7 @@ function ResetPasswordForm() {
         router.push("/auth/signin");
       }, 3000);
     } catch {
-      setError("Er ging iets mis. Probeer het opnieuw.");
+      setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -110,10 +110,10 @@ function ResetPasswordForm() {
           <div className="text-center space-y-4">
             <div className="text-6xl">✅</div>
             <h1 className="text-3xl font-bold text-slate-100 font-display">
-              Wachtwoord Gewijzigd!
+              Password Changed!
             </h1>
             <p className="text-slate-400">
-              Je wachtwoord is succesvol gewijzigd. Je wordt doorgestuurd naar de login pagina...
+              Your password has been successfully changed. You will be redirected to the login page...
             </p>
             <div className="spinner mx-auto"></div>
           </div>
@@ -133,16 +133,16 @@ function ResetPasswordForm() {
           <div className="text-center space-y-4">
             <div className="text-6xl">❌</div>
             <h1 className="text-3xl font-bold text-slate-100 font-display">
-              Ongeldige Link
+              Invalid Link
             </h1>
             <p className="text-slate-400">
-              Deze reset link is ongeldig of verlopen. Vraag een nieuwe aan.
+              This reset link is invalid or expired. Please request a new one.
             </p>
             <Link
               href="/auth/forgot-password"
               className="inline-block btn btn-primary"
             >
-              Nieuwe Link Aanvragen
+              Request New Link
             </Link>
           </div>
         </Card>
@@ -165,10 +165,10 @@ function ResetPasswordForm() {
             <span className="ml-2 text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-1 rounded-md">by Databridge360</span>
           </div>
           <h1 className="text-3xl font-bold text-slate-100 font-display">
-            Nieuw Wachtwoord
+            New Password
           </h1>
           <p className="text-slate-400">
-            Voer de code uit je email in en kies een nieuw wachtwoord
+            Enter the code from your email and choose a new password
           </p>
         </div>
 
@@ -184,7 +184,7 @@ function ResetPasswordForm() {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2 text-center">
-              Verificatiecode
+              Verification Code
             </label>
             <div className="flex justify-center gap-2" onPaste={handlePaste}>
               {code.map((digit, index) => (
@@ -207,8 +207,8 @@ function ResetPasswordForm() {
           <Input
             id="password"
             type="password"
-            label="Nieuw Wachtwoord"
-            placeholder="Minimaal 8 tekens"
+            label="New Password"
+            placeholder="Minimum 8 characters"
             value={password}
             onChange={(e) => {
               setPassword(e.target.value);
@@ -222,8 +222,8 @@ function ResetPasswordForm() {
           <Input
             id="confirmPassword"
             type="password"
-            label="Bevestig Wachtwoord"
-            placeholder="Herhaal je wachtwoord"
+            label="Confirm Password"
+            placeholder="Repeat your password"
             value={confirmPassword}
             onChange={(e) => {
               setConfirmPassword(e.target.value);
@@ -235,19 +235,19 @@ function ResetPasswordForm() {
           />
 
           <div className="text-xs text-slate-500 space-y-1">
-            <p>Wachtwoord vereisten:</p>
+            <p>Password requirements:</p>
             <ul className="list-disc list-inside space-y-0.5">
               <li className={password.length >= 8 ? "text-emerald-400" : ""}>
-                Minimaal 8 tekens
+                Minimum 8 characters
               </li>
               <li className={/[A-Z]/.test(password) ? "text-emerald-400" : ""}>
-                Minimaal 1 hoofdletter
+                At least 1 uppercase letter
               </li>
               <li className={/[a-z]/.test(password) ? "text-emerald-400" : ""}>
-                Minimaal 1 kleine letter
+                At least 1 lowercase letter
               </li>
               <li className={/[0-9]/.test(password) ? "text-emerald-400" : ""}>
-                Minimaal 1 cijfer
+                At least 1 number
               </li>
             </ul>
           </div>
@@ -258,13 +258,13 @@ function ResetPasswordForm() {
             loading={loading}
             disabled={loading || code.join("").length !== 6}
           >
-            Wachtwoord Wijzigen
+            Change Password
           </Button>
         </form>
 
         <div className="text-center text-sm text-slate-500 mt-6">
           <Link href="/auth/signin" className="hover:text-cyan-400 transition-colors">
-            ← Terug naar inloggen
+            ← Back to sign in
           </Link>
         </div>
       </Card>

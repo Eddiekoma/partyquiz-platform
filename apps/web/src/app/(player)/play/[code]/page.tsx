@@ -85,7 +85,7 @@ export default function PlayerNamePage() {
 
       if (!res.ok) {
         const data = await res.json();
-        setError(data.error || "Sessie niet gevonden");
+        setError(data.error || "Session not found");
         setMode("error");
         return;
       }
@@ -118,7 +118,7 @@ export default function PlayerNamePage() {
       }
     } catch (err) {
       console.error("Error checking player access:", err);
-      setError("Kon sessie niet controleren");
+      setError("Could not check session");
       setMode("error");
     }
   };
@@ -132,7 +132,7 @@ export default function PlayerNamePage() {
     try {
       const player = sessionInfo.players.find(p => p.id === selectedPlayerId);
       if (!player) {
-        setError("Speler niet gevonden");
+        setError("Player not found");
         setLoading(false);
         return;
       }
@@ -149,7 +149,7 @@ export default function PlayerNamePage() {
 
       if (!res.ok) {
         const data = await res.json();
-        setError(data.error || "Kon speler niet claimen");
+        setError(data.error || "Could not claim player");
         setLoading(false);
         return;
       }
@@ -168,7 +168,7 @@ export default function PlayerNamePage() {
       router.push(`/play/${code.toUpperCase()}/lobby`);
     } catch (err) {
       console.error("Error selecting player:", err);
-      setError("Fout bij selecteren speler");
+      setError("Error selecting player");
       setLoading(false);
     }
   };
@@ -178,12 +178,12 @@ export default function PlayerNamePage() {
     setError("");
 
     if (!name.trim() || name.trim().length < 2) {
-      setError("Vul een naam in van minimaal 2 tekens");
+      setError("Please enter a name with at least 2 characters");
       return;
     }
 
     if (name.trim().length > 20) {
-      setError("Naam mag maximaal 20 tekens zijn");
+      setError("Name can be at most 20 characters");
       return;
     }
 
@@ -203,7 +203,7 @@ export default function PlayerNamePage() {
       <div className="flex-1 flex items-center justify-center p-4">
         <div className="text-center">
           <div className="text-6xl mb-4 animate-bounce">🎮</div>
-          <p className="text-xl text-white/90">Even kijken...</p>
+          <p className="text-xl text-white/90">Just a moment...</p>
         </div>
       </div>
     );
@@ -215,13 +215,13 @@ export default function PlayerNamePage() {
       <div className="flex-1 flex items-center justify-center p-4">
         <div className="text-center">
           <div className="text-6xl mb-4">❌</div>
-          <h1 className="text-3xl font-black text-white mb-2">Oeps!</h1>
+          <h1 className="text-3xl font-black text-white mb-2">Oops!</h1>
           <p className="text-lg text-white/90 mb-6">{error}</p>
           <button
             onClick={() => router.push("/join")}
             className="px-6 py-3 text-lg font-bold text-white bg-white/20 backdrop-blur-sm rounded-xl hover:bg-white/30 transition-all"
           >
-            Andere code invoeren
+            Enter another code
           </button>
         </div>
       </div>
@@ -237,8 +237,8 @@ export default function PlayerNamePage() {
         <div className="w-full max-w-md">
           <div className="text-center mb-6">
             <div className="text-5xl mb-2">👤</div>
-            <h1 className="text-3xl font-black text-white mb-1">Wie ben jij?</h1>
-            <p className="text-lg text-white/80">Selecteer je naam om verder te spelen</p>
+            <h1 className="text-3xl font-black text-white mb-1">Who are you?</h1>
+            <p className="text-lg text-white/80">Select your name to continue playing</p>
           </div>
 
           <div className="bg-white rounded-3xl shadow-2xl p-6">
@@ -271,7 +271,7 @@ export default function PlayerNamePage() {
               disabled={!selectedPlayerId || loading}
               className="w-full py-4 px-6 text-xl font-bold text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
-              {loading ? "Even geduld..." : "Dit ben ik! 👋"}
+              {loading ? "One moment..." : "That's me! 👋"}
             </button>
 
             <div className="text-center mt-4">
@@ -279,7 +279,7 @@ export default function PlayerNamePage() {
                 onClick={() => setMode("new-player")}
                 className="text-gray-500 hover:text-gray-700 text-sm"
               >
-                Ik sta er niet bij → Nieuwe speler
+                I'm not listed → New player
               </button>
             </div>
           </div>
@@ -295,7 +295,7 @@ export default function PlayerNamePage() {
         {/* Header */}
         <div className="text-center mb-6">
           <div className="text-5xl mb-2">{selectedAvatar}</div>
-          <h1 className="text-4xl font-black text-white mb-1">Meedoen</h1>
+          <h1 className="text-4xl font-black text-white mb-1">Join Game</h1>
           <p className="text-lg text-white/80">Code: {code.toUpperCase()}</p>
         </div>
 
@@ -305,7 +305,7 @@ export default function PlayerNamePage() {
             {/* Name Input */}
             <div>
               <label htmlFor="name" className="block text-sm font-bold text-gray-700 mb-2">
-                Jouw naam
+                Your name
               </label>
               <input
                 id="name"
@@ -315,7 +315,7 @@ export default function PlayerNamePage() {
                   setName(e.target.value);
                   setError("");
                 }}
-                placeholder="Vul je naam in"
+                placeholder="Enter your name"
                 className="w-full px-6 py-4 text-xl font-bold text-center border-4 border-gray-300 rounded-xl focus:border-purple-500 focus:ring-4 focus:ring-purple-200 outline-none transition-all"
                 maxLength={20}
                 autoComplete="off"
@@ -329,7 +329,7 @@ export default function PlayerNamePage() {
             {/* Avatar Selection */}
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-3">
-                Kies je avatar
+                Choose your avatar
               </label>
               <div className="grid grid-cols-6 gap-2">
                 {AVATARS.map((avatar) => (
@@ -355,7 +355,7 @@ export default function PlayerNamePage() {
               disabled={loading || !name.trim()}
               className="w-full py-4 px-6 text-xl font-bold text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 focus:outline-none focus:ring-4 focus:ring-purple-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105 active:scale-95"
             >
-              {loading ? "Laden..." : "Spelen! 🎮"}
+              {loading ? "Loading..." : "Play! 🎮"}
             </button>
           </form>
 
@@ -366,7 +366,7 @@ export default function PlayerNamePage() {
                 onClick={() => setMode("select-player")}
                 className="text-gray-500 hover:text-gray-700 text-sm"
               >
-                Al meegedaan? → Selecteer je naam
+                Already played? → Select your name
               </button>
             </div>
           )}
@@ -377,7 +377,7 @@ export default function PlayerNamePage() {
           onClick={() => router.push("/join")}
           className="w-full mt-4 text-center text-white/80 hover:text-white transition-colors"
         >
-          ← Andere code
+          ← Other code
         </button>
       </div>
     </div>

@@ -62,7 +62,7 @@ function VerifyEmailForm() {
   const handleSubmit = async (verificationCode?: string) => {
     const codeToSubmit = verificationCode || code.join("");
     if (codeToSubmit.length !== 6) {
-      setError("Voer alle 6 cijfers in");
+      setError("Please enter all 6 digits");
       return;
     }
 
@@ -79,7 +79,7 @@ function VerifyEmailForm() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || "Verificatie mislukt");
+        setError(data.error || "Verification failed");
         setCode(["", "", "", "", "", ""]);
         inputRefs.current[0]?.focus();
         return;
@@ -97,7 +97,7 @@ function VerifyEmailForm() {
         router.push("/auth/signin?verified=true");
       }, 2000);
     } catch {
-      setError("Er ging iets mis. Probeer het opnieuw.");
+      setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -117,10 +117,10 @@ function VerifyEmailForm() {
 
       if (res.ok) {
         setError("");
-        alert("Nieuwe code verzonden naar je email!");
+        alert("New code sent to your email!");
       }
     } catch {
-      setError("Kon geen nieuwe code verzenden");
+      setError("Could not send new code");
     } finally {
       setResending(false);
     }
@@ -137,10 +137,10 @@ function VerifyEmailForm() {
           <div className="text-center space-y-4">
             <div className="text-6xl">✅</div>
             <h1 className="text-3xl font-bold text-slate-100 font-display">
-              Email Geverifieerd!
+              Email Verified!
             </h1>
             <p className="text-slate-400">
-              Je account is geactiveerd. Je wordt doorgestuurd naar de login pagina...
+              Your account is activated. You will be redirected to the login page...
             </p>
             <div className="spinner mx-auto"></div>
           </div>
@@ -164,10 +164,10 @@ function VerifyEmailForm() {
             <span className="ml-2 text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-1 rounded-md">by Databridge360</span>
           </div>
           <h1 className="text-3xl font-bold text-slate-100 font-display">
-            Verifieer je Email
+            Verify Your Email
           </h1>
           <p className="text-slate-400">
-            We hebben een 6-cijferige code gestuurd naar
+            We have sent a 6-digit code to
           </p>
           <p className="text-blue-400 font-medium">{email}</p>
         </div>
@@ -204,23 +204,23 @@ function VerifyEmailForm() {
           loading={loading}
           disabled={loading || code.join("").length !== 6}
         >
-          Verifiëren
+          Verify
         </Button>
 
         <div className="text-center text-sm text-slate-400 mt-6">
-          Geen code ontvangen?{" "}
+          Didn't receive a code?{" "}
           <button
             onClick={handleResend}
             disabled={resending}
             className="text-blue-400 hover:text-cyan-400 font-medium disabled:opacity-50 transition-colors"
           >
-            {resending ? "Verzenden..." : "Opnieuw verzenden"}
+            {resending ? "Sending..." : "Resend"}
           </button>
         </div>
 
         <div className="text-center text-sm text-slate-500 mt-4">
           <Link href="/auth/signin" className="hover:text-cyan-400 transition-colors">
-            ← Terug naar inloggen
+            ← Back to sign in
           </Link>
         </div>
       </Card>

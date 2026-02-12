@@ -34,7 +34,7 @@ function SignUpForm() {
 
     // Validate passwords match
     if (formData.password !== formData.confirmPassword) {
-      setError("Wachtwoorden komen niet overeen");
+      setError("Passwords do not match");
       setLoading(false);
       return;
     }
@@ -53,14 +53,14 @@ function SignUpForm() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || "Er ging iets mis");
+        setError(data.error || "Something went wrong");
         return;
       }
 
       // Redirect to verification page
       router.push(`/auth/verify-email?email=${encodeURIComponent(formData.email)}&callbackUrl=${encodeURIComponent(callbackUrl)}`);
     } catch {
-      setError("Er ging iets mis. Probeer het opnieuw.");
+      setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -86,10 +86,10 @@ function SignUpForm() {
             <span className="ml-2 text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-1 rounded-md">by Databridge360</span>
           </div>
           <h1 className="text-3xl font-bold text-slate-100 font-display">
-            Account Aanmaken
+            Create Account
           </h1>
           <p className="text-slate-400">
-            Maak je gratis PartyQuiz account
+            Create your free PartyQuiz account
           </p>
         </div>
 
@@ -107,8 +107,8 @@ function SignUpForm() {
             id="name"
             name="name"
             type="text"
-            label="Naam"
-            placeholder="Je naam"
+            label="Name"
+            placeholder="Your name"
             value={formData.name}
             onChange={handleChange}
             className="input"
@@ -119,7 +119,7 @@ function SignUpForm() {
             name="email"
             type="email"
             label="Email"
-            placeholder="jouw@email.com"
+            placeholder="your@email.com"
             value={formData.email}
             onChange={handleChange}
             required
@@ -131,8 +131,8 @@ function SignUpForm() {
             id="password"
             name="password"
             type="password"
-            label="Wachtwoord"
-            placeholder="Minimaal 8 tekens"
+            label="Password"
+            placeholder="At least 8 characters"
             value={formData.password}
             onChange={handleChange}
             required
@@ -144,8 +144,8 @@ function SignUpForm() {
             id="confirmPassword"
             name="confirmPassword"
             type="password"
-            label="Bevestig Wachtwoord"
-            placeholder="Herhaal je wachtwoord"
+            label="Confirm Password"
+            placeholder="Repeat your password"
             value={formData.confirmPassword}
             onChange={handleChange}
             required
@@ -154,19 +154,19 @@ function SignUpForm() {
           />
 
           <div className="text-xs text-slate-500 space-y-1">
-            <p>Wachtwoord vereisten:</p>
+            <p>Password requirements:</p>
             <ul className="list-disc list-inside space-y-0.5">
               <li className={formData.password.length >= 8 ? "text-green-400" : ""}>
-                Minimaal 8 tekens
+                At least 8 characters
               </li>
               <li className={/[A-Z]/.test(formData.password) ? "text-green-400" : ""}>
-                Minimaal 1 hoofdletter
+                At least 1 uppercase letter
               </li>
               <li className={/[a-z]/.test(formData.password) ? "text-green-400" : ""}>
-                Minimaal 1 kleine letter
+                At least 1 lowercase letter
               </li>
               <li className={/[0-9]/.test(formData.password) ? "text-green-400" : ""}>
-                Minimaal 1 cijfer
+                At least 1 number
               </li>
             </ul>
           </div>
@@ -177,7 +177,7 @@ function SignUpForm() {
             loading={loading}
             disabled={loading}
           >
-            Account Aanmaken
+            Create Account
           </Button>
         </form>
 
@@ -186,7 +186,7 @@ function SignUpForm() {
             <div className="divider w-full"></div>
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="px-4 bg-[rgba(15,23,42,0.8)] text-slate-500">of</span>
+            <span className="px-4 bg-[rgba(15,23,42,0.8)] text-slate-500">or</span>
           </div>
         </div>
 
@@ -213,13 +213,13 @@ function SignUpForm() {
               d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
             />
           </svg>
-          Doorgaan met Google
+          Continue with Google
         </button>
 
         <div className="text-center text-sm text-slate-400 mt-6">
-          Heb je al een account?{" "}
+          Already have an account?{" "}
           <Link href="/auth/signin" className="text-blue-400 hover:text-cyan-400 font-medium transition-colors">
-            Inloggen
+            Sign In
           </Link>
         </div>
       </Card>

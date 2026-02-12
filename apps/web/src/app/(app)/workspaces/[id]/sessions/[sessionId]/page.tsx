@@ -148,7 +148,7 @@ function SessionInfo({ session }: { session: any }) {
         <div className="mt-4 pt-4 border-t border-slate-700">
           <div className="flex justify-between text-sm mb-2">
             <span className="text-slate-400">Progress</span>
-            <span className="font-medium text-white">Vraag {currentItem} van {totalItems} ({progressPercent}%)</span>
+            <span className="font-medium text-white">Question {currentItem} of {totalItems} ({progressPercent}%)</span>
           </div>
           <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
             <div 
@@ -165,7 +165,7 @@ function SessionInfo({ session }: { session: any }) {
       {session.pausedAt && (
         <p className="text-xs text-yellow-600 mt-4 flex items-center gap-2">
           <span>⏸️</span>
-          Gepauzeerd {formatDistanceToNow(new Date(session.pausedAt), { addSuffix: true })}
+          Paused {formatDistanceToNow(new Date(session.pausedAt), { addSuffix: true })}
         </p>
       )}
       {session.startedAt && !session.pausedAt && (
@@ -281,7 +281,7 @@ async function SessionDetails({ workspaceId, sessionId, userId }: { workspaceId:
               href={`/host/${session.code}`}
               className="inline-flex items-center px-4 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition-colors"
             >
-              🎮 Open Host Scherm
+              🎮 Open Host Screen
             </Link>
             <DeleteSessionButton 
               sessionId={session.id} 
@@ -291,8 +291,8 @@ async function SessionDetails({ workspaceId, sessionId, userId }: { workspaceId:
           </div>
           <p className="text-slate-400 text-sm mt-3">
             {isEnded 
-              ? "Open het host scherm om de resultaten en scores te bekijken."
-              : "Open het host scherm om de quiz te bedienen, vragen te starten en antwoorden te onthullen."}
+              ? "Open the host screen to view results and scores."
+              : "Open the host screen to control the quiz, start questions and reveal answers."}
           </p>
         </div>
       )}

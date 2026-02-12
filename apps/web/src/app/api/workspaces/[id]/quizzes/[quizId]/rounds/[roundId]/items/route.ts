@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasPermission, Permission, WorkspaceRole } from "@/lib/permissions";
+import { getDefaultTimerForQuestionType } from "@partyquiz/shared";
 import { z } from "zod";
 
 const addItemSchema = z.union([
@@ -106,13 +107,20 @@ export async function POST(
       }
 
       // Create quiz item with question and optional settings
+      // Use type-specific default timer if not explicitly set
+      const defaultTimer = getDefaultTimerForQuestionType(question.type);
+      const settings = data.settingsJson || {};
+      
       item = await prisma.quizItem.create({
         data: {
           quizRoundId: roundId,
           order: nextOrder,
           itemType: "QUESTION",
           questionId: data.questionId,
-          settingsJson: data.settingsJson || { timer: 4, points: 10 }, // Default: 4s, 10 pts
+          settingsJson: {
+            timer: settings.timer ?? defaultTimer,
+            points: settings.points ?? 10,
+          },
         },
         include: {
           question: {

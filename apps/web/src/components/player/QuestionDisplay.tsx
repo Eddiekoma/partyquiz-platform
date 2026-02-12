@@ -1,5 +1,6 @@
 import type { QuestionType } from "@partyquiz/shared";
 import { YouTubePlayer } from "../YouTubePlayer";
+import { QuestionTypeBadge } from "../QuestionTypeBadge";
 
 interface QuestionDisplayProps {
   questionType: QuestionType;
@@ -16,6 +17,11 @@ export function QuestionDisplay({
 }: QuestionDisplayProps) {
   return (
     <div className="w-full">
+      {/* Question Type Badge */}
+      <div className="flex justify-center mb-4">
+        <QuestionTypeBadge type={questionType} size="md" />
+      </div>
+
       {/* Media */}
       {mediaUrl && (
         <div className="mb-6">
@@ -38,11 +44,10 @@ function renderMedia(
   mediaUrl: string,
   settingsJson?: any
 ) {
-  // Photo question types
+  // Photo question types (PHOTO_QUESTION, PHOTO_OPEN)
   if (
-    questionType === "PHOTO_GUESS" ||
-    questionType === "PHOTO_ZOOM_REVEAL" ||
-    questionType === "PHOTO_TIMELINE"
+    questionType === "PHOTO_QUESTION" ||
+    questionType === "PHOTO_OPEN"
   ) {
     return (
       <div className="relative w-full max-w-2xl mx-auto aspect-video rounded-2xl overflow-hidden bg-black/20">
@@ -55,13 +60,13 @@ function renderMedia(
     );
   }
 
-  // Music question types
+  // Audio question types (AUDIO_QUESTION, AUDIO_OPEN) and Spotify music types
   if (
+    questionType === "AUDIO_QUESTION" ||
+    questionType === "AUDIO_OPEN" ||
     questionType === "MUSIC_GUESS_TITLE" ||
     questionType === "MUSIC_GUESS_ARTIST" ||
-    questionType === "MUSIC_GUESS_YEAR" ||
-    questionType === "MUSIC_HITSTER_TIMELINE" ||
-    questionType === "MUSIC_OLDER_NEWER_THAN"
+    questionType === "MUSIC_GUESS_YEAR"
   ) {
     return (
       <div className="max-w-2xl mx-auto">
@@ -79,11 +84,13 @@ function renderMedia(
     );
   }
 
-  // YouTube question types
+  // YouTube question types and Video question types
   if (
     questionType === "YOUTUBE_SCENE_QUESTION" ||
     questionType === "YOUTUBE_NEXT_LINE" ||
-    questionType === "YOUTUBE_WHO_SAID_IT"
+    questionType === "YOUTUBE_WHO_SAID_IT" ||
+    questionType === "VIDEO_QUESTION" ||
+    questionType === "VIDEO_OPEN"
   ) {
     const videoId = extractYouTubeId(mediaUrl);
     if (!videoId) {

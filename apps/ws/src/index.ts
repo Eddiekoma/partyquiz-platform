@@ -6,10 +6,11 @@ import { createServer } from "http";
 import { pino } from "pino";
 import { 
   WSMessageType, 
-  validateAndScore, 
+  validateAnswerComplete, 
   QuestionType,
   getQuestionScoringMode,
   ScoringMode,
+  getDefaultTimerForQuestionType,
   // WS Event schemas and types
   validateCommand,
   createEventPayload,
@@ -45,6 +46,130 @@ import {
   getPollResults,
 } from "@partyquiz/shared/server";
 import { prisma } from "./lib/prisma";
+
+// =============================================================================
+// UTILITY FUNCTIONS
+// =============================================================================
+
+/**
+ * Fisher-Yates shuffle algorithm - randomly shuffles an array
+ * Used to randomize option order for MC, ORDER, and other question types
+ */
+function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+}
+
+/**
+ * Determines if a question type should have its options shuffled
+ * - TRUE_FALSE: Never shuffle (always True/False order)
+ * - Open-ended types: No options to shuffle
+ * - MC/ORDER/POLL types: Always shuffle for fairness
+ */
+function shouldShuffleOptions(questionType: string): boolean {
+  // Types that should NOT be shuffled
+  const noShuffleTypes = [
+    "TRUE_FALSE",
+    "OPEN_TEXT",
+    "ESTIMATION", 
+    "PHOTO_OPEN",
+    "AUDIO_OPEN",
+    "VIDEO_OPEN",
+    "MUSIC_GUESS_TITLE",
+    "MUSIC_GUESS_ARTIST", 
+    "MUSIC_GUESS_YEAR",
+  ];
+  
+  return !noShuffleTypes.includes(questionType);
+}
+
+// =============================================================================
+// ANSWER DISPLAY FORMATTING
+// =============================================================================
+
+interface QuestionOptionDisplay {
+  id: string;
+  text: string;
+}
+
+/**
+ * Formats a player's answer for display in the host answer panel.
+ * Converts raw answer data to a human-readable string based on question type.
+ */
+function formatAnswerForDisplay(
+  questionType: string,
+  rawAnswer: any,
+  options: QuestionOptionDisplay[]
+): { display: string; selectedOptionIds?: string[]; submittedOrder?: string[] } {
+  const type = questionType.toUpperCase();
+  
+  // MC_SINGLE, PHOTO_QUESTION, AUDIO_QUESTION, VIDEO_QUESTION, YOUTUBE_WHO_SAID_IT
+  // Answer is a single option ID
+  if (["MC_SINGLE", "PHOTO_QUESTION", "AUDIO_QUESTION", "VIDEO_QUESTION", "YOUTUBE_WHO_SAID_IT"].includes(type)) {
+    const selectedOption = options.find(opt => opt.id === rawAnswer);
+    return {
+      display: selectedOption?.text || String(rawAnswer),
+      selectedOptionIds: rawAnswer ? [rawAnswer] : [],
+    };
+  }
+  
+  // MC_MULTIPLE - Answer is an array of option IDs
+  if (type === "MC_MULTIPLE") {
+    const selectedIds = Array.isArray(rawAnswer) ? rawAnswer : [];
+    const selectedTexts = selectedIds
+      .map(id => options.find(opt => opt.id === id)?.text || id)
+      .join(", ");
+    return {
+      display: selectedTexts || "(geen selectie)",
+      selectedOptionIds: selectedIds,
+    };
+  }
+  
+  // TRUE_FALSE - Answer is boolean
+  if (type === "TRUE_FALSE") {
+    if (typeof rawAnswer === "boolean") {
+      return { display: rawAnswer ? "Waar" : "Onwaar" };
+    }
+    // Sometimes sent as string "true"/"false"
+    return { display: rawAnswer === "true" || rawAnswer === true ? "Waar" : "Onwaar" };
+  }
+  
+  // ORDER - Answer is array of option IDs in submitted order
+  if (type === "ORDER") {
+    const orderedIds = Array.isArray(rawAnswer) ? rawAnswer : [];
+    const orderedTexts = orderedIds
+      .map((id, idx) => `${idx + 1}. ${options.find(opt => opt.id === id)?.text || id}`)
+      .join(" → ");
+    return {
+      display: orderedTexts || "(geen volgorde)",
+      submittedOrder: orderedIds,
+    };
+  }
+  
+  // ESTIMATION, MUSIC_GUESS_YEAR - Answer is a number
+  if (["ESTIMATION", "MUSIC_GUESS_YEAR"].includes(type)) {
+    const num = typeof rawAnswer === "number" ? rawAnswer : parseFloat(rawAnswer);
+    return { display: isNaN(num) ? String(rawAnswer) : num.toLocaleString("nl-NL") };
+  }
+  
+  // POLL - Answer is option ID (no correct/incorrect)
+  if (type === "POLL") {
+    const selectedOption = options.find(opt => opt.id === rawAnswer);
+    return {
+      display: selectedOption?.text || String(rawAnswer),
+      selectedOptionIds: rawAnswer ? [rawAnswer] : [],
+    };
+  }
+  
+  // OPEN_TEXT, PHOTO_OPEN, AUDIO_OPEN, VIDEO_OPEN, MUSIC_GUESS_TITLE, MUSIC_GUESS_ARTIST, 
+  // YOUTUBE_SCENE_QUESTION, YOUTUBE_NEXT_LINE - Answer is text string
+  // Default: just show the raw answer as string
+  return { display: String(rawAnswer || "(leeg)") };
+}
 
 // =============================================================================
 // TIMER MANAGEMENT - Server-authoritative timers for quiz items
@@ -391,6 +516,89 @@ function markPlayerOffline(sessionCode: string, playerId: string) {
   }
 }
 
+// =============================================================================
+// DISCONNECT GRACE PERIOD - Prevent premature player removal on refresh/reconnect
+// =============================================================================
+
+// Track pending disconnects with their timeout IDs
+const pendingDisconnects = new Map<string, NodeJS.Timeout>();
+const DISCONNECT_GRACE_PERIOD_MS = 30000; // 30 seconds to reconnect
+
+/**
+ * Schedule a player to be marked as left after grace period
+ * If they reconnect within the grace period, the disconnect is cancelled
+ */
+function schedulePlayerDisconnect(
+  sessionCode: string, 
+  playerId: string, 
+  io: Server
+): void {
+  const key = `${sessionCode}:${playerId}`;
+  
+  // Cancel any existing pending disconnect
+  cancelPendingDisconnect(sessionCode, playerId);
+  
+  logger.info({ sessionCode, playerId }, "Scheduling player disconnect (grace period started)");
+  
+  const timeoutId = setTimeout(async () => {
+    try {
+      logger.info({ sessionCode, playerId }, "Grace period expired - removing player");
+      
+      // Remove from pending map
+      pendingDisconnects.delete(key);
+      
+      // Now actually mark player as left
+      const player = await prisma.livePlayer.update({
+        where: { id: playerId },
+        data: { leftAt: new Date() },
+      });
+      
+      // Remove from Redis active players
+      await removeActivePlayer(sessionCode, playerId);
+      
+      // Remove from connection tracking
+      const connections = sessionConnections.get(sessionCode);
+      if (connections) {
+        connections.delete(playerId);
+      }
+      
+      // Notify others in the session
+      io.to(sessionCode).emit(WSMessageType.PLAYER_LEFT, {
+        playerId: player.id,
+        name: player.name,
+      });
+      
+      // Send updated connection status
+      const updatedConnections = getSessionConnections(sessionCode);
+      io.to(sessionCode).emit("CONNECTION_STATUS_UPDATE", {
+        connections: updatedConnections,
+      });
+      
+      logger.info({ playerId, sessionCode }, "Player removed after grace period");
+    } catch (error) {
+      logger.error({ error, playerId, sessionCode }, "Error removing player after grace period");
+    }
+  }, DISCONNECT_GRACE_PERIOD_MS);
+  
+  pendingDisconnects.set(key, timeoutId);
+}
+
+/**
+ * Cancel a pending disconnect (player reconnected)
+ */
+function cancelPendingDisconnect(sessionCode: string, playerId: string): boolean {
+  const key = `${sessionCode}:${playerId}`;
+  const timeoutId = pendingDisconnects.get(key);
+  
+  if (timeoutId) {
+    clearTimeout(timeoutId);
+    pendingDisconnects.delete(key);
+    logger.info({ sessionCode, playerId }, "Pending disconnect cancelled (player reconnected)");
+    return true;
+  }
+  return false;
+}
+
 function getSessionConnections(sessionCode: string) {
   const connections = sessionConnections.get(sessionCode);
   if (!connections) return [];
@@ -613,7 +821,7 @@ io.on("connection", (socket: Socket) => {
         if (nameAlreadyTaken) {
           logger.warn({ sessionCode, playerName }, "Player name already taken in session");
           socket.emit(WSMessageType.ERROR, {
-            message: "Deze naam is al in gebruik. Kies een andere naam.",
+            message: "This name is already in use. Please choose another name.",
             code: "NAME_ALREADY_TAKEN",
           });
           return;
@@ -958,12 +1166,106 @@ io.on("connection", (socket: Socket) => {
         socket.data.sessionId = session.id;
         socket.data.isHost = true;
 
+        // Get player scores from database (sum of all their answers)
+        const playerScores = await prisma.liveAnswer.groupBy({
+          by: ['playerId'],
+          where: { sessionId: session.id },
+          _sum: { score: true },
+        });
+        const scoreMap = new Map(playerScores.map(p => [p.playerId, p._sum.score || 0]));
+
+        // Get all unique quizItemIds that have been answered (completed items)
+        const answeredItems = await prisma.liveAnswer.groupBy({
+          by: ['quizItemId'],
+          where: { sessionId: session.id },
+        });
+        const completedItemIds = answeredItems.map(a => a.quizItemId);
+
+        // Get answer counts per item (for restoring answered count on page refresh)
+        const answerCounts = await prisma.liveAnswer.groupBy({
+          by: ['quizItemId'],
+          where: { sessionId: session.id },
+          _count: { id: true },
+        });
+        const answerCountMap: Record<string, number> = {};
+        answerCounts.forEach(ac => {
+          answerCountMap[ac.quizItemId] = ac._count.id;
+        });
+
+        // Get all answers with player info and question info for history restoration
+        const allAnswers = await prisma.liveAnswer.findMany({
+          where: { sessionId: session.id },
+          include: {
+            player: { select: { id: true, name: true, avatar: true } },
+            quizItem: { 
+              include: { 
+                question: { 
+                  include: { 
+                    options: { orderBy: { order: 'asc' } } 
+                  } 
+                } 
+              } 
+            },
+          },
+          orderBy: { answeredAt: 'asc' },
+        });
+
+        // Group answers by quizItemId and format for client
+        const answerHistoryMap: Record<string, Array<{
+          itemId: string;
+          playerId: string;
+          playerName: string;
+          playerAvatar: string | null;
+          questionType: string;
+          answerDisplay: string;
+          rawAnswer: any;
+          isCorrect: boolean | null;
+          score: number;
+          answeredAt: number;
+          selectedOptionIds?: string[];
+          submittedOrder?: string[];
+        }>> = {};
+
+        for (const answer of allAnswers) {
+          const itemId = answer.quizItemId;
+          if (!answerHistoryMap[itemId]) {
+            answerHistoryMap[itemId] = [];
+          }
+
+          const questionType = answer.quizItem.question?.type || 'UNKNOWN';
+          const options = answer.quizItem.question?.options || [];
+          // FIX: Database column is 'payloadJson', not 'answer'
+          const rawPayload = answer.payloadJson;
+          const parsedAnswer = typeof rawPayload === 'string' ? JSON.parse(rawPayload) : rawPayload;
+          
+          // Format the answer display using the same logic as PLAYER_ANSWERED
+          const formatted = formatAnswerForDisplay(questionType, parsedAnswer, options);
+
+          answerHistoryMap[itemId].push({
+            itemId,
+            playerId: answer.playerId,
+            playerName: answer.player.name,
+            playerAvatar: answer.player.avatar,
+            questionType,
+            answerDisplay: formatted.display,
+            rawAnswer: parsedAnswer,
+            isCorrect: answer.isCorrect,
+            score: answer.score,
+            answeredAt: answer.answeredAt.getTime(),
+            selectedOptionIds: formatted.selectedOptionIds,
+            submittedOrder: formatted.submittedOrder,
+          });
+        }
+
         // Send current session state to host
         socket.emit(WSMessageType.SESSION_STATE, {
           sessionId: session.id,
           sessionCode: session.code,
           status: session.status,
           isHost: true,
+          completedItemIds, // NEW: items that have answers
+          answerCounts: answerCountMap, // NEW: answer count per item
+          answerHistory: answerHistoryMap, // NEW: full answer history for restoration
           players: session.players.map((p) => {
             // Check if player has an active connection
             const sessionConns = sessionConnections.get(sessionCode);
@@ -972,7 +1274,7 @@ io.on("connection", (socket: Socket) => {
               id: p.id,
               name: p.name,
               avatar: p.avatar,
-              score: 0,
+              score: scoreMap.get(p.id) || 0, // Use actual score from database
               isOnline: connection?.isOnline ?? false,
               connectionQuality: connection ? getConnectionQuality(connection) : 'unknown',
             };
@@ -1000,6 +1302,12 @@ io.on("connection", (socket: Socket) => {
       try {
         const { sessionCode, playerId } = data;
         logger.info({ sessionCode, playerId, socketId: socket.id }, "Player attempting to rejoin session");
+
+        // Cancel any pending disconnect for this player (they reconnected in time!)
+        const wasPending = cancelPendingDisconnect(sessionCode, playerId);
+        if (wasPending) {
+          logger.info({ sessionCode, playerId }, "Player reconnected within grace period");
+        }
 
         // Validate session exists
         const session = await prisma.liveSession.findUnique({
@@ -1068,6 +1376,20 @@ io.on("connection", (socket: Socket) => {
         if (currentItemId) {
           const itemStartedAt = await redis.get(`session:${sessionCode}:itemStartedAt`);
           const timerDuration = await redis.get(`session:${sessionCode}:itemTimerDuration`);
+          const itemLockedAt = await redis.get(`session:${sessionCode}:itemLockedAt`);
+          
+          // Check if this player has already answered this question
+          const existingAnswer = await prisma.liveAnswer.findFirst({
+            where: {
+              sessionId: session.id,
+              playerId: playerId,
+              quizItemId: currentItemId,
+            },
+          });
+          
+          // Get shuffled options from Redis (stored when item started)
+          // This ensures rejoining players see the same shuffled order as other players
+          const shuffledOptionsJson = await redis.get(`session:${sessionCode}:shuffledOptions`);
           
           // Fetch the item data to send to the player
           const item = await prisma.quizItem.findUnique({
@@ -1085,21 +1407,53 @@ io.on("connection", (socket: Socket) => {
           if (item?.question) {
             const elapsedMs = itemStartedAt ? Date.now() - parseInt(itemStartedAt) : 0;
             const remainingMs = timerDuration ? Math.max(0, parseInt(timerDuration) * 1000 - elapsedMs) : 0;
+            
+            // Use shuffled options from Redis if available, otherwise use DB order
+            let optionsToSend;
+            if (shuffledOptionsJson) {
+              optionsToSend = JSON.parse(shuffledOptionsJson);
+              logger.debug({ playerId }, "Using cached shuffled options for rejoining player");
+            } else {
+              // Fallback to database order (shouldn't happen normally)
+              optionsToSend = item.question.options.map((opt) => ({
+                id: opt.id,
+                text: opt.text,
+              }));
+              logger.warn({ playerId }, "No shuffled options in Redis, using DB order");
+            }
 
+            // Send item started event
             socket.emit(WSMessageType.ITEM_STARTED, {
               itemId: item.id,
               itemType: item.itemType,
               prompt: item.question.prompt,
               questionType: item.question.type,
-              options: item.question.options.map((opt) => ({
-                id: opt.id,
-                text: opt.text,
-              })),
+              options: optionsToSend,
               mediaUrl: item.question.media?.[0]?.reference || null,
               timerDuration: Math.ceil(remainingMs / 1000), // Remaining seconds
             });
 
-            logger.info({ playerId, currentItemId, remainingMs }, "Sent current item to rejoining player");
+            // If item is locked or player already answered, send locked state immediately after
+            if (itemLockedAt || remainingMs === 0) {
+              socket.emit(WSMessageType.ITEM_LOCKED, {
+                itemId: currentItemId,
+                autoLocked: true,
+              });
+              logger.info({ playerId, currentItemId }, "Item already locked - sent ITEM_LOCKED to rejoining player");
+            } else if (existingAnswer) {
+              // Player already answered - they shouldn't be able to answer again
+              // Send a custom event or use ANSWER_RECEIVED to indicate already answered
+              socket.emit(WSMessageType.ANSWER_RECEIVED, {
+                playerId,
+                itemId: currentItemId,
+                isCorrect: existingAnswer.isCorrect,
+                score: existingAnswer.score,
+                alreadyAnswered: true,
+              });
+              logger.info({ playerId, currentItemId }, "Player already answered - sent answer status to rejoining player");
+            }
+
+            logger.info({ playerId, currentItemId, remainingMs, alreadyAnswered: !!existingAnswer, isLocked: !!itemLockedAt }, "Sent current item state to rejoining player");
           }
         }
 
@@ -1166,8 +1520,13 @@ io.on("connection", (socket: Socket) => {
         const startedAt = Date.now();
         const settingsJson = (quizItem.settingsJson as any) || {};
         
-        // Get timer duration from settings, default to 4 seconds
-        const timerDuration = settingsJson.timer || settingsJson.timerDuration || 4;
+        // Get timer duration from settings, or use question-type-specific default
+        let timerDuration = settingsJson.timer || settingsJson.timerDuration;
+        if (!timerDuration && quizItem.question) {
+          // Use type-specific default timer for the question type
+          timerDuration = getDefaultTimerForQuestionType(quizItem.question.type);
+        }
+        timerDuration = timerDuration || 15; // Fallback if no question type
         
         // Get points from settings, default to 1000
         const basePoints = settingsJson.points || settingsJson.basePoints || 10;
@@ -1232,17 +1591,36 @@ io.on("connection", (socket: Socket) => {
             };
           });
 
+          // Prepare options for sending to players
+          let optionsToSend = question.options.map((opt) => ({
+            id: opt.id,
+            text: opt.text,
+            order: opt.order,
+          }));
+          
+          // Shuffle options for applicable question types
+          // This ensures players don't see answers in predictable order
+          if (shouldShuffleOptions(question.type)) {
+            optionsToSend = shuffleArray(optionsToSend);
+            logger.debug({ questionType: question.type }, "Options shuffled for player display");
+          }
+          
+          // Store shuffled options in Redis for rejoin consistency
+          // Players who rejoin should see the same shuffled order
+          await redis.set(
+            `session:${sessionCode}:shuffledOptions`,
+            JSON.stringify(optionsToSend),
+            "EX",
+            3600 // Expire after 1 hour
+          );
+
           eventPayload = {
             ...eventPayload,
             questionType: question.type,
             prompt: question.prompt,
             title: question.title,
             // Send options WITHOUT isCorrect flag - that's secret!
-            options: question.options.map((opt) => ({
-              id: opt.id,
-              text: opt.text,
-              order: opt.order,
-            })),
+            options: optionsToSend,
             media: mediaItems,
             // Primary media for backward compatibility
             mediaUrl: mediaItems[0]?.url || null,
@@ -1323,6 +1701,58 @@ io.on("connection", (socket: Socket) => {
     }
   });
 
+  // Host cancels current item (stops without scoring, allows restart or next question)
+  socket.on(WSMessageType.CANCEL_ITEM, async (data: { sessionCode: string; itemId?: string }) => {
+    try {
+      const { sessionCode } = data;
+      const itemId = data.itemId || await redis.get(`session:${sessionCode}:currentItem`);
+      logger.info({ sessionCode, itemId }, "Host cancelling item");
+
+      // Verify session exists
+      const session = await prisma.liveSession.findUnique({
+        where: { code: sessionCode },
+      });
+
+      if (!session) {
+        socket.emit(WSMessageType.ERROR, { message: "Session not found", code: "NOT_FOUND" });
+        return;
+      }
+
+      // Clear the auto-lock timer
+      clearItemTimer(sessionCode);
+
+      // Clear all item-related Redis keys to reset state
+      await redis.del(`session:${sessionCode}:currentItem`);
+      await redis.del(`session:${sessionCode}:itemStartedAt`);
+      await redis.del(`session:${sessionCode}:itemLockedAt`);
+      await redis.del(`session:${sessionCode}:itemTimerDuration`);
+      await redis.del(`session:${sessionCode}:itemBasePoints`);
+      await redis.del(`session:${sessionCode}:shuffledOptions`);
+
+      // Optionally: Delete answers for this item (so it can be re-done)
+      if (itemId) {
+        await prisma.liveAnswer.deleteMany({
+          where: {
+            sessionId: session.id,
+            quizItemId: itemId,
+          },
+        });
+        logger.info({ sessionCode, itemId }, "Deleted answers for cancelled item");
+      }
+
+      // Broadcast cancellation to all clients
+      io.to(sessionCode).emit(WSMessageType.ITEM_CANCELLED, {
+        itemId,
+        cancelledAt: Date.now(),
+      });
+
+      logger.info({ sessionCode, itemId }, "Item cancelled by host");
+    } catch (error) {
+      logger.error({ error }, "Error cancelling item");
+      socket.emit(WSMessageType.ERROR, { message: "Failed to cancel item", code: "CANCEL_ERROR" });
+    }
+  });
+
   // Host reveals answers
   socket.on(WSMessageType.REVEAL_ANSWERS, async (data: { sessionCode: string; itemId: string }) => {
     try {
@@ -1389,12 +1819,55 @@ io.on("connection", (socket: Socket) => {
       const settings = (quizItem?.settingsJson as { showExplanation?: boolean } | null) || {};
       const showExplanation = settings.showExplanation === true;
 
-      // Find correct option for multiple choice questions
-      const correctOption = quizItem?.question?.options.find((opt) => opt.isCorrect);
+      // Build correct answer data based on question type
+      const questionType = quizItem?.question?.type || "";
+      let correctOptionId: string | null = null;
+      let correctOptionIds: string[] | null = null;
+      let correctOrder: Array<{ id: string; text: string; position: number }> | null = null;
+      let correctText: string | null = null;
+
+      if (quizItem?.question?.options) {
+        const options = quizItem.question.options;
+        
+        if (questionType === "ORDER") {
+          // ORDER: Send correct order (sorted by 'order' field)
+          const sortedOptions = [...options].sort((a, b) => (a.order || 0) - (b.order || 0));
+          correctOrder = sortedOptions.map((opt, idx) => ({
+            id: opt.id,
+            text: opt.text,
+            position: idx + 1,
+          }));
+        } else if (questionType === "MC_MULTIPLE") {
+          // MC_MULTIPLE: Send all correct option IDs
+          correctOptionIds = options.filter(opt => opt.isCorrect).map(opt => opt.id);
+          correctOptionId = correctOptionIds[0] || null; // Backward compatibility
+        } else if (questionType === "TRUE_FALSE" || questionType === "MC_SINGLE") {
+          // MC_SINGLE/TRUE_FALSE: Send single correct option ID
+          const correctOption = options.find(opt => opt.isCorrect);
+          correctOptionId = correctOption?.id || null;
+        } else if (questionType === "OPEN_TEXT" || questionType === "PHOTO_OPEN" || 
+                   questionType === "AUDIO_OPEN" || questionType === "VIDEO_OPEN") {
+          // Open text types: Send correct text answer
+          const correctOption = options.find(opt => opt.isCorrect);
+          correctText = correctOption?.text || null;
+        } else {
+          // Default: Find correct option
+          const correctOption = options.find(opt => opt.isCorrect);
+          correctOptionId = correctOption?.id || null;
+        }
+      }
 
       io.to(sessionCode).emit(WSMessageType.REVEAL_ANSWERS, {
         itemId,
-        correctOptionId: correctOption?.id || null,
+        questionType,
+        // Single correct option (MC_SINGLE, TRUE_FALSE)
+        correctOptionId,
+        // Multiple correct options (MC_MULTIPLE)
+        correctOptionIds,
+        // Correct order for ORDER questions
+        correctOrder,
+        // Correct text for open-ended questions
+        correctText,
         explanation: showExplanation ? quizItem?.question?.explanation : null,
         answers: answers.map((a) => ({
           playerId: a.playerId,
@@ -1409,6 +1882,84 @@ io.on("connection", (socket: Socket) => {
     } catch (error) {
       logger.error({ error }, "Error revealing answers");
       socket.emit("error", { message: "Failed to reveal answers" });
+    }
+  });
+
+  // Host shows scoreboard
+  socket.on("SHOW_SCOREBOARD", async (data: { sessionCode: string; displayType?: string }) => {
+    try {
+      const { sessionCode, displayType = "top10" } = data;
+      logger.info({ sessionCode, displayType }, "Host showing scoreboard");
+
+      // Verify session exists
+      const session = await prisma.liveSession.findUnique({
+        where: { code: sessionCode },
+        include: {
+          players: {
+            where: { leftAt: null }, // Only active players
+            include: {
+              answers: {
+                select: { score: true },
+              },
+            },
+          },
+        },
+      });
+
+      if (!session) {
+        socket.emit("error", { message: "Session not found" });
+        return;
+      }
+
+      // Calculate scores from answers
+      const leaderboard = session.players
+        .map((p) => ({
+          playerId: p.id,
+          playerName: p.name,
+          avatar: p.avatar || "👤",
+          totalScore: p.answers.reduce((sum, a) => sum + a.score, 0),
+        }))
+        .sort((a, b) => b.totalScore - a.totalScore);
+
+      // Filter based on displayType
+      let displayedPlayers = leaderboard;
+      if (displayType === "top_3") {
+        displayedPlayers = leaderboard.slice(0, 3);
+      } else if (displayType === "top_5") {
+        displayedPlayers = leaderboard.slice(0, 5);
+      } else if (displayType === "top_10") {
+        displayedPlayers = leaderboard.slice(0, 10);
+      }
+
+      // Broadcast to all clients in session
+      io.to(sessionCode).emit("SHOW_SCOREBOARD", {
+        displayType,
+        leaderboard: displayedPlayers,
+        totalPlayers: leaderboard.length,
+      });
+
+      logger.info({ sessionCode, displayType, playerCount: displayedPlayers.length }, "Scoreboard shown");
+    } catch (error) {
+      logger.error({ error }, "Error showing scoreboard");
+      socket.emit("error", { message: "Failed to show scoreboard" });
+    }
+  });
+
+  // Host hides scoreboard
+  socket.on("HIDE_SCOREBOARD", async (data: { sessionCode: string }) => {
+    try {
+      const { sessionCode } = data;
+      logger.info({ sessionCode }, "Host hiding scoreboard");
+
+      // Broadcast to all clients in session
+      io.to(sessionCode).emit("HIDE_SCOREBOARD", {
+        sessionCode,
+      });
+
+      logger.info({ sessionCode }, "Scoreboard hidden");
+    } catch (error) {
+      logger.error({ error }, "Error hiding scoreboard");
+      socket.emit("error", { message: "Failed to hide scoreboard" });
     }
   });
 
@@ -1559,26 +2110,24 @@ io.on("connection", (socket: Socket) => {
             })),
           });
           
+          // Send PLAYER_ANSWERED to host for poll votes too
+          const selectedOption = question.options.find(opt => opt.id === pollVote);
+          io.to(sessionCode).emit(WSMessageType.PLAYER_ANSWERED, {
+            itemId,
+            playerId,
+            playerName: player.name,
+            playerAvatar: player.avatar,
+            questionType: "POLL",
+            answerDisplay: selectedOption?.text || String(pollVote),
+            rawAnswer: pollVote,
+            isCorrect: null, // Polls have no correct answer
+            score: 0,
+            answeredAt: Date.now(),
+            selectedOptionIds: [pollVote],
+          });
+          
           logger.info({ playerId, itemId, pollVote, totalVotes }, "Poll vote recorded");
           return;
-        }
-
-        // Get correct answer based on question type
-        let correctAnswer: any;
-        const correctOptions = question.options.filter((opt) => opt.isCorrect);
-
-        if (correctOptions.length > 0) {
-          // MCQ, TRUE_FALSE, etc. - use option IDs
-          if (correctOptions.length === 1) {
-            correctAnswer = correctOptions[0].id;
-          } else {
-            correctAnswer = correctOptions.map((opt) => opt.id);
-          }
-        } else {
-          // OPEN, MUSIC_GUESS_TITLE, etc. - use first option text as correct answer
-          // Or could be stored in settingsJson
-          const settingsJson = quizItem.settingsJson as any;
-          correctAnswer = settingsJson?.correctAnswer || question.options[0]?.text || "";
         }
 
         // Get scoring settings from quizItem.settingsJson and Redis
@@ -1634,16 +2183,41 @@ io.on("connection", (socket: Socket) => {
           }
         }
 
-        // Validate and score the answer
-        const validation = validateAndScore(
+        // Validate and score the answer using the new complete validation
+        // This handles TRUE_FALSE (boolean), OLDER_NEWER (string), MCQ (option ID), etc.
+        
+        // For ESTIMATION, get margin from question.options[0].order if not in settingsJson
+        let estimationMargin = settingsJson?.estimationMargin;
+        if (questionType === "ESTIMATION" && estimationMargin === undefined && question.options.length > 0) {
+          estimationMargin = question.options[0].order || 10;
+        }
+        
+        const validation = validateAnswerComplete(
           questionType,
           answer,
-          correctAnswer,
-          basePoints,
-          timeSpentMs,
-          timeLimitMs,
-          currentStreak
+          question.options,
+          settingsJson,
+          {
+            basePoints,
+            timeSpentMs,
+            timeLimitMs,
+            currentStreak,
+            estimationMargin,
+            acceptableAnswers: settingsJson?.acceptableAnswers,
+          }
         );
+
+        // Log the validation details for debugging
+        logger.debug({ 
+          playerId, 
+          questionType,
+          playerAnswer: answer,
+          normalizedAnswer: validation.normalizedPlayerAnswer,
+          correctAnswer: validation.correctAnswer,
+          answerFormat: validation.answerFormat,
+          isCorrect: validation.isCorrect,
+          score: validation.score,
+        }, "Answer validation details");
 
         // Store answer in database
         const liveAnswer = await prisma.liveAnswer.create({
@@ -1666,8 +2240,8 @@ io.on("connection", (socket: Socket) => {
           streak: validation.isCorrect ? currentStreak + 1 : 0,
         });
 
-        // Update leaderboard in Redis if answer was correct
-        if (validation.isCorrect) {
+        // Update leaderboard in Redis if player earned points (including partial scores for ORDER, ESTIMATION etc.)
+        if (validation.score > 0) {
           // Get player's cached data
           const cachedPlayer = await getPlayer(sessionCode, playerId);
           const newScore = (cachedPlayer?.score || 0) + validation.score;
@@ -1719,6 +2293,28 @@ io.on("connection", (socket: Socket) => {
           itemId,
           count: answerCount,
           total: totalPlayers,
+        });
+
+        // Send detailed answer info to host (PLAYER_ANSWERED)
+        const answerFormatted = formatAnswerForDisplay(
+          questionType,
+          answer,
+          question.options.map(opt => ({ id: opt.id, text: opt.text }))
+        );
+
+        io.to(sessionCode).emit(WSMessageType.PLAYER_ANSWERED, {
+          itemId,
+          playerId,
+          playerName: player.name,
+          playerAvatar: player.avatar,
+          questionType,
+          answerDisplay: answerFormatted.display,
+          rawAnswer: answer,
+          isCorrect: validation.isCorrect,
+          score: validation.score,
+          answeredAt: Date.now(),
+          selectedOptionIds: answerFormatted.selectedOptionIds,
+          submittedOrder: answerFormatted.submittedOrder,
         });
 
         logger.info(
@@ -1917,6 +2513,7 @@ io.on("connection", (socket: Socket) => {
       await redis.del(`session:${sessionCode}:itemStartedAt`);
       await redis.del(`session:${sessionCode}:itemTimerDuration`);
       await redis.del(`session:${sessionCode}:itemBasePoints`);
+      await redis.del(`session:${sessionCode}:shuffledOptions`);
       await redis.del(`session:${sessionCode}:paused`);
       await redis.del(`session:${sessionCode}:pausedAt`);
 
@@ -2193,31 +2790,20 @@ io.on("connection", (socket: Socket) => {
         return;
       }
 
-      // Mark player as offline in connection tracking
+      // Mark player as offline in connection tracking (immediate visual feedback)
       markPlayerOffline(sessionCode, playerId);
 
-      // Send connection status update to host
+      // Send connection status update to host (shows player as offline, not removed)
       const connections = getSessionConnections(sessionCode);
       io.to(sessionCode).emit("CONNECTION_STATUS_UPDATE", {
         connections,
       });
 
-      // Update player's leftAt timestamp
-      const player = await prisma.livePlayer.update({
-        where: { id: playerId },
-        data: { leftAt: new Date() },
-      });
+      // Schedule player removal after grace period
+      // If they reconnect within 30 seconds, the disconnect is cancelled
+      schedulePlayerDisconnect(sessionCode, playerId, io);
 
-      // Remove from Redis active players
-      await removeActivePlayer(sessionCode, playerId);
-
-      // Notify others in the session
-      socket.to(sessionCode).emit(WSMessageType.PLAYER_LEFT, {
-        playerId: player.id,
-        name: player.name,
-      });
-
-      logger.info({ playerId, sessionCode }, "Player left session");
+      logger.info({ playerId, sessionCode }, "Player disconnect scheduled (30s grace period)");
     } catch (error) {
       logger.error({ error }, "Error handling disconnect");
     }

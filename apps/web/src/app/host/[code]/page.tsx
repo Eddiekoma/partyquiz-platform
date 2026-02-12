@@ -3,8 +3,10 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import { WSMessageType, type Player as SharedPlayer, type ConnectionStatus } from "@partyquiz/shared";
+import { WSMessageType, type Player as SharedPlayer, type ConnectionStatus, QuestionType } from "@partyquiz/shared";
 import Link from "next/link";
+import { QuestionTypeBadge } from "@/components/QuestionTypeBadge";
+import { AnswerPanel, type PlayerAnswer } from "@/components/host/AnswerPanel";
 import QRCode from "react-qr-code";
 
 interface Player {
@@ -25,7 +27,7 @@ interface QuizItem {
     title: string;
     prompt: string;
     type: string;
-    options?: { id: string; text: string; isCorrect: boolean }[];
+    options?: { id: string; text: string; isCorrect: boolean; order?: number }[];
   };
   minigameType?: string;
   settingsJson?: any;
@@ -68,6 +70,7 @@ export default function HostControlPage() {
   const [currentItemIndex, setCurrentItemIndex] = useState(0);
   const [itemState, setItemState] = useState<"idle" | "active" | "locked" | "revealed">("idle");
   const [answeredCount, setAnsweredCount] = useState(0);
+  const [totalPlayerCount, setTotalPlayerCount] = useState(0); // Live count from server
   const [isPaused, setIsPaused] = useState(false);
   const [hasJoinedRoom, setHasJoinedRoom] = useState(false);
   const [liveConnectionStatus, setLiveConnectionStatus] = useState<Map<string, { isOnline: boolean; quality: string }>>(new Map());
@@ -80,6 +83,43 @@ export default function HostControlPage() {
   // Rejoin token state
   const [rejoinTokens, setRejoinTokens] = useState<Map<string, string>>(new Map());
   const [generatingToken, setGeneratingToken] = useState<string | null>(null);
+  // Answer panel state
+  const [currentItemAnswers, setCurrentItemAnswers] = useState<Array<{
+    itemId: string;
+    playerId: string;
+    playerName: string;
+    playerAvatar?: string | null;
+    questionType: string;
+    answerDisplay: string;
+    rawAnswer: any;
+    isCorrect: boolean | null;
+    score: number;
+    answeredAt: number;
+    selectedOptionIds?: string[];
+    submittedOrder?: string[];
+  }>>([]);
+  const [showAnswerPanel, setShowAnswerPanel] = useState(false);
+  // History of all answers per item (preserved across questions)
+  const [answerHistory, setAnswerHistory] = useState<Map<string, Array<{
+    itemId: string;
+    playerId: string;
+    playerName: string;
+    playerAvatar?: string | null;
+    questionType: string;
+    answerDisplay: string;
+    rawAnswer: any;
+    isCorrect: boolean | null;
+    score: number;
+    answeredAt: number;
+    selectedOptionIds?: string[];
+    submittedOrder?: string[];
+  }>>>(new Map());
+  // Show question history sidebar
+  const [showQuestionHistory, setShowQuestionHistory] = useState(false);
+  // Selected historical question to view
+  const [selectedHistoryItemId, setSelectedHistoryItemId] = useState<string | null>(null);
+  // Answer counts per item (restored from server after page refresh)
+  const [answerCountsMap, setAnswerCountsMap] = useState<Record<string, number>>({});
 
   // Use WebSocket without onMessage - we'll set up direct listeners
   const { socket, isConnected, send } = useWebSocket({
@@ -119,6 +159,25 @@ export default function HostControlPage() {
       console.log("[Host] SESSION_STATE received:", data);
       if (data.players) {
         setSession(prev => prev ? { ...prev, players: data.players } : null);
+      }
+      // Restore completed items from server (after page refresh)
+      if (data.completedItemIds && Array.isArray(data.completedItemIds)) {
+        console.log("[Host] Restoring completedItemIds:", data.completedItemIds);
+        setCompletedItemIds(new Set(data.completedItemIds));
+      }
+      // Restore answer counts per item (after page refresh)
+      if (data.answerCounts) {
+        console.log("[Host] Restoring answerCounts:", data.answerCounts);
+        setAnswerCountsMap(data.answerCounts);
+      }
+      // Restore answer history from server (after page refresh)
+      if (data.answerHistory) {
+        console.log("[Host] Restoring answerHistory:", Object.keys(data.answerHistory).length, "items");
+        const restoredHistory = new Map<string, typeof currentItemAnswers>();
+        for (const [itemId, answers] of Object.entries(data.answerHistory)) {
+          restoredHistory.set(itemId, answers as typeof currentItemAnswers);
+        }
+        setAnswerHistory(restoredHistory);
       }
     };
 
@@ -194,10 +253,53 @@ export default function HostControlPage() {
       }
     };
 
-    // Listen for answer received
+    // Listen for answer received (sent to player, but we also use it as fallback)
     const handleAnswerReceived = (data: any) => {
       console.log("[Host] ANSWER_RECEIVED:", data);
+      // Fallback increment - ANSWER_COUNT_UPDATED is more reliable
       setAnsweredCount(prev => prev + 1);
+    };
+
+    // Listen for answer count updated (more reliable - includes database count)
+    const handleAnswerCountUpdated = (data: { itemId: string; count: number; total: number }) => {
+      console.log("[Host] ANSWER_COUNT_UPDATED:", data);
+      setAnsweredCount(data.count);
+      setTotalPlayerCount(data.total);
+    };
+
+    // Listen for detailed player answer (for answer panel)
+    const handlePlayerAnswered = (data: {
+      itemId: string;
+      playerId: string;
+      playerName: string;
+      playerAvatar?: string | null;
+      questionType: string;
+      answerDisplay: string;
+      rawAnswer: any;
+      isCorrect: boolean | null;
+      score: number;
+      answeredAt: number;
+      selectedOptionIds?: string[];
+      submittedOrder?: string[];
+    }) => {
+      console.log("[Host] PLAYER_ANSWERED:", data);
+      setCurrentItemAnswers(prev => {
+        // Avoid duplicates (same player for same item)
+        if (prev.some(a => a.playerId === data.playerId && a.itemId === data.itemId)) {
+          return prev;
+        }
+        return [...prev, data];
+      });
+      
+      // Player who answered is definitely online - update connection status
+      setLiveConnectionStatus(prev => {
+        const newMap = new Map(prev);
+        newMap.set(data.playerId, {
+          isOnline: true,
+          quality: 'good',
+        });
+        return newMap;
+      });
     };
 
     // Listen for item locked (auto-lock when timer expires)
@@ -205,6 +307,14 @@ export default function HostControlPage() {
       console.log("[Host] ITEM_LOCKED (auto-lock):", data);
       setItemState("locked");
       setTimeRemaining(0); // Stop the countdown display
+    };
+
+    // Listen for item cancelled
+    const handleItemCancelled = (data: any) => {
+      console.log("[Host] ITEM_CANCELLED:", data);
+      setItemState("idle");
+      setTimeRemaining(0);
+      setAnsweredCount(0);
     };
 
     // Listen for session ended
@@ -231,9 +341,14 @@ export default function HostControlPage() {
       } : null);
     };
 
-    // Listen for errors
+    // Listen for errors (both custom ERROR event and socket.io native "error" event)
     const handleError = (data: any) => {
-      console.error("[Host] WS Error:", data);
+      console.error("[Host] WS Error:", JSON.stringify(data, null, 2));
+    };
+    
+    // Socket.IO native error event (lowercase) - can be empty object on connection issues
+    const handleNativeError = (error: any) => {
+      console.error("[Host] Socket.IO native error:", error?.message || error || "(no error details)");
     };
 
     // Listen for rejoin token generated
@@ -246,10 +361,31 @@ export default function HostControlPage() {
         // Build the rejoin URL and copy to clipboard
         const rejoinUrl = `${window.location.origin}/play/${code}/rejoin?token=${data.token}`;
         navigator.clipboard.writeText(rejoinUrl).then(() => {
-          alert(`Rejoin link voor ${data.playerName} gekopieerd naar klembord!\n\n${rejoinUrl}`);
+          alert(`Rejoin link for ${data.playerName} copied to clipboard!\n\n${rejoinUrl}`);
         }).catch(() => {
           // If clipboard fails, show the link in alert
-          alert(`Rejoin link voor ${data.playerName}:\n\n${rejoinUrl}`);
+          alert(`Rejoin link for ${data.playerName}:\n\n${rejoinUrl}`);
+        });
+      }
+    };
+
+    // Listen for leaderboard updates (player scores)
+    const handleLeaderboardUpdate = (data: { leaderboard: Array<{ playerId: string; playerName: string; avatar: string; totalScore: number }> }) => {
+      console.log("[Host] LEADERBOARD_UPDATE received:", data);
+      if (data.leaderboard) {
+        setSession(prev => {
+          if (!prev) return null;
+          const updatedPlayers = prev.players.map(player => {
+            const leaderboardEntry = data.leaderboard.find(l => l.playerId === player.id);
+            if (leaderboardEntry) {
+              return {
+                ...player,
+                score: leaderboardEntry.totalScore,
+              };
+            }
+            return player;
+          });
+          return { ...prev, players: updatedPlayers };
         });
       }
     };
@@ -260,11 +396,16 @@ export default function HostControlPage() {
     socket.on(WSMessageType.PLAYER_LEFT, handlePlayerLeft);
     socket.on("CONNECTION_STATUS_UPDATE", handleConnectionStatus);
     socket.on(WSMessageType.ANSWER_RECEIVED, handleAnswerReceived);
+    socket.on(WSMessageType.ANSWER_COUNT_UPDATED, handleAnswerCountUpdated);
+    socket.on(WSMessageType.PLAYER_ANSWERED, handlePlayerAnswered);
     socket.on(WSMessageType.ITEM_LOCKED, handleItemLocked);
+    socket.on(WSMessageType.ITEM_CANCELLED, handleItemCancelled);
     socket.on(WSMessageType.SESSION_ENDED, handleSessionEnded);
     socket.on(WSMessageType.SESSION_RESET, handleSessionReset);
     socket.on(WSMessageType.ERROR, handleError);
+    socket.on("error", handleNativeError); // Socket.IO native error event
     socket.on(WSMessageType.REJOIN_TOKEN_GENERATED, handleRejoinTokenGenerated);
+    socket.on(WSMessageType.LEADERBOARD_UPDATE, handleLeaderboardUpdate);
 
     console.log("[Host] Event listeners registered successfully");
 
@@ -277,11 +418,16 @@ export default function HostControlPage() {
       socket.off(WSMessageType.PLAYER_LEFT, handlePlayerLeft);
       socket.off("CONNECTION_STATUS_UPDATE", handleConnectionStatus);
       socket.off(WSMessageType.ANSWER_RECEIVED, handleAnswerReceived);
+      socket.off(WSMessageType.ANSWER_COUNT_UPDATED, handleAnswerCountUpdated);
+      socket.off(WSMessageType.PLAYER_ANSWERED, handlePlayerAnswered);
       socket.off(WSMessageType.ITEM_LOCKED, handleItemLocked);
+      socket.off(WSMessageType.ITEM_CANCELLED, handleItemCancelled);
       socket.off(WSMessageType.SESSION_ENDED, handleSessionEnded);
       socket.off(WSMessageType.SESSION_RESET, handleSessionReset);
       socket.off(WSMessageType.ERROR, handleError);
+      socket.off("error", handleNativeError);
       socket.off(WSMessageType.REJOIN_TOKEN_GENERATED, handleRejoinTokenGenerated);
+      socket.off(WSMessageType.LEADERBOARD_UPDATE, handleLeaderboardUpdate);
     };
   }, [socket, code]); // Only depend on socket, not on isConnected or hasJoinedRoom
 
@@ -293,6 +439,9 @@ export default function HostControlPage() {
         if (!response.ok) {
           if (response.status === 404) {
             setError("Session not found");
+          } else if (response.status === 410) {
+            // Session is archived
+            setError("This session has been archived and can no longer be played. The quiz was updated after this session was created.");
           } else {
             setError("Failed to load session");
           }
@@ -356,6 +505,33 @@ export default function HostControlPage() {
     setTimeRemaining(timerDuration);
     setItemState("active");
     setAnsweredCount(0);
+    setCurrentItemAnswers([]); // Reset answer panel for new question
+    setSelectedHistoryItemId(null); // Clear history selection
+  }, [currentItem, code, send]);
+
+  // Cancel current item (stops without scoring, allows restart)
+  const cancelItem = useCallback(() => {
+    if (!currentItem) return;
+    
+    send({
+      type: WSMessageType.CANCEL_ITEM,
+      timestamp: Date.now(),
+      payload: {
+        sessionCode: code,
+        itemId: currentItem.id,
+      },
+    });
+    
+    // Reset local state
+    setItemState("idle");
+    setTimeRemaining(0);
+    setAnsweredCount(0);
+    // Remove from completed items so it can be re-done
+    setCompletedItemIds(prev => {
+      const updated = new Set(prev);
+      updated.delete(currentItem.id);
+      return updated;
+    });
   }, [currentItem, code, send]);
 
   // Note: Lock is now handled automatically by the server-side timer
@@ -371,25 +547,67 @@ export default function HostControlPage() {
     setItemState("revealed");
     // Mark this item as completed
     setCompletedItemIds(prev => new Set([...prev, currentItem.id]));
-  }, [code, send, currentItem]);
+    // Save answers to history
+    setAnswerHistory(prev => {
+      const updated = new Map(prev);
+      updated.set(currentItem.id, [...currentItemAnswers]);
+      return updated;
+    });
+  }, [code, send, currentItem, currentItemAnswers]);
 
   const nextItem = useCallback(() => {
     if (currentItemIndex < totalItems - 1) {
-      setCurrentItemIndex(prev => prev + 1);
+      // Save current answers to history before moving
+      if (currentItem && currentItemAnswers.length > 0) {
+        setAnswerHistory(prev => {
+          const updated = new Map(prev);
+          updated.set(currentItem.id, [...currentItemAnswers]);
+          return updated;
+        });
+      }
+      const nextIndex = currentItemIndex + 1;
+      const nextItemData = allItems[nextIndex];
+      setCurrentItemIndex(nextIndex);
       setItemState("idle");
       setAnsweredCount(0);
       setTimeRemaining(0);
+      setCurrentItemAnswers([]); // Clear for new question
+      
+      // If next item was completed and has history, auto-select for viewing
+      if (nextItemData && completedItemIds.has(nextItemData.id) && answerHistory.has(nextItemData.id)) {
+        setSelectedHistoryItemId(nextItemData.id);
+      } else {
+        setSelectedHistoryItemId(null);
+      }
     }
-  }, [currentItemIndex, totalItems]);
+  }, [currentItemIndex, totalItems, currentItem, currentItemAnswers, allItems, completedItemIds, answerHistory]);
 
   const previousItem = useCallback(() => {
     if (currentItemIndex > 0) {
-      setCurrentItemIndex(prev => prev - 1);
+      // Save current answers to history before moving
+      if (currentItem && currentItemAnswers.length > 0) {
+        setAnswerHistory(prev => {
+          const updated = new Map(prev);
+          updated.set(currentItem.id, [...currentItemAnswers]);
+          return updated;
+        });
+      }
+      const prevIndex = currentItemIndex - 1;
+      const prevItemData = allItems[prevIndex];
+      setCurrentItemIndex(prevIndex);
       setItemState("idle");
       setAnsweredCount(0);
       setTimeRemaining(0);
+      setCurrentItemAnswers([]); // Clear for new question
+      
+      // If previous item was completed and has history, auto-select for viewing
+      if (prevItemData && completedItemIds.has(prevItemData.id) && answerHistory.has(prevItemData.id)) {
+        setSelectedHistoryItemId(prevItemData.id);
+      } else {
+        setSelectedHistoryItemId(null);
+      }
     }
-  }, [currentItemIndex]);
+  }, [currentItemIndex, currentItem, currentItemAnswers, allItems, completedItemIds, answerHistory]);
 
   const startSwanRace = useCallback(() => {
     send({
@@ -704,14 +922,14 @@ export default function HostControlPage() {
                           {index + 1}
                         </span>
                         <span className="text-xl">{player.avatar || "👤"}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{player.name}</p>
+                        <div className="flex-1 min-w-0 overflow-hidden">
+                          <p className="font-medium text-sm" title={player.name}>{player.name}</p>
                         </div>
-                        <span className="font-mono font-bold" style={{ color: themeColor }}>
+                        <span className="font-mono font-bold flex-shrink-0" style={{ color: themeColor }}>
                           {player.score}
                         </span>
                         <span 
-                          className={`w-2 h-2 rounded-full ${statusColor}`}
+                          className={`w-2 h-2 rounded-full flex-shrink-0 ${statusColor}`}
                           title={statusTitle}
                         />
                         {/* Rejoin link button - only show for offline players */}
@@ -782,24 +1000,76 @@ export default function HostControlPage() {
                 </span>
                 
                 <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                  itemState === "idle" && completedItemIds.has(currentItem.id) ? "bg-green-900/50 text-green-400" :
                   itemState === "idle" ? "bg-slate-700 text-slate-400" :
                   itemState === "active" ? "bg-green-900/50 text-green-400" :
                   itemState === "locked" ? "bg-orange-900/50 text-orange-400" :
                   "bg-blue-900/50 text-blue-400"
                 }`}>
-                  {itemState === "idle" && "Ready"}
+                  {itemState === "idle" && completedItemIds.has(currentItem.id) && "✅ Completed"}
+                  {itemState === "idle" && !completedItemIds.has(currentItem.id) && "Ready"}
                   {itemState === "active" && "Active"}
                   {itemState === "locked" && "Locked"}
                   {itemState === "revealed" && "Revealed"}
                 </span>
+                
+                {/* View History button for completed questions */}
+                {completedItemIds.has(currentItem.id) && answerHistory.has(currentItem.id) && itemState === "idle" && (
+                  <button
+                    onClick={() => {
+                      if (selectedHistoryItemId === currentItem.id) {
+                        setSelectedHistoryItemId(null);
+                      } else {
+                        setSelectedHistoryItemId(currentItem.id);
+                        setShowAnswerPanel(true);
+                      }
+                    }}
+                    className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                      selectedHistoryItemId === currentItem.id 
+                        ? "bg-blue-600 text-white" 
+                        : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                    }`}
+                  >
+                    📊 {selectedHistoryItemId === currentItem.id ? "Verberg" : "Bekijk"} Antwoorden ({answerHistory.get(currentItem.id)?.length || 0})
+                  </button>
+                )}
               </div>
 
               {/* Question Content */}
               {currentItem.itemType === "QUESTION" && currentItem.question && (
                 <div>
+                  <div className="mb-3">
+                    <QuestionTypeBadge 
+                      type={currentItem.question.type as QuestionType} 
+                      size="md"
+                    />
+                  </div>
                   <h2 className="text-2xl font-bold mb-4">{currentItem.question.prompt}</h2>
                   
-                  {currentItem.question.options && (
+                  {currentItem.question.options && currentItem.question.type === "ORDER" ? (
+                    /* ORDER: Show numbered list in correct order */
+                    <div className="space-y-2">
+                      <p className="text-sm text-slate-400 mb-3">Correcte volgorde:</p>
+                      {[...currentItem.question.options]
+                        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+                        .map((option, idx) => (
+                          <div 
+                            key={option.id}
+                            className={`p-3 rounded-lg border-2 flex items-center gap-3 ${
+                              itemState === "revealed"
+                                ? "border-green-500 bg-green-900/30"
+                                : "border-slate-600 bg-slate-700/50"
+                            }`}
+                          >
+                            <span className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold text-sm">
+                              {idx + 1}
+                            </span>
+                            <span>{option.text}</span>
+                          </div>
+                        ))}
+                    </div>
+                  ) : currentItem.question.options && (
+                    /* MC/TRUE_FALSE/POLL: Show A, B, C, D grid */
                     <div className="grid grid-cols-2 gap-3">
                       {currentItem.question.options.map((option, idx) => (
                         <div 
@@ -823,10 +1093,61 @@ export default function HostControlPage() {
                   <div className="mt-4 flex items-center gap-4">
                     <div className="bg-slate-700 rounded-lg px-4 py-2">
                       <span className="text-slate-400 text-sm">Answered: </span>
-                      <span className="font-bold text-lg">{answeredCount}</span>
-                      <span className="text-slate-400">/{session.players.length}</span>
+                      <span className="font-bold text-lg">{answeredCount || answerCountsMap[currentItem.id] || 0}</span>
+                      <span className="text-slate-400">/{totalPlayerCount || session.players.length}</span>
                     </div>
                   </div>
+
+                  {/* Answer Panel - Show for active/locked/revealed OR when viewing history */}
+                  {(() => {
+                    const isLiveQuestion = itemState === "active" || itemState === "locked" || itemState === "revealed";
+                    const isCompletedWithHistory = completedItemIds.has(currentItem.id) && answerHistory.has(currentItem.id);
+                    const isViewingHistory = selectedHistoryItemId === currentItem.id && answerHistory.has(currentItem.id);
+                    
+                    // Auto-show history for completed items (even without explicit selection)
+                    const shouldShowHistory = isViewingHistory || (isCompletedWithHistory && !isLiveQuestion);
+                    const answersToShow = shouldShowHistory 
+                      ? answerHistory.get(currentItem.id) || []
+                      : currentItemAnswers;
+                    
+                    // Show panel if live question OR has history to show
+                    if (!isLiveQuestion && !shouldShowHistory) return null;
+                    
+                    return (
+                      <div className="mt-4">
+                        {/* History badge when viewing saved answers */}
+                        {shouldShowHistory && !isLiveQuestion && (
+                          <div className="mb-2 flex items-center gap-2">
+                            <span className="bg-blue-900/50 text-blue-300 text-xs px-2 py-1 rounded-full">
+                              📊 Opgeslagen antwoorden ({answersToShow.length})
+                            </span>
+                          </div>
+                        )}
+                        <AnswerPanel
+                          answers={answersToShow}
+                          questionType={currentItem.question?.type}
+                          totalPlayers={totalPlayerCount || session.players.length}
+                          isExpanded={showAnswerPanel}
+                          onToggle={() => setShowAnswerPanel(!showAnswerPanel)}
+                          options={currentItem.question?.options?.map(opt => ({
+                            id: opt.id,
+                            text: opt.text,
+                            isCorrect: opt.isCorrect,
+                          }))}
+                          correctOrder={currentItem.question?.type === "ORDER" 
+                            ? currentItem.question?.options
+                              ?.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+                              .map((opt, idx) => ({
+                                id: opt.id,
+                                text: opt.text,
+                                position: idx + 1,
+                              }))
+                            : undefined
+                          }
+                        />
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -882,25 +1203,43 @@ export default function HostControlPage() {
                   )}
                   
                   {itemState === "active" && (
-                    <div className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 ${
-                      timeRemaining <= 5 
-                        ? 'bg-red-600 animate-pulse' 
-                        : timeRemaining <= 10 
-                          ? 'bg-orange-600' 
-                          : 'bg-green-600'
-                    }`}>
-                      <span className="text-2xl tabular-nums">⏱️ {timeRemaining}s</span>
-                      <span className="text-sm opacity-75">({answeredCount}/{session?.players.length || 0} antwoorden)</span>
-                    </div>
+                    <>
+                      <div className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 ${
+                        timeRemaining <= 5 
+                          ? 'bg-red-600 animate-pulse' 
+                          : timeRemaining <= 10 
+                            ? 'bg-orange-600' 
+                            : 'bg-green-600'
+                      }`}>
+                        <span className="text-2xl tabular-nums">⏱️ {timeRemaining}s</span>
+                        <span className="text-sm opacity-75">({answeredCount}/{totalPlayerCount || session?.players.length || 0} answers)</span>
+                      </div>
+                      <button
+                        onClick={cancelItem}
+                        className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg font-medium transition-colors"
+                        title="Cancel question and allow restart"
+                      >
+                        ✖️ Cancel
+                      </button>
+                    </>
                   )}
                   
                   {itemState === "locked" && (
-                    <button
-                      onClick={revealAnswers}
-                      className="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition-colors"
-                    >
-                      👁️ Reveal Answer
-                    </button>
+                    <>
+                      <button
+                        onClick={revealAnswers}
+                        className="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition-colors"
+                      >
+                        👁️ Reveal Answer
+                      </button>
+                      <button
+                        onClick={cancelItem}
+                        className="px-4 py-2 bg-red-600/70 hover:bg-red-600 rounded-lg font-medium transition-colors"
+                        title="Cancel question and allow restart"
+                      >
+                        ✖️ Cancel
+                      </button>
+                    </>
                   )}
                 </>
               )}
@@ -937,7 +1276,7 @@ export default function HostControlPage() {
                       disabled={itemState === "active"}
                       className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 disabled:opacity-50 rounded-lg font-medium transition-colors"
                     >
-                      📊 Tussenstand
+                      📊 Scoreboard
                     </button>
                   </>
                 ) : (
@@ -945,7 +1284,7 @@ export default function HostControlPage() {
                     onClick={hideScoreboard}
                     className="px-4 py-2 bg-slate-600 hover:bg-slate-500 rounded-lg font-medium transition-colors"
                   >
-                    ✕ Verberg Tussenstand
+                    ✕ Hide Scoreboard
                   </button>
                 )}
               </div>
@@ -1027,40 +1366,84 @@ export default function HostControlPage() {
                       const globalIndex = allItems.findIndex(i => i.id === item.id);
                       const isActive = globalIndex === currentItemIndex;
                       const isCompleted = completedItemIds.has(item.id);
+                      const historyCount = answerHistory.get(item.id)?.length || 0;
+                      const isHistorySelected = selectedHistoryItemId === item.id;
                       
                       return (
-                        <button
-                          key={item.id}
-                          onClick={() => {
-                            setCurrentItemIndex(globalIndex);
-                            setItemState("idle");
-                          }}
-                          className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between ${
-                            isActive 
-                              ? "bg-primary-600 text-white ring-2 ring-primary-400" 
-                              : isCompleted 
-                                ? "bg-green-900/40 text-green-300 border border-green-800/50"
-                                : "bg-slate-700/30 text-slate-300 hover:bg-slate-700"
-                          }`}
-                        >
-                          <span className="flex items-center">
-                            <span className="mr-2">
-                              {item.itemType === "QUESTION" && "📝"}
-                              {item.itemType === "MINIGAME" && "🎮"}
-                              {item.itemType === "SCOREBOARD" && "📊"}
-                              {item.itemType === "BREAK" && "☕"}
+                        <div key={item.id} className="relative">
+                          <button
+                            onClick={() => {
+                              setCurrentItemIndex(globalIndex);
+                              setItemState("idle");
+                              // If item has history, auto-select it for viewing
+                              if (isCompleted && historyCount > 0) {
+                                setSelectedHistoryItemId(item.id);
+                              } else {
+                                setSelectedHistoryItemId(null);
+                              }
+                            }}
+                            className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between ${
+                              isActive 
+                                ? "bg-primary-600 text-white ring-2 ring-primary-400" 
+                                : isHistorySelected
+                                  ? "bg-blue-900/50 text-blue-300 border border-blue-600"
+                                  : isCompleted 
+                                    ? "bg-green-900/40 text-green-300 border border-green-800/50"
+                                    : "bg-slate-700/30 text-slate-300 hover:bg-slate-700"
+                            }`}
+                          >
+                            <span className="flex items-center">
+                              <span className="mr-2">
+                                {item.itemType === "QUESTION" && (() => {
+                                  // Get question type specific emoji
+                                  const qType = item.question?.type?.toUpperCase();
+                                  switch (qType) {
+                                    case "MC_SINGLE": return "🔘";
+                                    case "MC_MULTIPLE": return "☑️";
+                                    case "TRUE_FALSE": return "⚖️";
+                                    case "OPEN_TEXT": return "✏️";
+                                    case "ESTIMATION": return "🔢";
+                                    case "ORDER": return "📊";
+                                    case "POLL": return "📋";
+                                    case "PHOTO_QUESTION": return "🖼️";
+                                    case "PHOTO_OPEN": return "📸";
+                                    case "AUDIO_QUESTION": return "�";
+                                    case "AUDIO_OPEN": return "🎵";
+                                    case "VIDEO_QUESTION": return "🎬";
+                                    case "VIDEO_OPEN": return "📹";
+                                    case "MUSIC_GUESS_TITLE": return "🎶";
+                                    case "MUSIC_GUESS_ARTIST": return "🎤";
+                                    case "MUSIC_GUESS_YEAR": return "📅";
+                                    case "YOUTUBE_WHO_SAID_IT": return "💬";
+                                    case "YOUTUBE_SCENE_QUESTION": return "🎥";
+                                    case "YOUTUBE_NEXT_LINE": return "📝";
+                                    default: return "�📝";
+                                  }
+                                })()}
+                                {item.itemType === "MINIGAME" && "🎮"}
+                                {item.itemType === "SCOREBOARD" && "📊"}
+                                {item.itemType === "BREAK" && "☕"}
+                              </span>
+                              <span className="truncate">
+                                {item.itemType === "QUESTION" && item.question?.title}
+                                {item.itemType === "MINIGAME" && (item.minigameType || "Minigame")}
+                                {item.itemType === "SCOREBOARD" && "Scoreboard"}
+                                {item.itemType === "BREAK" && "Break"}
+                              </span>
                             </span>
-                            <span className="truncate">
-                              {item.itemType === "QUESTION" && item.question?.title}
-                              {item.itemType === "MINIGAME" && (item.minigameType || "Minigame")}
-                              {item.itemType === "SCOREBOARD" && "Scoreboard"}
-                              {item.itemType === "BREAK" && "Break"}
+                            <span className="flex items-center gap-1">
+                              {/* Show answer count for completed questions */}
+                              {isCompleted && historyCount > 0 && (
+                                <span className="text-xs bg-slate-600 px-1.5 py-0.5 rounded text-slate-300">
+                                  {historyCount} 📊
+                                </span>
+                              )}
+                              {isCompleted && (
+                                <span className="text-green-400 flex-shrink-0">✓</span>
+                              )}
                             </span>
-                          </span>
-                          {isCompleted && (
-                            <span className="ml-2 text-green-400 flex-shrink-0">✓</span>
-                          )}
-                        </button>
+                          </button>
+                        </div>
                       );
                     })}
                   </div>

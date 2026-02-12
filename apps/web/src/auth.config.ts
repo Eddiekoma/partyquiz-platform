@@ -33,10 +33,10 @@ const authConfig = {
     }),
     Credentials({
       id: "credentials",
-      name: "Email & Wachtwoord",
+      name: "Email & Password",
       credentials: {
         email: { label: "Email", type: "email" },
-        password: { label: "Wachtwoord", type: "password" },
+        password: { label: "Password", type: "password" },
       },
       // Authorize is defined in auth.ts (not edge-compatible)
       // This is a placeholder that will be overridden

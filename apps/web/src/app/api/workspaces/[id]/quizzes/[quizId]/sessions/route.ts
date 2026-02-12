@@ -149,3 +149,175 @@ export async function GET(
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
+
+// PATCH /api/workspaces/[id]/quizzes/[quizId]/sessions - Archive ALL sessions for a quiz (unlocks editing)
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string; quizId: string }> }
+) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const workspaceId = (await params).id;
+    const quizId = (await params).quizId;
+
+    // Check membership - require SESSION_DELETE permission (OWNER or ADMIN)
+    const member = await prisma.workspaceMember.findUnique({
+      where: {
+        workspaceId_userId: {
+          workspaceId,
+          userId: session.user.id,
+        },
+      },
+    });
+
+    if (!member || !hasPermission(member.role as WorkspaceRole, Permission.SESSION_DELETE)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    // Verify quiz belongs to workspace
+    const quiz = await prisma.quiz.findUnique({
+      where: { id: quizId },
+      select: { workspaceId: true, title: true },
+    });
+
+    if (!quiz || quiz.workspaceId !== workspaceId) {
+      return NextResponse.json({ error: "Quiz not found" }, { status: 404 });
+    }
+
+    // Archive all non-archived sessions for this quiz
+    const archiveResult = await prisma.liveSession.updateMany({
+      where: { 
+        quizId,
+        status: { not: "ARCHIVED" },
+      },
+      data: {
+        status: "ARCHIVED",
+        endedAt: new Date(),
+      },
+    });
+
+    if (archiveResult.count === 0) {
+      return NextResponse.json({ message: "No sessions to archive", archivedCount: 0 });
+    }
+
+    // Create audit log
+    await prisma.auditLog.create({
+      data: {
+        workspaceId,
+        actorUserId: session.user.id,
+        action: "SESSION_ARCHIVED",
+        entityType: "QUIZ",
+        entityId: quizId,
+        payloadJson: {
+          action: "ALL_SESSIONS_ARCHIVED",
+          quizTitle: quiz.title,
+          archivedCount: archiveResult.count,
+        },
+      },
+    });
+
+    return NextResponse.json({ 
+      message: `Archived ${archiveResult.count} session(s). Quiz is now editable.`,
+      archivedCount: archiveResult.count,
+    });
+  } catch (error) {
+    console.error("Error archiving sessions:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+// DELETE /api/workspaces/[id]/quizzes/[quizId]/sessions - Delete ALL sessions for a quiz (permanent)
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string; quizId: string }> }
+) {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const workspaceId = (await params).id;
+    const quizId = (await params).quizId;
+
+    // Check membership - require SESSION_DELETE permission (OWNER or ADMIN)
+    const member = await prisma.workspaceMember.findUnique({
+      where: {
+        workspaceId_userId: {
+          workspaceId,
+          userId: session.user.id,
+        },
+      },
+    });
+
+    if (!member || !hasPermission(member.role as WorkspaceRole, Permission.SESSION_DELETE)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    // Verify quiz belongs to workspace
+    const quiz = await prisma.quiz.findUnique({
+      where: { id: quizId },
+      select: { workspaceId: true, title: true },
+    });
+
+    if (!quiz || quiz.workspaceId !== workspaceId) {
+      return NextResponse.json({ error: "Quiz not found" }, { status: 404 });
+    }
+
+    // Get all session IDs for this quiz
+    const sessionIds = await prisma.liveSession.findMany({
+      where: { quizId },
+      select: { id: true },
+    });
+
+    const sessionIdList = sessionIds.map(s => s.id);
+
+    if (sessionIdList.length === 0) {
+      return NextResponse.json({ message: "No sessions to delete", deletedCount: 0 });
+    }
+
+    // Delete in order to respect foreign key constraints:
+    // 1. Delete LiveAnswers (references LiveSession and QuizItem)
+    await prisma.liveAnswer.deleteMany({
+      where: { sessionId: { in: sessionIdList } },
+    });
+
+    // 2. Delete LivePlayers (references LiveSession)
+    await prisma.livePlayer.deleteMany({
+      where: { sessionId: { in: sessionIdList } },
+    });
+
+    // 3. Delete LiveSessions
+    const deleteResult = await prisma.liveSession.deleteMany({
+      where: { quizId },
+    });
+
+    // Create audit log
+    await prisma.auditLog.create({
+      data: {
+        workspaceId,
+        actorUserId: session.user.id,
+        action: "SESSION_DELETED",
+        entityType: "QUIZ",
+        entityId: quizId,
+        payloadJson: {
+          action: "ALL_SESSIONS_DELETED",
+          quizTitle: quiz.title,
+          deletedCount: deleteResult.count,
+        },
+      },
+    });
+
+    return NextResponse.json({ 
+      message: `Deleted ${deleteResult.count} session(s)`,
+      deletedCount: deleteResult.count,
+    });
+  } catch (error) {
+    console.error("Error deleting sessions:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}

@@ -72,10 +72,10 @@ export function ScoringInfoCard({
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <span className="text-xl">{getModeIcon(scoringInfo.mode)}</span>
-          <h4 className="font-semibold text-white">Hoe werkt de scoring?</h4>
+          <h4 className="font-semibold text-white">How does scoring work?</h4>
         </div>
         <span className="text-xs text-slate-500 bg-slate-700/50 px-2 py-1 rounded">
-          📝 Voorbeeld
+          📝 Example
         </span>
       </div>
 
@@ -89,7 +89,7 @@ export function ScoringInfoCard({
       {scoringInfo.tiers.length > 0 && (
         <div className="space-y-2 mb-4">
           <p className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-            Punten verdeling <span className="normal-case text-slate-600">(bijv. {exampleBasePoints} basispunten)</span>
+            Points Distribution <span className="normal-case text-slate-600">(e.g. {exampleBasePoints} base points)</span>
           </p>
           <div className="bg-slate-900/50 rounded-lg overflow-hidden">
             {scoringInfo.tiers.map((tier, index) => (
@@ -107,7 +107,7 @@ export function ScoringInfoCard({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-mono text-slate-500 italic">
-                    bijv. {calculateExamplePoints(tier.percentage)} pts
+                    e.g. {calculateExamplePoints(tier.percentage)} pts
                   </span>
                 </div>
               </div>
@@ -120,7 +120,7 @@ export function ScoringInfoCard({
       {showBonuses && scoringInfo.mode !== ScoringMode.NO_SCORE && (
         <div className="border-t border-slate-700 pt-3 mt-3">
           <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-2">
-            Bonussen (indien ingeschakeld in Quiz)
+            Bonuses (if enabled in Quiz)
           </p>
           <div className="space-y-2">
             {/* Time bonus */}
@@ -128,11 +128,11 @@ export function ScoringInfoCard({
               <div className="flex items-center gap-2">
                 <span>⏱️</span>
                 <span className={showTimeBonusExample ? "text-slate-300" : "text-slate-500 line-through"}>
-                  Snelheidsbonus
+                  Speed Bonus
                 </span>
               </div>
               <span className="text-slate-500 italic">
-                Tot +{exampleTimeBonusPercentage}% (bijv. +{calculateExamplePoints(exampleTimeBonusPercentage)} pts)
+                Up to +{exampleTimeBonusPercentage}% (e.g. +{calculateExamplePoints(exampleTimeBonusPercentage)} pts)
               </span>
             </div>
 
@@ -141,11 +141,11 @@ export function ScoringInfoCard({
               <div className="flex items-center gap-2">
                 <span>🔥</span>
                 <span className={showStreakBonusExample ? "text-slate-300" : "text-slate-500 line-through"}>
-                  Streak bonus
+                  Streak Bonus
                 </span>
               </div>
               <span className="text-slate-500 italic">
-                bijv. +{exampleStreakBonusPoints} pt per reeks
+                e.g. +{exampleStreakBonusPoints} pt per streak
               </span>
             </div>
           </div>
@@ -156,13 +156,13 @@ export function ScoringInfoCard({
       {scoringInfo.mode !== ScoringMode.NO_SCORE && (
         <div className="border-t border-slate-700 pt-3 mt-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-slate-300">Voorbeeld maximum:</span>
+            <span className="text-sm font-medium text-slate-300">Example maximum:</span>
             <span className="text-lg font-bold text-green-400/70 italic">
               ~{exampleBasePoints + (showTimeBonusExample ? calculateExamplePoints(exampleTimeBonusPercentage) : 0)} pts
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Bijv. {exampleBasePoints} basis + {showTimeBonusExample ? `${calculateExamplePoints(exampleTimeBonusPercentage)} snelheid` : "geen bonus"}
+            E.g. {exampleBasePoints} base + {showTimeBonusExample ? `${calculateExamplePoints(exampleTimeBonusPercentage)} speed` : "no bonus"}
           </p>
         </div>
       )}
@@ -172,7 +172,7 @@ export function ScoringInfoCard({
         <div className="mt-3 pt-3 border-t border-dashed border-slate-700">
           <p className="text-xs text-slate-500 flex items-center gap-1">
             <span>ℹ️</span>
-            <span>Het werkelijke aantal punten wordt ingesteld in de Quiz instellingen.</span>
+            <span>Actual points are configured in the Quiz settings.</span>
           </p>
         </div>
       )}
@@ -181,8 +181,8 @@ export function ScoringInfoCard({
       {scoringInfo.mode === ScoringMode.NO_SCORE && (
         <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 mt-2">
           <p className="text-sm text-blue-300">
-            💡 Bij een poll worden alle stemmen bijgehouden en getoond in een live staafdiagram.
-            Spelers kunnen stemmen verdelen bekijken na sluiting.
+            💡 In a poll, all votes are tracked and displayed in a live bar chart.
+            Players can view vote distribution after closing.
           </p>
         </div>
       )}

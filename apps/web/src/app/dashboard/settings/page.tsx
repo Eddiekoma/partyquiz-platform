@@ -29,9 +29,9 @@ export default function SettingsPage() {
 
       // Update session
       await update({ name });
-      setMessage({ type: "success", text: "Profiel succesvol bijgewerkt!" });
+      setMessage({ type: "success", text: "Profile successfully updated!" });
     } catch (error) {
-      setMessage({ type: "error", text: "Er ging iets mis bij het opslaan." });
+      setMessage({ type: "error", text: "Something went wrong while saving." });
     } finally {
       setSaving(false);
     }
@@ -39,13 +39,13 @@ export default function SettingsPage() {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-2xl">
-      <h1 className="text-3xl font-bold mb-8">Instellingen</h1>
+      <h1 className="text-3xl font-bold mb-8">Settings</h1>
 
       <div className="space-y-6">
         {/* Profile Settings */}
         <Card>
           <CardHeader>
-            <CardTitle>Profiel</CardTitle>
+            <CardTitle>Profile</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
@@ -58,18 +58,18 @@ export default function SettingsPage() {
                 disabled
                 className="bg-slate-800/50"
               />
-              <p className="text-xs text-slate-500 mt-1">Email kan niet worden gewijzigd</p>
+              <p className="text-xs text-slate-500 mt-1">Email cannot be changed</p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">
-                Naam
+                Name
               </label>
               <Input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Je naam"
+                placeholder="Your name"
               />
             </div>
 
@@ -84,7 +84,7 @@ export default function SettingsPage() {
             )}
 
             <Button onClick={handleSave} disabled={saving}>
-              {saving ? "Opslaan..." : "Opslaan"}
+              {saving ? "Saving..." : "Save"}
             </Button>
           </CardContent>
         </Card>
@@ -96,9 +96,9 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-slate-400">
-              <p>Ingelogd als: <span className="text-white">{session?.user?.email}</span></p>
+              <p>Signed in as: <span className="text-white">{session?.user?.email}</span></p>
               <p className="text-sm mt-2">
-                Meer account instellingen komen binnenkort beschikbaar.
+                More account settings will be available soon.
               </p>
             </div>
           </CardContent>

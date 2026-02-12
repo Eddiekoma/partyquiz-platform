@@ -44,13 +44,13 @@ export default function InviteAcceptPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || "Kon uitnodiging niet laden");
+        setError(data.error || "Could not load invitation");
         return;
       }
 
       setInvite(data);
     } catch (err) {
-      setError("Er is iets misgegaan bij het laden van de uitnodiging");
+      setError("Something went wrong while loading the invitation");
     } finally {
       setLoading(false);
     }
@@ -67,7 +67,7 @@ export default function InviteAcceptPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || "Kon uitnodiging niet accepteren");
+        setError(data.error || "Could not accept invitation");
         setAccepting(false);
         return;
       }
@@ -78,7 +78,7 @@ export default function InviteAcceptPage() {
         router.push(`/dashboard/workspaces/${data.workspaceId}`);
       }, 2000);
     } catch (err) {
-      setError("Er is iets misgegaan");
+      setError("Something went wrong");
       setAccepting(false);
     }
   };
@@ -99,11 +99,11 @@ export default function InviteAcceptPage() {
   const getRoleLabel = (role: string) => {
     switch (role) {
       case "ADMIN":
-        return "Beheerder";
+        return "Admin";
       case "EDITOR":
-        return "Bewerker";
+        return "Editor";
       case "VIEWER":
-        return "Kijker";
+        return "Viewer";
       default:
         return role;
     }
@@ -114,7 +114,7 @@ export default function InviteAcceptPage() {
       <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-800 via-slate-900 to-slate-950 flex items-center justify-center p-4">
         <div className="text-slate-400 flex items-center gap-3">
           <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-          Uitnodiging laden...
+          Loading invitation...
         </div>
       </div>
     );
@@ -125,13 +125,13 @@ export default function InviteAcceptPage() {
       <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-800 via-slate-900 to-slate-950 flex items-center justify-center p-4">
         <div className="glass-card p-8 max-w-md w-full text-center">
           <div className="text-6xl mb-4">😔</div>
-          <h1 className="text-2xl font-bold text-white mb-2">Uitnodiging Niet Gevonden</h1>
+          <h1 className="text-2xl font-bold text-white mb-2">Invitation Not Found</h1>
           <p className="text-slate-400 mb-6">{error}</p>
           <Link
             href="/dashboard"
             className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold hover:from-blue-600 hover:to-cyan-600 transition-all duration-200"
           >
-            Naar Dashboard
+            Go to Dashboard
           </Link>
         </div>
       </div>
@@ -147,9 +147,9 @@ export default function InviteAcceptPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-white mb-2">Welkom bij {invite?.workspace.name}!</h1>
-          <p className="text-slate-400 mb-4">Je bent nu lid van deze workspace.</p>
-          <p className="text-sm text-slate-500">Je wordt doorgestuurd...</p>
+          <h1 className="text-2xl font-bold text-white mb-2">Welcome to {invite?.workspace.name}!</h1>
+          <p className="text-slate-400 mb-4">You are now a member of this workspace.</p>
+          <p className="text-sm text-slate-500">Redirecting...</p>
         </div>
       </div>
     );
@@ -161,10 +161,10 @@ export default function InviteAcceptPage() {
       <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-800 via-slate-900 to-slate-950 flex items-center justify-center p-4">
         <div className="glass-card p-8 max-w-md w-full text-center">
           <div className="text-6xl mb-4">🎉</div>
-          <h1 className="text-2xl font-bold text-white mb-2">Je bent uitgenodigd!</h1>
+          <h1 className="text-2xl font-bold text-white mb-2">You're Invited!</h1>
           <p className="text-slate-400 mb-6">
-            Je bent uitgenodigd voor <span className="text-white font-semibold">{invite?.workspace.name}</span>. 
-            Log in om de uitnodiging te accepteren.
+            You have been invited to <span className="text-white font-semibold">{invite?.workspace.name}</span>. 
+            Sign in to accept the invitation.
           </p>
           
           <div className="glass-elevated p-4 rounded-xl mb-6 text-left">
@@ -174,11 +174,11 @@ export default function InviteAcceptPage() {
               </div>
               <div>
                 <h3 className="font-semibold text-white">{invite?.workspace.name}</h3>
-                <p className="text-xs text-slate-400">{invite?.workspace.description || "Geen beschrijving"}</p>
+                <p className="text-xs text-slate-400">{invite?.workspace.description || "No description"}</p>
               </div>
             </div>
             <div className="flex items-center justify-between text-sm">
-              <span className="text-slate-400">Je rol:</span>
+              <span className="text-slate-400">Your role:</span>
               <span className={`px-2 py-1 rounded-full text-xs font-semibold text-white bg-gradient-to-r ${getRoleBadgeColor(invite?.role || "")}`}>
                 {getRoleLabel(invite?.role || "")}
               </span>
@@ -189,7 +189,7 @@ export default function InviteAcceptPage() {
             onClick={() => signIn(undefined, { callbackUrl: `/invites/${token}` })}
             className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold hover:from-blue-600 hover:to-cyan-600 transition-all duration-200"
           >
-            Inloggen om te accepteren
+            Sign in to accept
           </button>
         </div>
       </div>
@@ -202,7 +202,7 @@ export default function InviteAcceptPage() {
       <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-800 via-slate-900 to-slate-950 flex items-center justify-center p-4">
         <div className="text-slate-400 flex items-center gap-3">
           <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-          Laden...
+          Loading...
         </div>
       </div>
     );
@@ -214,9 +214,9 @@ export default function InviteAcceptPage() {
       <div className="glass-card p-8 max-w-md w-full animate-fade-in">
         <div className="text-center mb-6">
           <div className="text-6xl mb-4">🎉</div>
-          <h1 className="text-2xl font-bold text-white mb-2">Workspace Uitnodiging</h1>
+          <h1 className="text-2xl font-bold text-white mb-2">Workspace Invitation</h1>
           <p className="text-slate-400">
-            Je bent uitgenodigd door <span className="text-white">{invite?.invitedBy.name || invite?.invitedBy.email}</span>
+            You have been invited by <span className="text-white">{invite?.invitedBy.name || invite?.invitedBy.email}</span>
           </p>
         </div>
 
@@ -228,17 +228,17 @@ export default function InviteAcceptPage() {
             </div>
             <div>
               <h2 className="text-lg font-semibold text-white">{invite?.workspace.name}</h2>
-              <p className="text-sm text-slate-400">{invite?.workspace.description || "Geen beschrijving"}</p>
+              <p className="text-sm text-slate-400">{invite?.workspace.description || "No description"}</p>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4 pt-4 border-t border-white/10">
             <div>
-              <span className="text-xs text-slate-500 block mb-1">Je email</span>
+              <span className="text-xs text-slate-500 block mb-1">Your email</span>
               <span className="text-sm text-white">{invite?.email}</span>
             </div>
             <div>
-              <span className="text-xs text-slate-500 block mb-1">Je rol</span>
+              <span className="text-xs text-slate-500 block mb-1">Your role</span>
               <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold text-white bg-gradient-to-r ${getRoleBadgeColor(invite?.role || "")}`}>
                 {getRoleLabel(invite?.role || "")}
               </span>
@@ -250,8 +250,8 @@ export default function InviteAcceptPage() {
         {session?.user?.email?.toLowerCase() !== invite?.email.toLowerCase() && (
           <div className="mb-6 p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/30">
             <p className="text-sm text-yellow-400">
-              ⚠️ Je bent ingelogd als <span className="font-semibold">{session?.user?.email}</span>, 
-              maar deze uitnodiging is voor <span className="font-semibold">{invite?.email}</span>.
+              ⚠️ You are signed in as <span className="font-semibold">{session?.user?.email}</span>, 
+              but this invitation is for <span className="font-semibold">{invite?.email}</span>.
             </p>
           </div>
         )}
@@ -268,7 +268,7 @@ export default function InviteAcceptPage() {
             href="/dashboard"
             className="flex-1 px-4 py-3 text-center text-slate-300 hover:text-white hover:bg-white/10 rounded-xl transition-all duration-200"
           >
-            Annuleren
+            Cancel
           </Link>
           <button
             onClick={handleAccept}
@@ -276,13 +276,13 @@ export default function InviteAcceptPage() {
             className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold hover:from-blue-600 hover:to-cyan-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
             {accepting && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
-            {accepting ? "Accepteren..." : "Accepteren"}
+            {accepting ? "Accepting..." : "Accept"}
           </button>
         </div>
 
         {/* Expiry notice */}
         <p className="text-center text-xs text-slate-500 mt-4">
-          Deze uitnodiging verloopt op {new Date(invite?.expiresAt || "").toLocaleDateString("nl-NL", {
+          This invitation expires on {new Date(invite?.expiresAt || "").toLocaleDateString("en-US", {
             day: "numeric",
             month: "long",
             year: "numeric",

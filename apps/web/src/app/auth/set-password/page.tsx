@@ -26,13 +26,13 @@ function SetPasswordForm() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || "Er ging iets mis");
+        setError(data.error || "Something went wrong");
         return;
       }
 
       setSent(true);
     } catch {
-      setError("Er ging iets mis. Probeer het opnieuw.");
+      setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -49,21 +49,21 @@ function SetPasswordForm() {
           <div className="text-center space-y-4">
             <div className="text-6xl">🔐</div>
             <h1 className="text-3xl font-bold text-slate-100 font-display">
-              Check je Email!
+              Check Your Email!
             </h1>
             <p className="text-slate-400">
-              We hebben een link gestuurd waarmee je een wachtwoord kunt instellen voor je account.
+              We have sent a link to set a password for your account.
             </p>
             <p className="text-blue-400 font-medium">{email}</p>
             <p className="text-sm text-slate-500">
-              Na het instellen van je wachtwoord kun je inloggen met zowel Google als email/wachtwoord.
+              After setting your password, you can sign in with both Google and email/password.
             </p>
             <div className="pt-4">
               <Link
                 href="/auth/signin"
                 className="text-sm text-slate-400 hover:text-cyan-400 transition-colors"
               >
-                ← Terug naar inloggen
+                ← Back to sign in
               </Link>
             </div>
           </div>
@@ -87,10 +87,10 @@ function SetPasswordForm() {
             <span className="ml-2 text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-1 rounded-md">by Databridge360</span>
           </div>
           <h1 className="text-3xl font-bold text-slate-100 font-display">
-            Wachtwoord Instellen
+            Set Password
           </h1>
           <p className="text-slate-400">
-            Je account heeft nog geen wachtwoord. Voer je email in om een wachtwoord in te stellen.
+            Your account doesn't have a password yet. Enter your email to set a password.
           </p>
         </div>
 
@@ -100,7 +100,7 @@ function SetPasswordForm() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <p className="text-sm text-blue-300">
-              Na het instellen van een wachtwoord kun je kiezen om in te loggen met <strong>Google</strong> of met <strong>email/wachtwoord</strong>.
+              After setting a password, you can choose to sign in with <strong>Google</strong> or with <strong>email/password</strong>.
             </p>
           </div>
         </div>
@@ -119,7 +119,7 @@ function SetPasswordForm() {
             id="email"
             type="email"
             label="Email"
-            placeholder="jouw@email.com"
+            placeholder="your@email.com"
             value={email}
             onChange={(e) => {
               setEmail(e.target.value);
@@ -136,19 +136,19 @@ function SetPasswordForm() {
             loading={loading}
             disabled={!email || loading}
           >
-            Wachtwoord Link Versturen
+            Send Password Link
           </Button>
         </form>
 
         <div className="text-center mt-6 space-y-2">
           <p className="text-sm text-slate-400">
-            Of log direct in met Google
+            Or sign in directly with Google
           </p>
           <Link 
             href="/auth/signin" 
             className="block w-full btn btn-secondary"
           >
-            Terug naar Inloggen
+            Back to Sign In
           </Link>
         </div>
       </Card>

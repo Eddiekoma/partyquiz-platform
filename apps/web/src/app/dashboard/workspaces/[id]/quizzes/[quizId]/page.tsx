@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -94,6 +95,7 @@ function SortableRound({
   workspaceId,
   quizId,
   onDragEnd,
+  isLocked,
 }: {
   round: QuizRound;
   index: number;
@@ -106,6 +108,7 @@ function SortableRound({
   workspaceId: string;
   quizId: string;
   onDragEnd: (event: DragEndEvent) => void;
+  isLocked: boolean;
 }) {
   const [showAddMenu, setShowAddMenu] = useState(false);
   const {
@@ -129,10 +132,15 @@ function SortableRound({
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <button
-              {...attributes}
-              {...listeners}
-              className="cursor-grab active:cursor-grabbing p-2 hover:bg-slate-700 rounded"
-              aria-label="Drag to reorder round"
+              {...(isLocked ? {} : attributes)}
+              {...(isLocked ? {} : listeners)}
+              className={`p-2 rounded ${
+                isLocked 
+                  ? "cursor-not-allowed opacity-30" 
+                  : "cursor-grab active:cursor-grabbing hover:bg-slate-700"
+              }`}
+              aria-label={isLocked ? "Reordering disabled - quiz is locked" : "Drag to reorder round"}
+              title={isLocked ? "Archive sessions to enable reordering" : undefined}
             >
               <svg
                 className="w-5 h-5 text-slate-500"
@@ -153,38 +161,47 @@ function SortableRound({
           </h2>
         </div>
         <div className="flex gap-2">
-          <div className="relative">
-            <Button onClick={() => setShowAddMenu(!showAddMenu)} variant="secondary" size="sm">
-              + Add Item ▼
-            </Button>
-            {showAddMenu && (
-              <div className="absolute top-full left-0 mt-1 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-10 min-w-[200px]">
-                <button
-                  onClick={() => { onAddQuestion(round.id); setShowAddMenu(false); }}
-                  className="w-full text-left px-4 py-3 hover:bg-slate-700 flex items-center gap-3 rounded-t-lg"
-                >
-                  <span>📝</span> Add Question
-                </button>
-                <div className="border-t border-slate-700">
-                  <p className="px-4 py-2 text-xs text-slate-500 uppercase">Minigames</p>
+          {!isLocked && (
+            <div className="relative">
+              <Button onClick={() => setShowAddMenu(!showAddMenu)} variant="secondary" size="sm">
+                + Add Item ▼
+              </Button>
+              {showAddMenu && (
+                <div className="absolute top-full left-0 mt-1 bg-slate-800 border border-slate-600 rounded-lg shadow-xl z-10 min-w-[200px]">
                   <button
-                    onClick={() => { onAddMinigame(round.id, "SWAN_RACE"); setShowAddMenu(false); }}
-                    className="w-full text-left px-4 py-2 hover:bg-slate-700 flex items-center gap-3 pl-8 rounded-b-lg"
+                    onClick={() => { onAddQuestion(round.id); setShowAddMenu(false); }}
+                    className="w-full text-left px-4 py-3 hover:bg-slate-700 flex items-center gap-3 rounded-t-lg"
                   >
-                    🦢 Swan Race
+                    <span>📝</span> Add Question
                   </button>
+                  <div className="border-t border-slate-700">
+                    <p className="px-4 py-2 text-xs text-slate-500 uppercase">Minigames</p>
+                    <button
+                      onClick={() => { onAddMinigame(round.id, "SWAN_RACE"); setShowAddMenu(false); }}
+                      className="w-full text-left px-4 py-2 hover:bg-slate-700 flex items-center gap-3 pl-8 rounded-b-lg"
+                    >
+                      🦢 Swan Race
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
-          <Button
-            onClick={() => onDeleteRound(round.id)}
-            variant="secondary"
-            size="sm"
-            className="text-red-600"
-          >
-            Delete Round
-          </Button>
+              )}
+            </div>
+          )}
+          {!isLocked && (
+            <Button
+              onClick={() => onDeleteRound(round.id)}
+              variant="secondary"
+              size="sm"
+              className="text-red-600"
+            >
+              Delete Round
+            </Button>
+          )}
+          {isLocked && (
+            <span className="text-amber-400 text-sm flex items-center gap-1">
+              🔒 Locked
+            </span>
+          )}
         </div>
       </div>        {round.items.length === 0 ? (
           <p className="text-slate-400 text-center py-8">No questions in this round yet</p>
@@ -210,9 +227,11 @@ function SortableRound({
                     item={item}
                     itemIndex={itemIndex}
                     roundId={round.id}
+                    workspaceId={workspaceId}
                     onRemove={onRemoveItem}
                     onEditSettings={onEditSettings}
                     getDifficultyLabel={getDifficultyLabel}
+                    isLocked={isLocked}
                   />
                 ))}
               </div>
@@ -229,16 +248,20 @@ function SortableItem({
   item,
   itemIndex,
   roundId,
+  workspaceId,
   onRemove,
   onEditSettings,
   getDifficultyLabel,
+  isLocked,
 }: {
   item: QuizItem;
   itemIndex: number;
   roundId: string;
+  workspaceId: string;
   onRemove: (roundId: string, itemId: string) => void;
   onEditSettings: (roundId: string, item: QuizItem) => void;
   getDifficultyLabel: (difficulty: number) => string;
+  isLocked: boolean;
 }) {
   const {
     attributes,
@@ -341,10 +364,15 @@ function SortableItem({
       className="flex items-center gap-4 p-4 bg-slate-800/50 rounded-lg"
     >
       <button
-        {...attributes}
-        {...listeners}
-        className="cursor-grab active:cursor-grabbing p-1 hover:bg-slate-600 rounded"
-        aria-label="Drag to reorder item"
+        {...(isLocked ? {} : attributes)}
+        {...(isLocked ? {} : listeners)}
+        className={`p-1 rounded ${
+          isLocked 
+            ? "cursor-not-allowed opacity-30" 
+            : "cursor-grab active:cursor-grabbing hover:bg-slate-600"
+        }`}
+        aria-label={isLocked ? "Reordering disabled - quiz is locked" : "Drag to reorder item"}
+        title={isLocked ? "Archive sessions to enable reordering" : undefined}
       >
         <svg
           className="w-4 h-4 text-slate-500"
@@ -362,8 +390,20 @@ function SortableItem({
       </button>
       <span className="text-slate-400 font-mono w-8">{itemIndex + 1}.</span>
       {renderItemContent()}
-      {/* Edit settings button - only for questions */}
-      {item.itemType === "QUESTION" && (
+      {/* Edit question button - only for questions */}
+      {item.itemType === "QUESTION" && item.question?.id && (
+        <Link href={`/dashboard/workspaces/${workspaceId}/questions/${item.question.id}/edit`}>
+          <Button
+            variant="secondary"
+            size="sm"
+            title="Edit question"
+          >
+            ✏️
+          </Button>
+        </Link>
+      )}
+      {/* Edit settings button - only for questions when not locked */}
+      {!isLocked && item.itemType === "QUESTION" && (
         <Button
           onClick={() => onEditSettings(roundId, item)}
           variant="secondary"
@@ -373,14 +413,16 @@ function SortableItem({
           ⚙️
         </Button>
       )}
-      <Button
-        onClick={() => onRemove(roundId, item.id)}
-        variant="secondary"
-        size="sm"
-        className="text-red-600"
-      >
-        Remove
-      </Button>
+      {!isLocked && (
+        <Button
+          onClick={() => onRemove(roundId, item.id)}
+          variant="secondary"
+          size="sm"
+          className="text-red-600"
+        >
+          Remove
+        </Button>
+      )}
     </div>
   );
 }
@@ -395,6 +437,11 @@ export default function QuizDetailPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [startingSession, setStartingSession] = useState(false);
+  
+  // Quiz lock state (locked when sessions exist)
+  const [isLocked, setIsLocked] = useState(false);
+  const [sessionCount, setSessionCount] = useState(0);
+  const [deletingSessions, setDeletingSessions] = useState(false);
   
   // Edit mode
   const [editMode, setEditMode] = useState(false);
@@ -416,6 +463,10 @@ export default function QuizDetailPage() {
   const [selectedRoundId, setSelectedRoundId] = useState<string | null>(null);
   const [showQuestionSelector, setShowQuestionSelector] = useState(false);
   const [availableQuestions, setAvailableQuestions] = useState<Question[]>([]);
+  const [questionSets, setQuestionSets] = useState<{ id: string; name: string; questionCount: number }[]>([]);
+  const [selectedSetId, setSelectedSetId] = useState<string>("");
+  const [selectedQuestionIds, setSelectedQuestionIds] = useState<Set<string>>(new Set());
+  const [addingQuestions, setAddingQuestions] = useState(false);
 
   // Edit item settings
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -443,8 +494,10 @@ export default function QuizDetailPage() {
       
       if (!response.ok) throw new Error("Failed to load quiz");
 
-      const { quiz: loadedQuiz } = await response.json();
+      const { quiz: loadedQuiz, isLocked: locked, sessionCount: sessions } = await response.json();
       setQuiz(loadedQuiz);
+      setIsLocked(locked || false);
+      setSessionCount(sessions || 0);
       setEditTitle(loadedQuiz.title);
       setEditDescription(loadedQuiz.description || "");
       
@@ -461,6 +514,37 @@ export default function QuizDetailPage() {
       router.push(`/dashboard/workspaces/${workspaceId}/quizzes`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteAllSessions = async () => {
+    const confirmed = window.confirm(
+      `Are you sure you want to archive all ${sessionCount} session(s)?\n\n` +
+      `Archived sessions will no longer be playable, but all data (scores, answers, players) will be preserved for viewing.\n\n` +
+      `This allows you to edit the quiz while keeping historical data.`
+    );
+
+    if (!confirmed) return;
+
+    setDeletingSessions(true);
+    try {
+      const response = await fetch(
+        `/api/workspaces/${workspaceId}/quizzes/${quizId}/sessions`,
+        { method: "PATCH" }
+      );
+
+      if (!response.ok) throw new Error("Failed to archive sessions");
+
+      const { archivedCount } = await response.json();
+      alert(`Successfully archived ${archivedCount} session(s). Quiz is now editable.`);
+      
+      // Reload quiz to update lock state
+      await loadQuiz();
+    } catch (error) {
+      console.error("Failed to archive sessions:", error);
+      alert("Failed to archive sessions");
+    } finally {
+      setDeletingSessions(false);
     }
   };
 
@@ -532,17 +616,99 @@ export default function QuizDetailPage() {
   const handleAddQuestion = async (roundId: string) => {
     setSelectedRoundId(roundId);
     setShowQuestionSelector(true);
+    setSelectedQuestionIds(new Set());
+    setSelectedSetId("");
 
-    // Load available questions
+    // Load question sets and questions in parallel
     try {
-      const response = await fetch(`/api/workspaces/${workspaceId}/questions`);
+      const [setsResponse, questionsResponse] = await Promise.all([
+        fetch(`/api/workspaces/${workspaceId}/question-sets`),
+        fetch(`/api/workspaces/${workspaceId}/questions`),
+      ]);
+
+      if (setsResponse.ok) {
+        const { questionSets: sets } = await setsResponse.json();
+        setQuestionSets(sets || []);
+      }
+
+      if (!questionsResponse.ok) throw new Error("Failed to load questions");
+      const { questions } = await questionsResponse.json();
+      setAvailableQuestions(questions);
+    } catch (error) {
+      console.error("Failed to load questions:", error);
+      alert("Failed to load questions");
+    }
+  };
+
+  const handleLoadQuestionsForSet = async (setId: string) => {
+    setSelectedSetId(setId);
+    setSelectedQuestionIds(new Set());
+
+    try {
+      const url = setId
+        ? `/api/workspaces/${workspaceId}/question-sets/${setId}/questions`
+        : `/api/workspaces/${workspaceId}/questions`;
+
+      const response = await fetch(url);
       if (!response.ok) throw new Error("Failed to load questions");
 
       const { questions } = await response.json();
       setAvailableQuestions(questions);
     } catch (error) {
-      console.error("Failed to load questions:", error);
-      alert("Failed to load questions");
+      console.error("Failed to load questions for set:", error);
+    }
+  };
+
+  const handleToggleQuestion = (questionId: string) => {
+    setSelectedQuestionIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(questionId)) {
+        next.delete(questionId);
+      } else {
+        next.add(questionId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllQuestions = () => {
+    if (selectedQuestionIds.size === availableQuestions.length) {
+      setSelectedQuestionIds(new Set());
+    } else {
+      setSelectedQuestionIds(new Set(availableQuestions.map((q) => q.id)));
+    }
+  };
+
+  const handleAddSelectedQuestions = async () => {
+    if (!selectedRoundId || selectedQuestionIds.size === 0) return;
+
+    setAddingQuestions(true);
+    try {
+      // Add questions sequentially to maintain order
+      for (const questionId of selectedQuestionIds) {
+        const response = await fetch(
+          `/api/workspaces/${workspaceId}/quizzes/${quizId}/rounds/${selectedRoundId}/items`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ questionId }),
+          }
+        );
+
+        if (!response.ok) {
+          console.error(`Failed to add question ${questionId}`);
+        }
+      }
+
+      setShowQuestionSelector(false);
+      setSelectedRoundId(null);
+      setSelectedQuestionIds(new Set());
+      await loadQuiz();
+    } catch (error) {
+      console.error("Failed to add questions:", error);
+      alert("Failed to add some questions");
+    } finally {
+      setAddingQuestions(false);
     }
   };
 
@@ -690,6 +856,12 @@ export default function QuizDetailPage() {
   };
 
   const handleDragEndRounds = async (event: DragEndEvent) => {
+    // Block reordering when quiz is locked
+    if (isLocked) {
+      alert("Cannot reorder rounds while quiz has active sessions. Archive sessions first.");
+      return;
+    }
+
     const { active, over } = event;
 
     if (!over || active.id === over.id || !quiz) return;
@@ -729,6 +901,12 @@ export default function QuizDetailPage() {
   };
 
   const handleDragEndItems = async (event: DragEndEvent, roundId: string) => {
+    // Block reordering when quiz is locked
+    if (isLocked) {
+      alert("Cannot reorder questions while quiz has active sessions. Archive sessions first.");
+      return;
+    }
+
     const { active, over } = event;
 
     if (!over || active.id === over.id || !quiz) return;
@@ -833,6 +1011,41 @@ export default function QuizDetailPage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
+      {/* Locked Quiz Banner */}
+      {isLocked && (
+        <div className="mb-6 bg-amber-900/30 border border-amber-600 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">🔒</span>
+              <div>
+                <h3 className="font-semibold text-amber-200">Quiz is Locked</h3>
+                <p className="text-sm text-amber-300">
+                  This quiz has {sessionCount} active session{sessionCount !== 1 ? "s" : ""}. 
+                  Editing is disabled to preserve session data.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <Button
+                onClick={() => router.push(`/workspaces/${workspaceId}/sessions?quizId=${quizId}`)}
+                variant="secondary"
+                size="sm"
+              >
+                View Sessions
+              </Button>
+              <Button
+                onClick={handleDeleteAllSessions}
+                disabled={deletingSessions}
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+                size="sm"
+              >
+                {deletingSessions ? "Archiving..." : "Archive Sessions & Unlock"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
@@ -869,7 +1082,12 @@ export default function QuizDetailPage() {
                     📊 View Sessions ({quiz._count.sessions})
                   </Button>
                 )}
-                <Button onClick={() => setEditMode(true)} variant="secondary">
+                <Button 
+                  onClick={() => setEditMode(true)} 
+                  variant="secondary"
+                  disabled={isLocked}
+                  title={isLocked ? "Archive sessions to unlock editing" : undefined}
+                >
                   Edit Details
                 </Button>
                 <Button onClick={handleDeleteQuiz} variant="secondary" className="text-red-600">
@@ -906,12 +1124,12 @@ export default function QuizDetailPage() {
               
               {/* Scoring Settings */}
               <div className="border-t border-slate-700 pt-4 mt-4">
-                <h3 className="text-lg font-semibold mb-4">⚙️ Scoring Instellingen</h3>
+                <h3 className="text-lg font-semibold mb-4">⚙️ Scoring Settings</h3>
                 
                 {/* Base Points */}
                 <div className="mb-4">
                   <label className="block text-sm font-semibold mb-2">
-                    Basis punten per vraag
+                    Base points per question
                   </label>
                   <Input
                     type="number"
@@ -922,7 +1140,7 @@ export default function QuizDetailPage() {
                     className="w-32"
                   />
                   <p className="text-xs text-slate-500 mt-1">
-                    Standaard punten voor een 100% correct antwoord
+                    Default points for a 100% correct answer
                   </p>
                 </div>
 
@@ -932,8 +1150,8 @@ export default function QuizDetailPage() {
                     <div className="flex items-center gap-2">
                       <span className="text-xl">⏱️</span>
                       <div>
-                        <label className="font-semibold">Snelheidsbonus</label>
-                        <p className="text-xs text-slate-400">Extra punten voor snelle antwoorden</p>
+                        <label className="font-semibold">Speed Bonus</label>
+                        <p className="text-xs text-slate-400">Extra points for fast answers</p>
                       </div>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
@@ -959,7 +1177,7 @@ export default function QuizDetailPage() {
                       />
                       <span className="text-sm text-slate-400">%</span>
                       <span className="text-xs text-slate-500 ml-2">
-                        (= max {Math.round((editTimeBonusPercentage / 100) * editBasePoints)} extra punten)
+                        (= max {Math.round((editTimeBonusPercentage / 100) * editBasePoints)} extra points)
                       </span>
                     </div>
                   )}
@@ -971,8 +1189,8 @@ export default function QuizDetailPage() {
                     <div className="flex items-center gap-2">
                       <span className="text-xl">🔥</span>
                       <div>
-                        <label className="font-semibold">Streak bonus</label>
-                        <p className="text-xs text-slate-400">Extra punten voor achtereenvolgende goede antwoorden</p>
+                        <label className="font-semibold">Streak Bonus</label>
+                        <p className="text-xs text-slate-400">Extra points for consecutive correct answers</p>
                       </div>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
@@ -987,7 +1205,7 @@ export default function QuizDetailPage() {
                   </div>
                   {editStreakBonusEnabled && (
                     <div className="flex items-center gap-3 mt-3">
-                      <label className="text-sm text-slate-400">Punten per streak:</label>
+                      <label className="text-sm text-slate-400">Points per streak:</label>
                       <Input
                         type="number"
                         min={1}
@@ -997,7 +1215,7 @@ export default function QuizDetailPage() {
                         className="w-20"
                       />
                       <span className="text-xs text-slate-500">
-                        (bijv. 3 goede = +{editStreakBonusPoints * 3} pts)
+                        (e.g. 3 correct = +{editStreakBonusPoints * 3} pts)
                       </span>
                     </div>
                   )}
@@ -1043,11 +1261,12 @@ export default function QuizDetailPage() {
                 workspaceId={workspaceId}
                 quizId={quizId}
                 onDragEnd={(event) => handleDragEndItems(event, round.id)}
+                isLocked={isLocked}
               />
             ))}
 
-            {/* Add Round */}
-            {showAddRound ? (
+            {/* Add Round - only when not locked */}
+            {!isLocked && showAddRound ? (
               <Card className="p-6">
             <h3 className="font-bold mb-4">Add New Round</h3>
             <div className="flex gap-3">
@@ -1063,23 +1282,24 @@ export default function QuizDetailPage() {
               </Button>
             </div>
           </Card>
-        ) : (
+        ) : !isLocked ? (
           <Button onClick={() => setShowAddRound(true)} variant="secondary" className="w-full">
             + Add Round
           </Button>
-        )}
+        ) : null}
       </div>
 
       {/* Question Selector Modal */}
       {showQuestionSelector && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-4xl max-h-[80vh] overflow-auto p-6">
+          <Card className="w-full max-w-4xl max-h-[80vh] overflow-hidden flex flex-col p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">Select Question</h2>
+              <h2 className="text-xl font-bold">Add Questions to Round</h2>
               <Button
                 onClick={() => {
                   setShowQuestionSelector(false);
                   setSelectedRoundId(null);
+                  setSelectedQuestionIds(new Set());
                 }}
                 variant="secondary"
               >
@@ -1087,27 +1307,101 @@ export default function QuizDetailPage() {
               </Button>
             </div>
 
-            {availableQuestions.length === 0 ? (
-              <p className="text-center text-slate-400 py-8">
-                No questions available. Create some questions first!
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {availableQuestions.map((question) => (
-                  <div
-                    key={question.id}
-                    onClick={() => handleSelectQuestion(question.id)}
-                    className="p-4 border border-slate-700 rounded-lg hover:bg-slate-800/50 cursor-pointer"
-                  >
-                    <h3 className="font-semibold mb-1">{question.title}</h3>
-                    <div className="flex gap-4 text-sm text-slate-400">
-                      <span>{question.type.replace(/_/g, " ")}</span>
-                      <span>{getDifficultyLabel(question.difficulty)}</span>
-                      <span>{question.options?.length || 0} options</span>
-                      {(question.media?.length || 0) > 0 && <span>📎 Has media</span>}
-                    </div>
-                  </div>
+            {/* Set Selector */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">Question Set</label>
+              <select
+                value={selectedSetId}
+                onChange={(e) => handleLoadQuestionsForSet(e.target.value)}
+                className="w-full px-4 py-2 border border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 bg-slate-800 text-white"
+              >
+                <option value="">All Questions</option>
+                {questionSets.map((set) => (
+                  <option key={set.id} value={set.id}>
+                    {set.name} ({set.questionCount} questions)
+                  </option>
                 ))}
+              </select>
+            </div>
+
+            {/* Select All / Selection Info */}
+            {availableQuestions.length > 0 && (
+              <div className="flex items-center justify-between mb-4 pb-4 border-b border-slate-700">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedQuestionIds.size === availableQuestions.length && availableQuestions.length > 0}
+                    onChange={handleSelectAllQuestions}
+                    className="w-4 h-4 text-primary-600"
+                  />
+                  <span className="text-sm">
+                    Select All ({availableQuestions.length} questions)
+                  </span>
+                </label>
+                {selectedQuestionIds.size > 0 && (
+                  <span className="text-sm text-primary-400">
+                    {selectedQuestionIds.size} selected
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Questions List */}
+            <div className="flex-1 overflow-auto">
+              {availableQuestions.length === 0 ? (
+                <p className="text-center text-slate-400 py-8">
+                  No questions available. Create some questions first!
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {availableQuestions.map((question) => (
+                    <div
+                      key={question.id}
+                      onClick={() => handleToggleQuestion(question.id)}
+                      className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                        selectedQuestionIds.has(question.id)
+                          ? "border-primary-500 bg-primary-500/10"
+                          : "border-slate-700 hover:bg-slate-800/50"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedQuestionIds.has(question.id)}
+                          onChange={() => handleToggleQuestion(question.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-4 h-4 mt-1 text-primary-600"
+                        />
+                        <div className="flex-1">
+                          <h3 className="font-semibold mb-1">{question.title}</h3>
+                          <div className="flex gap-4 text-sm text-slate-400">
+                            <span>{question.type.replace(/_/g, " ")}</span>
+                            <span>{getDifficultyLabel(question.difficulty)}</span>
+                            <span>{question.options?.length || 0} options</span>
+                            {(question.media?.length || 0) > 0 && <span>📎 Has media</span>}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Action Buttons */}
+            {availableQuestions.length > 0 && (
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-700">
+                <p className="text-sm text-slate-400">
+                  Click a question to toggle selection, or use checkboxes
+                </p>
+                <Button
+                  onClick={handleAddSelectedQuestions}
+                  disabled={selectedQuestionIds.size === 0 || addingQuestions}
+                >
+                  {addingQuestions
+                    ? "Adding..."
+                    : `Add ${selectedQuestionIds.size} Question${selectedQuestionIds.size !== 1 ? "s" : ""}`}
+                </Button>
               </div>
             )}
           </Card>

@@ -16,7 +16,7 @@ export async function GET(
 
     if (!playerId) {
       return NextResponse.json(
-        { error: "Token is verlopen of ongeldig" },
+        { error: "Token has expired or is invalid" },
         { status: 404 }
       );
     }
@@ -33,7 +33,7 @@ export async function GET(
       // Clean up invalid token
       await redis.del(`rejoin:${token}`);
       return NextResponse.json(
-        { error: "Speler niet gevonden" },
+        { error: "Player not found" },
         { status: 404 }
       );
     }
@@ -42,7 +42,7 @@ export async function GET(
       // Clean up token
       await redis.del(`rejoin:${token}`);
       return NextResponse.json(
-        { error: "Deze sessie is al beëindigd" },
+        { error: "This session has already ended" },
         { status: 400 }
       );
     }
@@ -68,7 +68,7 @@ export async function GET(
   } catch (error) {
     console.error("Error validating rejoin token:", error);
     return NextResponse.json(
-      { error: "Er is iets misgegaan" },
+      { error: "Something went wrong" },
       { status: 500 }
     );
   }

@@ -91,7 +91,7 @@ export function PollResults({
   if (!data || data.options.length === 0) {
     return (
       <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-6 text-center">
-        <p className="text-slate-400">Wachten op stemmen...</p>
+        <p className="text-slate-400">Waiting for votes...</p>
       </div>
     );
   }
@@ -105,10 +105,10 @@ export function PollResults({
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-lg font-semibold text-white flex items-center gap-2">
           <span>🗳️</span>
-          Poll Resultaten
+          Poll Results
         </h3>
         <span className="text-sm text-slate-400">
-          {data.totalVotes} {data.totalVotes === 1 ? "stem" : "stemmen"}
+          {data.totalVotes} {data.totalVotes === 1 ? "vote" : "votes"}
         </span>
       </div>
 
@@ -129,7 +129,7 @@ export function PollResults({
                 <div className="flex items-center gap-2 text-sm">
                   {showVoteCounts && (
                     <span className="text-slate-400">
-                      {option.votes} {option.votes === 1 ? "stem" : "stemmen"}
+                      {option.votes} {option.votes === 1 ? "vote" : "votes"}
                     </span>
                   )}
                   {showPercentages && (
@@ -161,7 +161,7 @@ export function PollResults({
       {/* Footer */}
       {data.totalVotes === 0 && (
         <p className="text-center text-slate-500 text-sm mt-4">
-          Nog geen stemmen ontvangen
+          No votes received yet
         </p>
       )}
     </div>
@@ -173,14 +173,14 @@ export function PollResults({
  */
 export function PollResultsCompact({ data }: { data?: PollResultsData }) {
   if (!data || data.options.length === 0) {
-    return <span className="text-slate-500">Geen stemmen</span>;
+    return <span className="text-slate-500">No votes</span>;
   }
 
   const winner = [...data.options].sort((a, b) => b.votes - a.votes)[0];
 
   return (
     <div className="flex items-center gap-2 text-sm">
-      <span className="text-slate-400">{data.totalVotes} stemmen</span>
+      <span className="text-slate-400">{data.totalVotes} votes</span>
       <span className="text-slate-600">•</span>
       <span className="text-slate-300">
         👑 {winner.text} ({winner.percentage}%)

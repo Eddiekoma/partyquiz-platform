@@ -3,8 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 
 const verifySchema = z.object({
-  email: z.string().email("Ongeldig emailadres"),
-  code: z.string().length(6, "Code moet 6 cijfers bevatten"),
+  email: z.string().email("Invalid email address"),
+  code: z.string().length(6, "Code must contain 6 digits"),
 });
 
 export async function POST(request: NextRequest) {
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
 
     if (!user) {
       return NextResponse.json(
-        { error: "Gebruiker niet gevonden" },
+        { error: "User not found" },
         { status: 404 }
       );
     }
@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     // Check if already verified
     if (user.emailVerified) {
       return NextResponse.json(
-        { error: "Email is al geverifieerd. Je kunt inloggen." },
+        { error: "Email is already verified. You can log in." },
         { status: 400 }
       );
     }
@@ -45,21 +45,21 @@ export async function POST(request: NextRequest) {
     // Check verification code
     if (!(user as any).emailVerifyCode || !(user as any).emailVerifyExpires) {
       return NextResponse.json(
-        { error: "Geen verificatiecode gevonden. Vraag een nieuwe aan." },
+        { error: "No verification code found. Request a new one." },
         { status: 400 }
       );
     }
 
     if ((user as any).emailVerifyCode !== code) {
       return NextResponse.json(
-        { error: "Ongeldige verificatiecode" },
+        { error: "Invalid verification code" },
         { status: 400 }
       );
     }
 
     if (new Date() > (user as any).emailVerifyExpires) {
       return NextResponse.json(
-        { error: "Verificatiecode is verlopen. Vraag een nieuwe aan." },
+        { error: "Verification code has expired. Request a new one." },
         { status: 400 }
       );
     }
@@ -76,12 +76,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      message: "Email geverifieerd! Je kunt nu inloggen.",
+      message: "Email verified! You can now log in.",
     });
   } catch (error) {
     console.error("Verify email error:", error);
     return NextResponse.json(
-      { error: "Er is iets misgegaan. Probeer het opnieuw." },
+      { error: "Something went wrong. Please try again." },
       { status: 500 }
     );
   }

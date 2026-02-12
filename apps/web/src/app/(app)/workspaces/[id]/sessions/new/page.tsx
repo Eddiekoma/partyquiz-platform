@@ -178,18 +178,18 @@ export default function NewSessionPage({ params }: NewSessionPageProps) {
 
           <div className="mb-6">
             <label htmlFor="displayName" className="block text-sm font-medium text-slate-300 mb-2">
-              Sessie Naam <span className="text-slate-500">(optioneel)</span>
+              Session Name <span className="text-slate-500">(optional)</span>
             </label>
             <input
               type="text"
               id="displayName"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="bijv. Kerst Quiz 2025, Teambuilding December"
+              placeholder="e.g. Christmas Quiz 2025, December Teambuilding"
               className="w-full px-4 py-3 border border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900"
             />
             <p className="text-xs text-slate-500 mt-1">
-              Geef de sessie een herkenbare naam. Handig als je dezelfde quiz vaker speelt.
+              Give the session a recognizable name. Useful if you play the same quiz multiple times.
             </p>
           </div>
 
