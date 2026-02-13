@@ -7,7 +7,7 @@ import { QuestionType } from "@partyquiz/shared";
 const isOpenTextType = (questionType: string | undefined): boolean => {
   if (!questionType) return false;
   const type = questionType.toUpperCase();
-  return type === "OPEN_TEXT" || type === "PHOTO_OPEN" || 
+  return type === "OPEN_TEXT" || type === "PHOTO_OPEN_TEXT" || 
          type === "AUDIO_OPEN" || type === "VIDEO_OPEN";
 };
 
@@ -34,6 +34,8 @@ export interface PlayerAnswer {
   autoScore?: number; // Auto-calculated score
   autoScorePercentage?: number; // Auto-calculated percentage (0-100)
   isManuallyAdjusted?: boolean; // Host has adjusted
+  // For players who didn't submit an answer
+  noAnswer?: boolean; // True if player didn't submit answer before reveal
 }
 
 interface AnswerPanelProps {
@@ -71,32 +73,74 @@ export function AnswerPanel({
   // Sort answers based on selected criteria
   const sortedAnswers = useMemo(() => {
     const sorted = [...answers];
+    
+    // Separate answered and no-answer players
+    const answeredPlayers = sorted.filter(a => !a.noAnswer);
+    const noAnswerPlayers = sorted.filter(a => a.noAnswer);
+    
+    // Sort answered players based on criteria
     switch (sortBy) {
       case "time":
-        return sorted.sort((a, b) => a.answeredAt - b.answeredAt);
+        answeredPlayers.sort((a, b) => a.answeredAt - b.answeredAt);
+        break;
       case "score":
-        return sorted.sort((a, b) => b.score - a.score);
+        answeredPlayers.sort((a, b) => b.score - a.score);
+        break;
       case "name":
-        return sorted.sort((a, b) => a.playerName.localeCompare(b.playerName));
-      default:
-        return sorted;
+        answeredPlayers.sort((a, b) => a.playerName.localeCompare(b.playerName));
+        break;
     }
+    
+    // Sort no-answer players by name
+    noAnswerPlayers.sort((a, b) => a.playerName.localeCompare(b.playerName));
+    
+    // Return answered players first, then no-answer players
+    return [...answeredPlayers, ...noAnswerPlayers];
   }, [answers, sortBy]);
 
   // Calculate statistics
   const stats = useMemo(() => {
-    const correctCount = answers.filter((a) => a.isCorrect === true).length;
-    const incorrectCount = answers.filter((a) => a.isCorrect === false).length;
-    const pendingCount = totalPlayers - answers.length;
-    const totalScore = answers.reduce((sum, a) => sum + a.score, 0);
-    const avgScore = answers.length > 0 ? Math.round(totalScore / answers.length) : 0;
+    const answeredPlayers = answers.filter(a => !a.noAnswer);
+    const noAnswerPlayers = answers.filter(a => a.noAnswer);
     
-    return { correctCount, incorrectCount, pendingCount, totalScore, avgScore };
+    const correctCount = answeredPlayers.filter((a) => a.isCorrect === true).length;
+    const incorrectCount = answeredPlayers.filter((a) => a.isCorrect === false).length;
+    const noAnswerCount = noAnswerPlayers.length;
+    const pendingCount = totalPlayers - answers.length; // Players not in the system yet
+    const totalScore = answeredPlayers.reduce((sum, a) => sum + a.score, 0);
+    const avgScore = answeredPlayers.length > 0 ? Math.round(totalScore / answeredPlayers.length) : 0;
+    
+    // Calculate average score percentage (how correct were answers on average)
+    const totalScorePercentage = answeredPlayers.reduce((sum, a) => {
+      // Calculate score percentage for each answer
+      const scorePercentage = a.maxScore && a.maxScore > 0 
+        ? (a.score / a.maxScore) * 100
+        : a.score > 0 ? 100 : 0;
+      return sum + scorePercentage;
+    }, 0);
+    const avgScorePercentage = answeredPlayers.length > 0 
+      ? Math.round(totalScorePercentage / answeredPlayers.length) 
+      : 0;
+    
+    return { 
+      correctCount, 
+      incorrectCount, 
+      noAnswerCount, 
+      pendingCount, 
+      totalScore, 
+      avgScore,
+      avgScorePercentage 
+    };
   }, [answers, totalPlayers]);
 
   // For MC questions, calculate option distribution
   const optionDistribution = useMemo(() => {
-    if (!options || !["MC_SINGLE", "MC_MULTIPLE", "POLL", "TRUE_FALSE", "PHOTO_QUESTION", "AUDIO_QUESTION", "VIDEO_QUESTION"].includes(questionType?.toUpperCase() || "")) {
+    const mcTypes = [
+      "MC_SINGLE", "MC_MULTIPLE", "MC_ORDER", "POLL", "TRUE_FALSE",
+      "PHOTO_MC_SINGLE", "PHOTO_MC_MULTIPLE", "PHOTO_MC_ORDER", "PHOTO_TRUE_FALSE",
+      "AUDIO_QUESTION", "VIDEO_QUESTION"
+    ];
+    if (!options || !mcTypes.includes(questionType?.toUpperCase() || "")) {
       return null;
     }
     
@@ -105,7 +149,9 @@ export function AnswerPanel({
       distribution[opt.id] = { count: 0, text: opt.text, isCorrect: opt.isCorrect };
     });
     
-    answers.forEach((answer) => {
+    // Only count answers from players who actually answered (skip no-answer players)
+    const answeredPlayers = answers.filter(a => !a.noAnswer);
+    answeredPlayers.forEach((answer) => {
       if (answer.selectedOptionIds) {
         answer.selectedOptionIds.forEach((optId) => {
           if (distribution[optId]) {
@@ -118,21 +164,46 @@ export function AnswerPanel({
     return distribution;
   }, [answers, options, questionType]);
 
-  // Get status icon and color - now supports partial correct
+  // Get status icon and color - now supports partial correct and no-answer
   const getStatusIcon = (answer: PlayerAnswer): { icon: string; color: string; label: string } => {
+    // No answer submitted
+    if (answer.noAnswer) {
+      return { icon: "⏳", color: "text-slate-500", label: "No answer" };
+    }
+    
     // Poll or no scoring
     if (answer.isCorrect === null) {
       return { icon: "💬", color: "text-blue-400", label: "Poll" };
     }
     
-    // Fully correct
-    if (answer.isCorrect && answer.score > 0) {
-      return { icon: "✅", color: "text-green-400", label: "Correct" };
+    // Calculate score percentage for graduated feedback
+    const scorePercentage = answer.maxScore && answer.maxScore > 0 
+      ? Math.round((answer.score / answer.maxScore) * 100)
+      : answer.score > 0 ? 100 : 0;
+    
+    // Perfect score
+    if (scorePercentage === 100) {
+      return { icon: "✅", color: "text-green-400", label: "Perfect" };
     }
     
-    // Partial correct: has points but not marked as fully correct
-    if (!answer.isCorrect && answer.score > 0) {
+    // Almost perfect (90-99%)
+    if (scorePercentage >= 90) {
+      return { icon: "🌟", color: "text-green-300", label: "Almost" };
+    }
+    
+    // Close enough (70-89%)
+    if (scorePercentage >= 70) {
+      return { icon: "🟢", color: "text-green-200", label: "Close" };
+    }
+    
+    // Partial correct (50-69%)
+    if (scorePercentage >= 50) {
       return { icon: "🟡", color: "text-yellow-400", label: "Partial" };
+    }
+    
+    // Some points (1-49%)
+    if (scorePercentage > 0) {
+      return { icon: "🟠", color: "text-orange-400", label: "Points" };
     }
     
     // Completely wrong
@@ -158,10 +229,19 @@ export function AnswerPanel({
 
   // Get question type specific rendering
   const renderAnswerContent = (answer: PlayerAnswer) => {
+    // No answer submitted - show special message
+    if (answer.noAnswer) {
+      return (
+        <span className="text-sm text-slate-500 italic">
+          Geen antwoord ingediend
+        </span>
+      );
+    }
+    
     const type = answer.questionType?.toUpperCase();
     
-    // ORDER questions: show numbered list
-    if (type === "ORDER" && answer.submittedOrder && options) {
+    // ORDER questions: show numbered list (supports both ORDER and MC_ORDER)
+    if ((type === "ORDER" || type === "MC_ORDER") && answer.submittedOrder && options) {
       return (
         <div className="text-xs space-y-0.5">
           {answer.submittedOrder.map((optId, idx) => {
@@ -184,31 +264,38 @@ export function AnswerPanel({
     }
     
     // MC_MULTIPLE: show selected options as badges
-    if (type === "MC_MULTIPLE" && answer.selectedOptionIds && options) {
-      return (
-        <div className="flex flex-wrap gap-1">
-          {answer.selectedOptionIds.map((optId) => {
-            const opt = options.find((o) => o.id === optId);
-            const isCorrectOption = opt?.isCorrect;
-            return (
-              <span
-                key={optId}
-                className={`px-1.5 py-0.5 rounded text-xs ${
-                  isCorrectOption
-                    ? "bg-green-900/50 text-green-300"
-                    : "bg-red-900/50 text-red-300"
-                }`}
-              >
-                {opt?.text || optId}
-              </span>
-            );
-          })}
-        </div>
-      );
+    if (type === "MC_MULTIPLE" && options) {
+      // Get selected option IDs from selectedOptionIds or rawAnswer
+      const selectedIds = answer.selectedOptionIds || 
+        (Array.isArray(answer.rawAnswer) ? answer.rawAnswer : []);
+      
+      if (selectedIds.length > 0) {
+        return (
+          <div className="flex flex-wrap gap-1">
+            {selectedIds.map((optId) => {
+              const opt = options.find((o) => o.id === optId);
+              const isCorrectOption = opt?.isCorrect;
+              return (
+                <span
+                  key={optId}
+                  className={`px-1.5 py-0.5 rounded text-xs ${
+                    isCorrectOption
+                      ? "bg-green-900/50 text-green-300"
+                      : "bg-red-900/50 text-red-300"
+                  }`}
+                >
+                  {opt?.text || optId}
+                </span>
+              );
+            })}
+          </div>
+        );
+      }
     }
     
-    // ESTIMATION: show number with distance indicator
-    if (type === "ESTIMATION" || type === "MUSIC_GUESS_YEAR") {
+    // NUMERIC/SLIDER/ESTIMATION: show number with distance indicator
+    const numericTypes = ["NUMERIC", "SLIDER", "ESTIMATION", "PHOTO_NUMERIC", "PHOTO_SLIDER", "MUSIC_GUESS_YEAR"];
+    if (numericTypes.includes(type)) {
       // Debug: log what we received
       console.log("[AnswerPanel] ESTIMATION answer:", { 
         answerDisplay: answer.answerDisplay, 
@@ -260,8 +347,11 @@ export function AnswerPanel({
           {stats.incorrectCount > 0 && (
             <span className="text-red-400">❌ {stats.incorrectCount}</span>
           )}
+          {stats.noAnswerCount > 0 && (
+            <span className="text-slate-500">⏳ {stats.noAnswerCount}</span>
+          )}
           {stats.pendingCount > 0 && (
-            <span className="text-slate-400">⏳ {stats.pendingCount}</span>
+            <span className="text-slate-400">⏱️ {stats.pendingCount}</span>
           )}
         </div>
       </button>
@@ -272,17 +362,21 @@ export function AnswerPanel({
           {/* Option distribution for MC questions */}
           {optionDistribution && Object.keys(optionDistribution).length > 0 && (
             <div className="px-4 py-3 bg-slate-700 border-b border-slate-600">
-              <div className="text-xs text-slate-400 mb-2 font-medium">Answer distribution:</div>
+              <div className="text-xs text-slate-400 mb-2 font-medium">
+                Selected by players: <span className="text-slate-500">(✓ = correct answer)</span>
+              </div>
               <div className="space-y-1.5">
                 {Object.entries(optionDistribution).map(([optId, data]) => {
-                  const percentage = answers.length > 0 
-                    ? Math.round((data.count / answers.length) * 100) 
+                  // Only count players who actually answered (exclude no-answer)
+                  const answeredCount = answers.filter(a => !a.noAnswer).length;
+                  const percentage = answeredCount > 0 
+                    ? Math.round((data.count / answeredCount) * 100) 
                     : 0;
                   return (
                     <div key={optId} className="flex items-center gap-2">
                       <div className="w-32 truncate text-sm text-white flex items-center gap-1">
                         {data.isCorrect && <span className="text-green-400">✓</span>}
-                        {data.text}
+                        <span className={data.isCorrect ? "text-green-300" : ""}>{data.text}</span>
                       </div>
                       <div className="flex-1 h-4 bg-slate-600 rounded-full overflow-hidden">
                         <div
@@ -290,8 +384,12 @@ export function AnswerPanel({
                           style={{ width: `${percentage}%` }}
                         />
                       </div>
-                      <div className="w-12 text-right text-xs text-slate-300">
-                        {data.count} ({percentage}%)
+                      <div className="w-16 text-right text-xs">
+                        {data.count > 0 ? (
+                          <span className="text-white font-medium">{data.count}x</span>
+                        ) : (
+                          <span className="text-slate-500">—</span>
+                        )}
                       </div>
                     </div>
                   );
@@ -459,7 +557,7 @@ export function AnswerPanel({
                 Average score: <strong className="text-white">{stats.avgScore}</strong> points
               </span>
               <span>
-                {Math.round((stats.correctCount / answers.length) * 100)}% correct
+                Average: <strong className="text-white">{stats.avgScorePercentage}%</strong> correct
               </span>
             </div>
           )}

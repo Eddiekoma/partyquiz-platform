@@ -6,27 +6,42 @@ import { z } from "zod";
 
 const updateQuestionSchema = z.object({
   type: z.enum([
+    // Text-based variants
     "MC_SINGLE",
     "MC_MULTIPLE",
     "TRUE_FALSE",
     "OPEN_TEXT",
-    "ESTIMATION",
+    "NUMERIC",
+    "SLIDER",
     "ORDER",
-    "PHOTO_QUESTION",
+    "MC_ORDER",
+    // Photo variants
+    "PHOTO_MC_SINGLE",
+    "PHOTO_MC_MULTIPLE",
+    "PHOTO_TRUE_FALSE",
+    "PHOTO_OPEN_TEXT",
+    "PHOTO_NUMERIC",
+    "PHOTO_SLIDER",
+    "PHOTO_MC_ORDER",
+    // Audio/Video variants
     "AUDIO_QUESTION",
+    "AUDIO_OPEN",
     "VIDEO_QUESTION",
+    "VIDEO_OPEN",
+    // Music variants
     "MUSIC_INTRO",
     "MUSIC_SNIPPET",
     "MUSIC_GUESS_TITLE",
     "MUSIC_GUESS_ARTIST",
     "MUSIC_GUESS_YEAR",
-    "POLL",
-    "PHOTO_OPEN",
-    "AUDIO_OPEN",
-    "VIDEO_OPEN",
+    // YouTube variants
     "YOUTUBE_SCENE_QUESTION",
     "YOUTUBE_NEXT_LINE",
     "YOUTUBE_WHO_SAID_IT",
+    // Other types
+    "POLL",
+    // Legacy types (backward compatibility)
+    "ESTIMATION",
   ]).optional(),
   title: z.string().min(1).optional(),
   prompt: z.string().optional(),

@@ -1,6 +1,6 @@
 "use client";
 
-import { QuestionType } from "@partyquiz/shared";
+import type { QuestionType } from "@partyquiz/shared";
 
 interface QuestionTypeBadgeProps {
   type: QuestionType | string;
@@ -9,20 +9,30 @@ interface QuestionTypeBadgeProps {
 }
 
 // Human-readable labels and icons for each question type
-// These are the 19 official question types from the editor
+// These are the 24 official question types from the editor
 const QUESTION_TYPE_CONFIG: Record<string, { icon: string; label: string; color: string }> = {
   // === TEXT QUESTIONS (7) ===
   MC_SINGLE: { icon: "🔘", label: "Multiple Choice", color: "bg-blue-500/20 text-blue-300 border-blue-500/40" },
   MC_MULTIPLE: { icon: "☑️", label: "Multiple Choice (Multi)", color: "bg-blue-500/20 text-blue-300 border-blue-500/40" },
+  MC_ORDER: { icon: "📊", label: "Put in Order", color: "bg-orange-500/20 text-orange-300 border-orange-500/40" },
   TRUE_FALSE: { icon: "✅", label: "True or False", color: "bg-green-500/20 text-green-300 border-green-500/40" },
   OPEN_TEXT: { icon: "✏️", label: "Open Text", color: "bg-purple-500/20 text-purple-300 border-purple-500/40" },
+  NUMERIC: { icon: "🔢", label: "Numeric", color: "bg-amber-500/20 text-amber-300 border-amber-500/40" },
+  SLIDER: { icon: "🎚️", label: "Slider", color: "bg-amber-500/20 text-amber-300 border-amber-500/40" },
+  
+  // Legacy aliases (deprecated but kept for backward compatibility)
   ESTIMATION: { icon: "🎯", label: "Estimation", color: "bg-amber-500/20 text-amber-300 border-amber-500/40" },
   ORDER: { icon: "📊", label: "Put in Order", color: "bg-orange-500/20 text-orange-300 border-orange-500/40" },
-  POLL: { icon: "�", label: "Poll", color: "bg-yellow-500/20 text-yellow-300 border-yellow-500/40" },
+  POLL: { icon: "📊", label: "Poll", color: "bg-yellow-500/20 text-yellow-300 border-yellow-500/40" },
 
-  // === PHOTO QUESTIONS (2) ===
-  PHOTO_QUESTION: { icon: "📷", label: "Photo Question", color: "bg-pink-500/20 text-pink-300 border-pink-500/40" },
-  PHOTO_OPEN: { icon: "📷", label: "Photo Open", color: "bg-pink-500/20 text-pink-300 border-pink-500/40" },
+  // === PHOTO QUESTIONS (7) ===
+  PHOTO_MC_SINGLE: { icon: "📷", label: "Photo MC", color: "bg-pink-500/20 text-pink-300 border-pink-500/40" },
+  PHOTO_MC_MULTIPLE: { icon: "📷", label: "Photo MC (Multi)", color: "bg-pink-500/20 text-pink-300 border-pink-500/40" },
+  PHOTO_MC_ORDER: { icon: "📷", label: "Photo Order", color: "bg-pink-500/20 text-pink-300 border-pink-500/40" },
+  PHOTO_TRUE_FALSE: { icon: "📷", label: "Photo True/False", color: "bg-pink-500/20 text-pink-300 border-pink-500/40" },
+  PHOTO_OPEN_TEXT: { icon: "📷", label: "Photo Open", color: "bg-pink-500/20 text-pink-300 border-pink-500/40" },
+  PHOTO_NUMERIC: { icon: "📷", label: "Photo Numeric", color: "bg-pink-500/20 text-pink-300 border-pink-500/40" },
+  PHOTO_SLIDER: { icon: "📷", label: "Photo Slider", color: "bg-pink-500/20 text-pink-300 border-pink-500/40" },
 
   // === AUDIO QUESTIONS (2) ===
   AUDIO_QUESTION: { icon: "🔊", label: "Audio Question", color: "bg-cyan-500/20 text-cyan-300 border-cyan-500/40" },

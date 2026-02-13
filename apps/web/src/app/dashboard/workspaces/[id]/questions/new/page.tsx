@@ -25,8 +25,13 @@ type QuestionTypeValue =
   | "ESTIMATION"
   | "ORDER"
   | "POLL"
-  | "PHOTO_QUESTION"
-  | "PHOTO_OPEN"
+  | "PHOTO_MC_SINGLE"
+  | "PHOTO_MC_MULTIPLE"
+  | "PHOTO_MC_ORDER"
+  | "PHOTO_OPEN_TEXT"
+  | "PHOTO_NUMERIC"
+  | "PHOTO_SLIDER"
+  | "PHOTO_TRUE_FALSE"
   | "AUDIO_QUESTION"
   | "AUDIO_OPEN"
   | "VIDEO_QUESTION"
@@ -45,7 +50,13 @@ const QUESTION_TYPES: { value: QuestionTypeValue; label: string; description: st
   { value: "OPEN_TEXT", label: "Open Text", description: "Free text answer" },
   { value: "ESTIMATION", label: "Estimation", description: "Guess a number (Swan Race compatible)" },
   { value: "ORDER", label: "Order", description: "Put items in correct order" },
-  { value: "PHOTO_QUESTION", label: "Photo Question", description: "Question with image" },
+  { value: "PHOTO_MC_SINGLE", label: "Photo MC (Single)", description: "Multiple choice with photo" },
+  { value: "PHOTO_MC_MULTIPLE", label: "Photo MC (Multiple)", description: "Multiple choice with photo" },
+  { value: "PHOTO_MC_ORDER", label: "Photo Order", description: "Order items with photo" },
+  { value: "PHOTO_OPEN_TEXT", label: "Photo Open Text", description: "Open text with photo" },
+  { value: "PHOTO_NUMERIC", label: "Photo Numeric", description: "Number estimation with photo" },
+  { value: "PHOTO_SLIDER", label: "Photo Slider", description: "Slider estimation with photo" },
+  { value: "PHOTO_TRUE_FALSE", label: "Photo True/False", description: "True/False with photo" },
   { value: "AUDIO_QUESTION", label: "Audio Question", description: "Question with audio" },
   { value: "VIDEO_QUESTION", label: "Video Question", description: "Question with video" },
   { value: "MUSIC_GUESS_TITLE", label: "Music: Guess Title", description: "Guess song title from Spotify preview" },
@@ -55,7 +66,6 @@ const QUESTION_TYPES: { value: QuestionTypeValue; label: string; description: st
   { value: "YOUTUBE_NEXT_LINE", label: "YouTube Next Line", description: "Guess the next line in a YouTube video" },
   { value: "YOUTUBE_WHO_SAID_IT", label: "YouTube Who Said It", description: "Identify who said what in a YouTube video" },
   { value: "POLL", label: "Poll", description: "No correct answer, just opinions" },
-  { value: "PHOTO_OPEN", label: "Photo Open", description: "Open answer with photo" },
   { value: "AUDIO_OPEN", label: "Audio Open", description: "Open answer with audio" },
   { value: "VIDEO_OPEN", label: "Video Open", description: "Open answer with video" },
 ];
@@ -84,7 +94,7 @@ const QUESTION_CATEGORIES: Category[] = [
     label: "Photo Questions",
     icon: "📷",
     description: "Questions with uploaded images",
-    types: ["PHOTO_QUESTION", "PHOTO_OPEN"],
+    types: ["PHOTO_MC_SINGLE", "PHOTO_MC_MULTIPLE", "PHOTO_MC_ORDER", "PHOTO_OPEN_TEXT", "PHOTO_NUMERIC", "PHOTO_SLIDER", "PHOTO_TRUE_FALSE"],
   },
   {
     key: "audio",
@@ -283,7 +293,7 @@ export default function NewQuestionPage() {
     // Validate correct answer for open text types (required for fuzzy matching)
     if (
       (selectedType === "OPEN_TEXT" ||
-        selectedType === "PHOTO_OPEN" ||
+        selectedType === "PHOTO_OPEN_TEXT" ||
         selectedType === "AUDIO_OPEN" ||
         selectedType === "VIDEO_OPEN") &&
       !openTextAnswer.trim()
@@ -347,7 +357,7 @@ export default function NewQuestionPage() {
           ];
           break;
         case "OPEN_TEXT":
-        case "PHOTO_OPEN":
+        case "PHOTO_OPEN_TEXT":
         case "AUDIO_OPEN":
         case "VIDEO_OPEN":
           if (openTextAnswer.trim()) {
@@ -741,7 +751,7 @@ export default function NewQuestionPage() {
 
         {/* OPEN_TEXT and *_OPEN types */}
         {(selectedType === "OPEN_TEXT" ||
-          selectedType === "PHOTO_OPEN" ||
+          selectedType === "PHOTO_OPEN_TEXT" ||
           selectedType === "AUDIO_OPEN" ||
           selectedType === "VIDEO_OPEN") && (
           <Card className="p-6">
@@ -807,10 +817,15 @@ export default function NewQuestionPage() {
         )}
 
         {/* Media upload for PHOTO/AUDIO/VIDEO types */}
-        {(selectedType === "PHOTO_QUESTION" ||
+        {(selectedType === "PHOTO_MC_SINGLE" ||
+          selectedType === "PHOTO_MC_MULTIPLE" ||
+          selectedType === "PHOTO_MC_ORDER" ||
+          selectedType === "PHOTO_OPEN_TEXT" ||
+          selectedType === "PHOTO_NUMERIC" ||
+          selectedType === "PHOTO_SLIDER" ||
+          selectedType === "PHOTO_TRUE_FALSE" ||
           selectedType === "AUDIO_QUESTION" ||
           selectedType === "VIDEO_QUESTION" ||
-          selectedType === "PHOTO_OPEN" ||
           selectedType === "AUDIO_OPEN" ||
           selectedType === "VIDEO_OPEN") && (
           <Card className="p-6">

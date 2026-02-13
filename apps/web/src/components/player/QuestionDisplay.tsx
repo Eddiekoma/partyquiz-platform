@@ -1,11 +1,23 @@
 import type { QuestionType } from "@partyquiz/shared";
+import { requiresPhotos } from "@partyquiz/shared";
 import { YouTubePlayer } from "../YouTubePlayer";
 import { QuestionTypeBadge } from "../QuestionTypeBadge";
+import { PhotoGrid } from "../PhotoGrid";
+
+interface QuestionMedia {
+  id: string;
+  url: string;
+  type: string;
+  width?: number | null;
+  height?: number | null;
+  displayOrder: number;
+}
 
 interface QuestionDisplayProps {
   questionType: QuestionType;
   prompt: string;
   mediaUrl?: string;
+  media?: QuestionMedia[];
   settingsJson?: any;
 }
 
@@ -13,6 +25,7 @@ export function QuestionDisplay({
   questionType,
   prompt,
   mediaUrl,
+  media,
   settingsJson,
 }: QuestionDisplayProps) {
   return (
@@ -22,8 +35,15 @@ export function QuestionDisplay({
         <QuestionTypeBadge type={questionType} size="md" />
       </div>
 
-      {/* Media */}
-      {mediaUrl && (
+      {/* Photo Grid for PHOTO_ types */}
+      {requiresPhotos(questionType) && media && media.length > 0 && (
+        <div className="mb-6">
+          <PhotoGrid photos={media} />
+        </div>
+      )}
+
+      {/* Legacy single mediaUrl (for AUDIO_, VIDEO_, YOUTUBE_) */}
+      {mediaUrl && !requiresPhotos(questionType) && (
         <div className="mb-6">
           {renderMedia(questionType, mediaUrl, settingsJson)}
         </div>
@@ -44,22 +64,6 @@ function renderMedia(
   mediaUrl: string,
   settingsJson?: any
 ) {
-  // Photo question types (PHOTO_QUESTION, PHOTO_OPEN)
-  if (
-    questionType === "PHOTO_QUESTION" ||
-    questionType === "PHOTO_OPEN"
-  ) {
-    return (
-      <div className="relative w-full max-w-2xl mx-auto aspect-video rounded-2xl overflow-hidden bg-black/20">
-        <img
-          src={mediaUrl}
-          alt="Question"
-          className="w-full h-full object-contain"
-        />
-      </div>
-    );
-  }
-
   // Audio question types (AUDIO_QUESTION, AUDIO_OPEN) and Spotify music types
   if (
     questionType === "AUDIO_QUESTION" ||

@@ -533,6 +533,72 @@ export default function HostControlPage() {
       });
     };
 
+    // Listen for reveal answers (includes all players, even those who didn't answer)
+    const handleRevealAnswers = (data: {
+      itemId: string;
+      questionType: string;
+      answers: Array<{
+        playerId: string;
+        playerName: string;
+        playerAvatar?: string;
+        answer: any;
+        isCorrect: boolean | null;
+        points: number;
+      }>;
+      noAnswerPlayers?: Array<{
+        playerId: string;
+        playerName: string;
+        playerAvatar?: string;
+      }>;
+    }) => {
+      console.log("[Host] REVEAL_ANSWERS received:", data);
+      
+      const now = Date.now();
+      
+      // Merge answered players and no-answer players
+      const allPlayerAnswers: PlayerAnswer[] = [
+        // Answered players (with actual answers)
+        ...data.answers.map(a => ({
+          playerId: a.playerId,
+          playerName: a.playerName,
+          playerAvatar: a.playerAvatar,
+          itemId: data.itemId,
+          questionType: data.questionType,
+          answer: a.answer,
+          answerDisplay: typeof a.answer === 'string' ? a.answer : JSON.stringify(a.answer),
+          rawAnswer: a.answer,
+          score: a.points,
+          isCorrect: a.isCorrect,
+          answeredAt: now,
+          noAnswer: false,
+        })),
+        // Non-answered players (with special status)
+        ...(data.noAnswerPlayers || []).map(p => ({
+          playerId: p.playerId,
+          playerName: p.playerName,
+          playerAvatar: p.playerAvatar,
+          itemId: data.itemId,
+          questionType: data.questionType,
+          answer: null,
+          answerDisplay: "Geen antwoord ingediend",
+          rawAnswer: null,
+          score: 0,
+          isCorrect: null,
+          answeredAt: now,
+          noAnswer: true,
+        })),
+      ];
+      
+      // Update current item answers
+      setCurrentItemAnswers(allPlayerAnswers);
+      
+      console.log("[Host] Updated currentItemAnswers with all players:", {
+        answeredCount: data.answers.length,
+        noAnswerCount: data.noAnswerPlayers?.length || 0,
+        totalCount: allPlayerAnswers.length,
+      });
+    };
+
     // Swan Chase handlers
     const handleSwanChaseStarted = (data: SwanChaseGameState) => {
       console.log("[Host] Swan Chase started:", data);
@@ -566,6 +632,7 @@ export default function HostControlPage() {
     socket.on(WSMessageType.REJOIN_TOKEN_GENERATED, handleRejoinTokenGenerated);
     socket.on(WSMessageType.LEADERBOARD_UPDATE, handleLeaderboardUpdate);
     socket.on("SCORE_ADJUSTED", handleScoreAdjusted);
+    socket.on(WSMessageType.REVEAL_ANSWERS, handleRevealAnswers);
     socket.on(WSMessageType.SWAN_CHASE_STARTED, handleSwanChaseStarted);
     socket.on(WSMessageType.SWAN_CHASE_STATE, handleSwanChaseState);
     socket.on(WSMessageType.SWAN_CHASE_ENDED, handleSwanChaseEnded);
@@ -592,6 +659,7 @@ export default function HostControlPage() {
       socket.off(WSMessageType.REJOIN_TOKEN_GENERATED, handleRejoinTokenGenerated);
       socket.off(WSMessageType.LEADERBOARD_UPDATE, handleLeaderboardUpdate);
       socket.off("SCORE_ADJUSTED", handleScoreAdjusted);
+      socket.off(WSMessageType.REVEAL_ANSWERS, handleRevealAnswers);
       socket.off(WSMessageType.SWAN_CHASE_STARTED, handleSwanChaseStarted);
       socket.off(WSMessageType.SWAN_CHASE_STATE, handleSwanChaseState);
       socket.off(WSMessageType.SWAN_CHASE_ENDED, handleSwanChaseEnded);
@@ -1280,9 +1348,13 @@ export default function HostControlPage() {
                         ))}
                     </div>
                   ) : currentItem.question.options && 
+                       currentItem.question.type !== "NUMERIC" &&
+                       currentItem.question.type !== "SLIDER" &&
+                       currentItem.question.type !== "PHOTO_NUMERIC" &&
+                       currentItem.question.type !== "PHOTO_SLIDER" &&
                        currentItem.question.type !== "ESTIMATION" &&
                        currentItem.question.type !== "OPEN_TEXT" &&
-                       currentItem.question.type !== "PHOTO_OPEN" &&
+                       currentItem.question.type !== "PHOTO_OPEN_TEXT" &&
                        currentItem.question.type !== "AUDIO_OPEN" &&
                        currentItem.question.type !== "VIDEO_OPEN" && (
                     /* MC/TRUE_FALSE/POLL: Show A, B, C, D grid */
@@ -1305,8 +1377,12 @@ export default function HostControlPage() {
                     </div>
                   )}
                   
-                  {/* ESTIMATION: Show correct number on host */}
-                  {currentItem.question.type === "ESTIMATION" && (
+                  {/* NUMERIC/SLIDER/ESTIMATION: Show correct number on host */}
+                  {(currentItem.question.type === "NUMERIC" ||
+                    currentItem.question.type === "SLIDER" ||
+                    currentItem.question.type === "PHOTO_NUMERIC" ||
+                    currentItem.question.type === "PHOTO_SLIDER" ||
+                    currentItem.question.type === "ESTIMATION") && (
                     <div className="bg-slate-700/50 border-2 border-slate-600 rounded-lg p-4">
                       <p className="text-sm text-slate-400 mb-2">Correct answer:</p>
                       <p className="text-2xl font-bold text-green-400">
@@ -1325,7 +1401,7 @@ export default function HostControlPage() {
                   
                   {/* OPEN_TEXT types: Show correct answer on host */}
                   {(currentItem.question.type === "OPEN_TEXT" ||
-                    currentItem.question.type === "PHOTO_OPEN" ||
+                    currentItem.question.type === "PHOTO_OPEN_TEXT" ||
                     currentItem.question.type === "AUDIO_OPEN" ||
                     currentItem.question.type === "VIDEO_OPEN") && 
                     currentItem.question.options?.[0] && (
@@ -1339,7 +1415,7 @@ export default function HostControlPage() {
 
                   {/* Host instructions for OPEN_TEXT scoring */}
                   {(currentItem.question.type === "OPEN_TEXT" ||
-                    currentItem.question.type === "PHOTO_OPEN" ||
+                    currentItem.question.type === "PHOTO_OPEN_TEXT" ||
                     currentItem.question.type === "AUDIO_OPEN" ||
                     currentItem.question.type === "VIDEO_OPEN") && (
                     <div className="bg-amber-900/30 border border-amber-600/50 rounded-lg p-4 mt-3">
@@ -1403,7 +1479,7 @@ export default function HostControlPage() {
                             text: opt.text,
                             isCorrect: opt.isCorrect,
                           }))}
-                          correctOrder={currentItem.question?.type === "ORDER" 
+                          correctOrder={currentItem.question?.type === "ORDER" || currentItem.question?.type === "MC_ORDER"
                             ? currentItem.question?.options
                               ?.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
                               .map((opt, idx) => ({
@@ -1751,8 +1827,6 @@ export default function HostControlPage() {
                                     case "ESTIMATION": return "🔢";
                                     case "ORDER": return "📊";
                                     case "POLL": return "📋";
-                                    case "PHOTO_QUESTION": return "🖼️";
-                                    case "PHOTO_OPEN": return "📸";
                                     case "AUDIO_QUESTION": return "�";
                                     case "AUDIO_OPEN": return "🎵";
                                     case "VIDEO_QUESTION": return "🎬";

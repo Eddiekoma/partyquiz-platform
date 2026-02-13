@@ -9,15 +9,31 @@ import { randomBytes } from "crypto";
 
 // File type validation
 const ALLOWED_TYPES = {
-  image: ["image/jpeg", "image/png", "image/gif", "image/webp"],
+  image: [
+    "image/jpeg", 
+    "image/jpg",
+    "image/png", 
+    "image/gif", 
+    "image/webp",
+    "image/avif",
+    "image/svg+xml",
+    "image/bmp",
+    "image/tiff"
+  ],
   audio: ["audio/mpeg", "audio/wav", "audio/mp3", "audio/x-m4a"],
   video: ["video/mp4", "video/webm", "video/quicktime"],
 } as const;
 
 const SIZE_LIMITS = {
-  image: 10 * 1024 * 1024, // 10MB
+  image: 15 * 1024 * 1024, // 15MB (increased for high-res photos)
   audio: 50 * 1024 * 1024, // 50MB
   video: 200 * 1024 * 1024, // 200MB
+} as const;
+
+// Minimum dimensions for image quality
+const MIN_IMAGE_DIMENSIONS = {
+  width: 400, // Min 400px wide for photo questions
+  height: 200, // Min 200px tall
 } as const;
 
 const uploadRequestSchema = z.object({
@@ -80,9 +96,25 @@ export async function POST(req: NextRequest) {
     const assetType = getAssetType(data.contentType);
     if (!assetType) {
       return NextResponse.json(
-        { error: "Unsupported file type" },
+        { error: "Unsupported file type. Supported: JPG, PNG, GIF, WebP, AVIF, SVG" },
         { status: 400 }
       );
+    }
+
+    // Validate image dimensions (for photo questions)
+    if (assetType === "IMAGE" && data.width && data.height) {
+      if (data.width < MIN_IMAGE_DIMENSIONS.width) {
+        return NextResponse.json(
+          { error: `Image too small. Minimum width: ${MIN_IMAGE_DIMENSIONS.width}px` },
+          { status: 400 }
+        );
+      }
+      if (data.height < MIN_IMAGE_DIMENSIONS.height) {
+        return NextResponse.json(
+          { error: `Image too small. Minimum height: ${MIN_IMAGE_DIMENSIONS.height}px` },
+          { status: 400 }
+        );
+      }
     }
 
     // Validate file size

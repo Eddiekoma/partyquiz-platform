@@ -44,6 +44,8 @@ export default function GamePage() {
   const [answerResult, setAnswerResult] = useState<{
     isCorrect: boolean;
     score: number;
+    scorePercentage?: number | null;
+    maxScore?: number | null;
   } | null>(null);
   const [currentScore, setCurrentScore] = useState(0);
   const [showSwanRace, setShowSwanRace] = useState(false);
@@ -219,7 +221,13 @@ export default function GamePage() {
       setAnswerResult({
         isCorrect: data.isCorrect,
         score: data.score,
+        scorePercentage: data.scorePercentage ?? null,
+        maxScore: data.maxScore ?? null,
       });
+      // Store score percentage for display
+      if (data.scorePercentage !== undefined) {
+        setScorePercentage(data.scorePercentage);
+      }
       // Add score if player earned points (including partial scores for ORDER, ESTIMATION etc.)
       if (data.score > 0 && !data.alreadyAnswered) {
         setCurrentScore((prev) => prev + data.score);
@@ -250,7 +258,7 @@ export default function GamePage() {
         // ORDER question: store correct order for display
         setCorrectOrder(data.correctOrder);
       } else if (data.correctNumber !== undefined && data.correctNumber !== null) {
-        // ESTIMATION/MUSIC_GUESS_YEAR: store correct number and margin
+        // NUMERIC/SLIDER/ESTIMATION/MUSIC_GUESS_YEAR: store correct number and margin
         setCorrectNumber(data.correctNumber);
         setEstimationMargin(data.estimationMargin || null);
       } else if (data.correctOptionIds && data.correctOptionIds.length > 0) {
@@ -708,28 +716,33 @@ export default function GamePage() {
 
         {answerResult && !waitingForNext && (
           <div className="mt-8 text-center">
+            {/* Icon based on score percentage */}
             <div className="text-7xl mb-4 animate-bounce">
-              {answerResult.isCorrect ? "✅" : answerResult.score > 0 ? "⭐" : "❌"}
+              {answerResult.scorePercentage === 100 
+                ? "✅" 
+                : answerResult.scorePercentage !== undefined && answerResult.scorePercentage !== null && answerResult.scorePercentage >= 90
+                  ? "🌟"
+                  : answerResult.score > 0 
+                    ? "⭐" 
+                    : "❌"}
             </div>
             <p className="text-3xl font-black text-white mb-2">
-              {/* Smart feedback based on score and percentage */}
-              {answerResult.isCorrect 
-                ? "Correct!" 
-                : answerResult.score > 0 
-                  ? scorePercentage !== null
-                    ? scorePercentage >= 90 
-                      ? "Almost perfect!" 
-                      : scorePercentage >= 70 
-                        ? "Well done!" 
-                        : scorePercentage >= 50 
-                          ? "Not bad!" 
-                          : "Points!"
-                    : "Partially correct!"
-                  : "Too bad!"}
+              {/* Graduated feedback based on percentage */}
+              {answerResult.scorePercentage === 100 
+                ? "Perfect!" 
+                : answerResult.scorePercentage !== undefined && answerResult.scorePercentage !== null && answerResult.scorePercentage >= 90
+                  ? "Almost perfect!"
+                  : answerResult.scorePercentage !== undefined && answerResult.scorePercentage !== null && answerResult.scorePercentage >= 70
+                    ? "Close enough!"
+                    : answerResult.scorePercentage !== undefined && answerResult.scorePercentage !== null && answerResult.scorePercentage >= 50
+                      ? "Partially correct!"
+                      : answerResult.score > 0
+                        ? "Points earned!"
+                        : "Too bad!"}
             </p>
-            {/* Show percentage for partial scores */}
-            {answerResult.score > 0 && scorePercentage !== null && scorePercentage < 100 && (
-              <p className="text-lg text-white/70 mb-1">{scorePercentage}% correct</p>
+            {/* Show percentage for non-perfect scores */}
+            {answerResult.score > 0 && answerResult.scorePercentage !== undefined && answerResult.scorePercentage !== null && answerResult.scorePercentage < 100 && (
+              <p className="text-lg text-white/70 mb-1">{answerResult.scorePercentage}% correct</p>
             )}
             {answerResult.score > 0 && (
               <p className="text-2xl font-bold text-yellow-300">
@@ -829,7 +842,7 @@ export default function GamePage() {
               </div>
             )}
             
-            {/* ESTIMATION/NUMBER Reveal - show correct number, player's answer, and difference */}
+            {/* NUMERIC/SLIDER/ESTIMATION Reveal - show correct number, player's answer, and difference */}
             {correctNumber !== null && (
               <div className="space-y-4">
                 {/* Player's submitted answer with comparison */}
@@ -872,35 +885,55 @@ export default function GamePage() {
             )}
             
             {/* MC/TRUE_FALSE Reveal - show options with correct one highlighted */}
-            {!correctOrder && !correctText && currentItem?.options && currentItem.options.length > 0 && (
+            {!correctOrder && !correctText && correctNumber === null && currentItem?.options && currentItem.options.length > 0 && (
               <div className="grid grid-cols-2 gap-3">
                 {currentItem.options.map((option, idx) => {
-                  // Same colors as Display/Host
-                  const colors = [
-                    "bg-red-600",
-                    "bg-blue-600", 
-                    "bg-yellow-600",
-                    "bg-green-600",
-                  ];
-                  const baseColor = colors[idx % 4];
+                  // Check if player selected this option
+                  // For MC_MULTIPLE: myAnswer is array of IDs
+                  // For MC_SINGLE/TRUE_FALSE: myAnswer is single ID
+                  const playerSelected = Array.isArray(myAnswer) 
+                    ? myAnswer.includes(option.id)
+                    : myAnswer === option.id;
+                  
+                  // Determine styling based on correct/selected state
+                  let styling = "";
+                  let icon = "";
+                  
+                  if (option.isCorrect && playerSelected) {
+                    // Correct answer AND player selected it = GREEN with thick ring and scale
+                    styling = "bg-green-500 text-white ring-4 ring-green-300 scale-105 shadow-lg shadow-green-500/50";
+                    icon = "✓";
+                  } else if (option.isCorrect && !playerSelected) {
+                    // Correct answer but player DIDN'T select it = GREEN dimmed
+                    styling = "bg-green-500 text-white opacity-60";
+                    icon = "✓";
+                  } else if (!option.isCorrect && playerSelected) {
+                    // Wrong answer AND player selected it = RED with ring and scale
+                    styling = "bg-red-600 text-white ring-4 ring-red-300 scale-105";
+                    icon = "✗";
+                  } else {
+                    // Wrong answer and NOT selected = RED dimmed
+                    styling = "bg-red-600 text-white opacity-40";
+                    icon = "✗";
+                  }
                   
                   return (
                     <div
                       key={option.id}
-                      className={`p-4 rounded-xl text-base font-bold transition-all ${
-                        option.isCorrect
-                          ? "bg-green-500 text-white ring-4 ring-green-300 scale-105 shadow-lg shadow-green-500/50"
-                          : myAnswer === option.id && !option.isCorrect
-                            ? "bg-red-900/80 text-white/60 ring-2 ring-red-500"
-                            : `${baseColor} opacity-40 text-white/50`
-                      }`}
+                      className={`p-4 rounded-xl text-base font-bold transition-all ${styling}`}
                     >
-                      <span className="opacity-70 mr-2 text-sm">
-                        {String.fromCharCode(65 + idx)}
-                      </span>
-                      {option.isCorrect && <span className="mr-1">✅</span>}
-                      {myAnswer === option.id && !option.isCorrect && <span className="mr-1">❌</span>}
-                      {option.text}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="opacity-70 text-sm">
+                            {String.fromCharCode(65 + idx)}
+                          </span>
+                          {icon && <span>{icon}</span>}
+                          <span>{option.text}</span>
+                        </div>
+                        {playerSelected && (
+                          <span className="text-xs bg-white/20 px-2 py-1 rounded font-semibold">YOU</span>
+                        )}
+                      </div>
                     </div>
                   );
                 })}

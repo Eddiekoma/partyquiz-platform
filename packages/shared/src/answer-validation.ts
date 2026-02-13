@@ -1,4 +1,4 @@
-import { QuestionType } from "./types";
+import { QuestionType, getBaseQuestionType } from "./types";
 
 /**
  * Answer validation and scoring utilities
@@ -19,16 +19,16 @@ import { QuestionType } from "./types";
 
 /**
  * Answer format enum - describes what format the player answer should be in
- * Maps to the 19 official question types from the editor
+ * Maps to base question types (PHOTO_MC_SINGLE → MC_SINGLE, etc.)
  */
 export enum AnswerFormat {
-  OPTION_ID = "OPTION_ID",           // MC_SINGLE, PHOTO_QUESTION, AUDIO_QUESTION, VIDEO_QUESTION, YOUTUBE_WHO_SAID_IT
-  OPTION_IDS = "OPTION_IDS",         // MC_MULTIPLE - player sends array of option IDs
-  BOOLEAN = "BOOLEAN",               // TRUE_FALSE - player sends true/false
-  TEXT = "TEXT",                     // OPEN_TEXT, *_OPEN, MUSIC_GUESS_*, YOUTUBE_NEXT_LINE, YOUTUBE_SCENE_QUESTION
-  NUMBER = "NUMBER",                 // ESTIMATION, MUSIC_GUESS_YEAR
-  ORDER_ARRAY = "ORDER_ARRAY",       // ORDER - player sends ordered array of IDs
-  NO_ANSWER = "NO_ANSWER",           // POLL - no correct answer, just opinion
+  OPTION_ID = "OPTION_ID",           // MC_SINGLE, PHOTO_MC_SINGLE, AUDIO_QUESTION, VIDEO_QUESTION, YOUTUBE_WHO_SAID_IT
+  OPTION_IDS = "OPTION_IDS",         // MC_MULTIPLE, PHOTO_MC_MULTIPLE - player sends array of option IDs
+  BOOLEAN = "BOOLEAN",               // TRUE_FALSE, PHOTO_TRUE_FALSE - player sends true/false
+  TEXT = "TEXT",                     // OPEN_TEXT, PHOTO_OPEN_TEXT, *_OPEN, MUSIC_GUESS_*, YOUTUBE_NEXT_LINE, YOUTUBE_SCENE_QUESTION
+  NUMBER = "NUMBER",                 // NUMERIC, PHOTO_NUMERIC, SLIDER, PHOTO_SLIDER, MUSIC_GUESS_YEAR
+  ORDER_ARRAY = "ORDER_ARRAY",       // MC_ORDER, PHOTO_MC_ORDER - player sends ordered array of IDs
+  NO_ANSWER = "NO_ANSWER",           // No answer needed
 }
 
 /**
@@ -213,52 +213,54 @@ export function getScoringInfo(questionType: string): ScoringInfo {
  * Uses the 19 official question types from the editor
  */
 export function getQuestionScoringMode(questionType: string): ScoringMode {
-  // Normalize the type string
-  const type = questionType.toUpperCase();
+  // Get base type (strips PHOTO_, AUDIO_, VIDEO_ prefixes)
+  const baseType = getBaseQuestionType(questionType as QuestionType).toString().toUpperCase();
   
   // Exact match types (100% or 0%) - single correct answer
   const exactMatchTypes = [
     "MC_SINGLE", 
-    "TRUE_FALSE", 
-    "PHOTO_QUESTION", 
-    "AUDIO_QUESTION", 
-    "VIDEO_QUESTION",
-    "YOUTUBE_WHO_SAID_IT",
+    "TRUE_FALSE",
   ];
   
   // Partial multi types (multiple correct answers)
   const partialMultiTypes = ["MC_MULTIPLE"];
   
   // Partial order types (ordering) - points per correct position
-  const partialOrderTypes = ["ORDER"];
+  const partialOrderTypes = ["MC_ORDER", "ORDER", "PHOTO_MC_ORDER"];
   
   // Fuzzy text types (text similarity matching)
   const fuzzyTextTypes = [
-    "OPEN_TEXT", 
-    "PHOTO_OPEN",
-    "AUDIO_OPEN", 
-    "VIDEO_OPEN",
-    "MUSIC_GUESS_TITLE", 
-    "MUSIC_GUESS_ARTIST",
-    "YOUTUBE_NEXT_LINE", 
-    "YOUTUBE_SCENE_QUESTION",
+    "OPEN_TEXT",
   ];
   
   // Numeric distance types (closer = more points)
   const numericDistanceTypes = [
-    "ESTIMATION", 
-    "MUSIC_GUESS_YEAR",
+    "NUMERIC",
+    "SLIDER",
+    "ESTIMATION",  // Legacy
   ];
   
-  // No score types (just opinions, no right/wrong)
-  const noScoreTypes = ["POLL"];
+  // Handle legacy/special types that don't follow base pattern
+  const type = questionType.toUpperCase();
   
-  if (exactMatchTypes.includes(type)) return ScoringMode.EXACT_MATCH;
-  if (partialMultiTypes.includes(type)) return ScoringMode.PARTIAL_MULTI;
-  if (partialOrderTypes.includes(type)) return ScoringMode.PARTIAL_ORDER;
-  if (fuzzyTextTypes.includes(type)) return ScoringMode.FUZZY_TEXT;
-  if (numericDistanceTypes.includes(type)) return ScoringMode.NUMERIC_DISTANCE;
-  if (noScoreTypes.includes(type)) return ScoringMode.NO_SCORE;
+  // Legacy audio/video types
+  if (type === "AUDIO_QUESTION" || type === "VIDEO_QUESTION") return ScoringMode.EXACT_MATCH;
+  if (type === "AUDIO_OPEN" || type === "VIDEO_OPEN") return ScoringMode.FUZZY_TEXT;
+  
+  // Spotify types
+  if (type === "MUSIC_GUESS_TITLE" || type === "MUSIC_GUESS_ARTIST") return ScoringMode.FUZZY_TEXT;
+  if (type === "MUSIC_GUESS_YEAR") return ScoringMode.NUMERIC_DISTANCE;
+  
+  // YouTube types
+  if (type === "YOUTUBE_WHO_SAID_IT") return ScoringMode.EXACT_MATCH;
+  if (type === "YOUTUBE_NEXT_LINE" || type === "YOUTUBE_SCENE_QUESTION") return ScoringMode.FUZZY_TEXT;
+  
+  // Check base type arrays
+  if (exactMatchTypes.includes(baseType)) return ScoringMode.EXACT_MATCH;
+  if (partialMultiTypes.includes(baseType)) return ScoringMode.PARTIAL_MULTI;
+  if (partialOrderTypes.includes(baseType)) return ScoringMode.PARTIAL_ORDER;
+  if (fuzzyTextTypes.includes(baseType)) return ScoringMode.FUZZY_TEXT;
+  if (numericDistanceTypes.includes(baseType)) return ScoringMode.NUMERIC_DISTANCE;
   
   // Default to exact match for unknown types
   return ScoringMode.EXACT_MATCH;
@@ -270,51 +272,47 @@ export function getQuestionScoringMode(questionType: string): ScoringMode {
 
 /**
  * Get the expected answer format for a question type
- * Uses the 19 official question types from the editor
+ * Uses base types with PHOTO_/AUDIO_/VIDEO_ prefix stripping
  */
 export function getAnswerFormat(questionType: string): AnswerFormat {
+  // Get base type (strips PHOTO_, AUDIO_, VIDEO_ prefixes)
+  const baseType = getBaseQuestionType(questionType as QuestionType).toString().toUpperCase();
   const type = questionType.toUpperCase();
   
   // Boolean types (true/false)
-  if (type === "TRUE_FALSE") {
+  if (baseType === "TRUE_FALSE") {
     return AnswerFormat.BOOLEAN;
   }
   
   // Multiple option IDs
-  if (type === "MC_MULTIPLE") {
+  if (baseType === "MC_MULTIPLE") {
     return AnswerFormat.OPTION_IDS;
   }
   
-  // Ordering (array of IDs in order)
-  if (type === "ORDER") {
+  // Ordering (array of IDs in order) - includes legacy ORDER
+  if (baseType === "MC_ORDER" || type === "ORDER") {
     return AnswerFormat.ORDER_ARRAY;
   }
   
-  // Numeric types
-  if (["ESTIMATION", "MUSIC_GUESS_YEAR"].includes(type)) {
+  // Numeric types - includes legacy ESTIMATION
+  if (["NUMERIC", "SLIDER", "ESTIMATION"].includes(baseType) || type === "MUSIC_GUESS_YEAR") {
     return AnswerFormat.NUMBER;
   }
   
-  // Text types (fuzzy matching)
-  if ([
-    "OPEN_TEXT",
-    "PHOTO_OPEN",
-    "AUDIO_OPEN", 
-    "VIDEO_OPEN",
-    "MUSIC_GUESS_TITLE", 
-    "MUSIC_GUESS_ARTIST",
-    "YOUTUBE_NEXT_LINE", 
-    "YOUTUBE_SCENE_QUESTION",
-  ].includes(type)) {
+  // Text types (fuzzy matching) - includes base OPEN_TEXT + legacy types
+  if (
+    baseType === "OPEN_TEXT" ||
+    type === "AUDIO_OPEN" ||
+    type === "VIDEO_OPEN" ||
+    type === "MUSIC_GUESS_TITLE" ||
+    type === "MUSIC_GUESS_ARTIST" ||
+    type === "YOUTUBE_NEXT_LINE" ||
+    type === "YOUTUBE_SCENE_QUESTION"
+  ) {
     return AnswerFormat.TEXT;
   }
   
-  // No answer types (polls - just opinions)
-  if (type === "POLL") {
-    return AnswerFormat.NO_ANSWER;
-  }
-  
-  // Default: option ID (MC_SINGLE, PHOTO_QUESTION, AUDIO_QUESTION, VIDEO_QUESTION, YOUTUBE_WHO_SAID_IT)
+  // Default: option ID (MC_SINGLE, PHOTO_MC_SINGLE, AUDIO_QUESTION, VIDEO_QUESTION, YOUTUBE_WHO_SAID_IT)
   return AnswerFormat.OPTION_ID;
 }
 
@@ -771,7 +769,9 @@ export function validateAndScorePercentage(
     
     case ScoringMode.PARTIAL_ORDER: {
       const scorePercentage = calculateOrderScorePercentage(playerAnswer, correctAnswer);
-      return { isCorrect: scorePercentage === 100, scorePercentage };
+      // For ordering: consider partially correct if at least 50% items are in correct position
+      // This shows green checkmark for partial credit instead of red X
+      return { isCorrect: scorePercentage >= 50, scorePercentage };
     }
     
     case ScoringMode.FUZZY_TEXT: {

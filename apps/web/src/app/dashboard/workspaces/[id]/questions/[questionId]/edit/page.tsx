@@ -16,13 +16,18 @@ type QuestionType =
   | "OPEN_TEXT"
   | "ESTIMATION"
   | "ORDER"
-  | "PHOTO_QUESTION"
+  | "PHOTO_MC_SINGLE"
+  | "PHOTO_MC_MULTIPLE"
+  | "PHOTO_MC_ORDER"
+  | "PHOTO_OPEN_TEXT"
+  | "PHOTO_NUMERIC"
+  | "PHOTO_SLIDER"
+  | "PHOTO_TRUE_FALSE"
   | "AUDIO_QUESTION"
   | "VIDEO_QUESTION"
   | "MUSIC_INTRO"
   | "MUSIC_SNIPPET"
   | "POLL"
-  | "PHOTO_OPEN"
   | "AUDIO_OPEN"
   | "VIDEO_OPEN"
   | "YOUTUBE_SCENE_QUESTION"
@@ -159,7 +164,7 @@ export default function EditQuestionPage() {
       // Load OPEN_TEXT answer from options
       if (
         (question.type === "OPEN_TEXT" ||
-          question.type === "PHOTO_OPEN" ||
+          question.type === "PHOTO_OPEN_TEXT" ||
           question.type === "AUDIO_OPEN" ||
           question.type === "VIDEO_OPEN") &&
         question.options &&
@@ -369,7 +374,7 @@ export default function EditQuestionPage() {
     // Validate correct answer for open text types
     if (
       (selectedType === "OPEN_TEXT" ||
-        selectedType === "PHOTO_OPEN" ||
+        selectedType === "PHOTO_OPEN_TEXT" ||
         selectedType === "AUDIO_OPEN" ||
         selectedType === "VIDEO_OPEN") &&
       !openTextAnswer.trim()
@@ -416,7 +421,7 @@ export default function EditQuestionPage() {
           ];
           break;
         case "OPEN_TEXT":
-        case "PHOTO_OPEN":
+        case "PHOTO_OPEN_TEXT":
         case "AUDIO_OPEN":
         case "VIDEO_OPEN":
           // Store correct answer in options with isCorrect: true
@@ -498,7 +503,13 @@ export default function EditQuestionPage() {
     OPEN_TEXT: "Open Text",
     ESTIMATION: "Estimation",
     ORDER: "Order",
-    PHOTO_QUESTION: "Photo Question",
+    PHOTO_MC_SINGLE: "Photo MC (Single)",
+    PHOTO_MC_MULTIPLE: "Photo MC (Multiple)",
+    PHOTO_MC_ORDER: "Photo Order",
+    PHOTO_OPEN_TEXT: "Photo Open Text",
+    PHOTO_NUMERIC: "Photo Numeric",
+    PHOTO_SLIDER: "Photo Slider",
+    PHOTO_TRUE_FALSE: "Photo True/False",
     AUDIO_QUESTION: "Audio Question",
     VIDEO_QUESTION: "Video Question",
     MUSIC_INTRO: "Music Intro",
@@ -507,7 +518,6 @@ export default function EditQuestionPage() {
     YOUTUBE_NEXT_LINE: "YouTube Next Line",
     YOUTUBE_WHO_SAID_IT: "YouTube Who Said It",
     POLL: "Poll",
-    PHOTO_OPEN: "Photo Open",
     AUDIO_OPEN: "Audio Open",
     VIDEO_OPEN: "Video Open",
   };
@@ -785,7 +795,7 @@ export default function EditQuestionPage() {
 
         {/* OPEN_TEXT and *_OPEN types */}
         {(selectedType === "OPEN_TEXT" ||
-          selectedType === "PHOTO_OPEN" ||
+          selectedType === "PHOTO_OPEN_TEXT" ||
           selectedType === "AUDIO_OPEN" ||
           selectedType === "VIDEO_OPEN") && (
           <Card className="p-6">
@@ -851,10 +861,10 @@ export default function EditQuestionPage() {
         )}
 
         {/* Media Upload for PHOTO/AUDIO/VIDEO types */}
-        {(selectedType === "PHOTO_QUESTION" ||
+        {(selectedType === "PHOTO_MC_SINGLE" ||
           selectedType === "AUDIO_QUESTION" ||
           selectedType === "VIDEO_QUESTION" ||
-          selectedType === "PHOTO_OPEN" ||
+          selectedType === "PHOTO_OPEN_TEXT" ||
           selectedType === "AUDIO_OPEN" ||
           selectedType === "VIDEO_OPEN") && (
           <Card className="p-6">

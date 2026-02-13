@@ -14,8 +14,6 @@ type QuestionTypeValue =
   | "ESTIMATION"
   | "ORDER"
   | "POLL"
-  | "PHOTO_QUESTION"
-  | "PHOTO_OPEN"
   | "AUDIO_QUESTION"
   | "AUDIO_OPEN"
   | "VIDEO_QUESTION"
@@ -72,8 +70,6 @@ const QUESTION_TYPE_LABELS: Record<QuestionTypeValue, string> = {
   ESTIMATION: "Estimation",
   ORDER: "Order",
   POLL: "Poll",
-  PHOTO_QUESTION: "Photo Question",
-  PHOTO_OPEN: "Photo Open",
   AUDIO_QUESTION: "Audio Question",
   AUDIO_OPEN: "Audio Open",
   VIDEO_QUESTION: "Video Question",
@@ -94,8 +90,6 @@ const QUESTION_TYPE_ICONS: Record<QuestionTypeValue, string> = {
   ESTIMATION: "🎯",
   ORDER: "�",
   POLL: "📋",
-  PHOTO_QUESTION: "�",
-  PHOTO_OPEN: "📷",
   AUDIO_QUESTION: "🔊",
   AUDIO_OPEN: "🔊",
   VIDEO_QUESTION: "🎬",

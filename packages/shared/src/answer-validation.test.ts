@@ -487,7 +487,7 @@ describe("Answer Validation", () => {
       ];
 
       // Player describes what they see in the photo
-      const result = validateAnswerComplete("PHOTO_OPEN", "a cat", options);
+      const result = validateAnswerComplete("PHOTO_OPEN_TEXT", "a cat", options);
       expect(result.isCorrect).toBe(true);
       expect(result.answerFormat).toBe("TEXT");
     });

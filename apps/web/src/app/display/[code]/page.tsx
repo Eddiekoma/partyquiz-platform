@@ -7,6 +7,7 @@ import { WSMessageType } from "@partyquiz/shared";
 import { SwanRace } from "@/components/SwanRace";
 import { SwanChaseDisplay } from "@/components/SwanChaseDisplay";
 import { QuestionTypeBadge } from "@/components/QuestionTypeBadge";
+import { PhotoGrid } from "@/components/PhotoGrid";
 import QRCode from "react-qr-code";
 
 interface Player {
@@ -16,12 +17,22 @@ interface Player {
   score: number;
 }
 
+interface QuestionMedia {
+  id: string;
+  url: string;
+  type: string;
+  width?: number | null;
+  height?: number | null;
+  displayOrder: number;
+}
+
 interface CurrentQuestion {
   id: string;
   prompt: string;
   type: string;
   options?: { id: string; text: string; isCorrect: boolean; order?: number }[];
   mediaUrl?: string;
+  media?: QuestionMedia[];
 }
 
 interface SessionData {
@@ -617,6 +628,13 @@ export default function DisplayPage() {
               </h2>
             </div>
 
+            {/* Photo Grid for PHOTO_ question types */}
+            {currentQuestion.type.startsWith('PHOTO_') && currentQuestion.media && currentQuestion.media.length > 0 && (
+              <div className="mb-8">
+                <PhotoGrid photos={currentQuestion.media} />
+              </div>
+            )}
+
             {/* Options - different display per question type */}
             
             {/* ORDER Question - show items that need to be ordered (without numbers/correct order) */}
@@ -657,8 +675,10 @@ export default function DisplayPage() {
               </div>
             )}
             
-            {/* ESTIMATION Question - show input hint (NOT the answer!) */}
-            {currentQuestion.type === "ESTIMATION" && displayState !== "reveal" && (
+            {/* Numeric Question - show input hint (NOT the answer!) */}
+            {(currentQuestion.type === "NUMERIC" || currentQuestion.type === "SLIDER" || 
+              currentQuestion.type === "PHOTO_NUMERIC" || currentQuestion.type === "PHOTO_SLIDER" ||
+              currentQuestion.type === "ESTIMATION") && displayState !== "reveal" && (
               <div className="text-center py-8">
                 <div className="text-6xl mb-6">🔢</div>
                 <p className="text-2xl font-bold text-white mb-4">Enter your estimate!</p>
@@ -666,9 +686,9 @@ export default function DisplayPage() {
               </div>
             )}
             
-            {/* OPEN_TEXT Question - show input hint */}
+            {/* Text Input Questions - show input hint */}
             {(currentQuestion.type === "OPEN_TEXT" || 
-              currentQuestion.type === "PHOTO_OPEN" ||
+              currentQuestion.type === "PHOTO_OPEN_TEXT" ||
               currentQuestion.type === "AUDIO_OPEN" ||
               currentQuestion.type === "VIDEO_OPEN") && displayState !== "reveal" && (
               <div className="text-center py-8">
@@ -685,8 +705,11 @@ export default function DisplayPage() {
               </div>
             )}
             
-            {/* ESTIMATION Reveal - show correct number and margin */}
-            {displayState === "reveal" && correctNumber !== null && currentQuestion.type === "ESTIMATION" && (
+            {/* Numeric Reveal - show correct number and margin */}
+            {displayState === "reveal" && correctNumber !== null && 
+             (currentQuestion.type === "NUMERIC" || currentQuestion.type === "SLIDER" || 
+              currentQuestion.type === "PHOTO_NUMERIC" || currentQuestion.type === "PHOTO_SLIDER" ||
+              currentQuestion.type === "ESTIMATION") && (
               <div className="text-center py-8">
                 <div className="p-8 rounded-2xl bg-green-500/80 text-white">
                   <p className="text-2xl font-bold mb-2">Correct answer:</p>
@@ -701,12 +724,18 @@ export default function DisplayPage() {
             )}
             
             {/* MC/TRUE_FALSE Options - show grid with correct highlighted on reveal */}
-            {/* Exclude ORDER, ESTIMATION, OPEN_TEXT types since they have their own display */}
+            {/* Exclude ORDER, NUMERIC/SLIDER, OPEN_TEXT types since they have their own display */}
             {currentQuestion.options && 
              currentQuestion.type !== "ORDER" && 
+             currentQuestion.type !== "MC_ORDER" &&
+             currentQuestion.type !== "PHOTO_MC_ORDER" &&
+             currentQuestion.type !== "NUMERIC" &&
+             currentQuestion.type !== "SLIDER" &&
+             currentQuestion.type !== "PHOTO_NUMERIC" &&
+             currentQuestion.type !== "PHOTO_SLIDER" &&
              currentQuestion.type !== "ESTIMATION" &&
              currentQuestion.type !== "OPEN_TEXT" &&
-             currentQuestion.type !== "PHOTO_OPEN" &&
+             currentQuestion.type !== "PHOTO_OPEN_TEXT" &&
              currentQuestion.type !== "AUDIO_OPEN" &&
              currentQuestion.type !== "VIDEO_OPEN" &&
              !correctOrder && !correctText && (

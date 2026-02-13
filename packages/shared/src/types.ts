@@ -10,21 +10,26 @@ export enum WorkspaceRole {
 /**
  * Question Types - The definitive list of all question types
  * 
- * These are the 19 types supported by the question editor.
+ * These are the 24 types supported by the question editor.
  * Organized by category for clarity.
  * 
  * TEXT QUESTIONS (7):
  * - MC_SINGLE: Multiple choice with one correct answer
  * - MC_MULTIPLE: Multiple choice with multiple correct answers
- * - TRUE_FALSE: True or false question
+ * - MC_ORDER: Put items in correct order
  * - OPEN_TEXT: Free text answer (fuzzy matching)
- * - ESTIMATION: Guess a number (distance-based scoring)
- * - ORDER: Put items in correct order
- * - POLL: No correct answer, just opinions
+ * - NUMERIC: Numeric answer (distance-based scoring)
+ * - SLIDER: Slider answer (distance-based scoring)
+ * - TRUE_FALSE: True or false question
  * 
- * PHOTO QUESTIONS (2):
- * - PHOTO_QUESTION: MCQ with photo
- * - PHOTO_OPEN: Open text with photo
+ * PHOTO QUESTIONS (7):
+ * - PHOTO_MC_SINGLE: Multiple choice with photo(s)
+ * - PHOTO_MC_MULTIPLE: Multiple choice with photo(s)
+ * - PHOTO_MC_ORDER: Order items with photo(s)
+ * - PHOTO_OPEN_TEXT: Open text with photo(s)
+ * - PHOTO_NUMERIC: Numeric answer with photo(s)
+ * - PHOTO_SLIDER: Slider answer with photo(s)
+ * - PHOTO_TRUE_FALSE: True/false with photo(s)
  * 
  * AUDIO QUESTIONS (2):
  * - AUDIO_QUESTION: MCQ with audio
@@ -48,15 +53,20 @@ export enum QuestionType {
   // === TEXT QUESTIONS (7) ===
   MC_SINGLE = "MC_SINGLE",
   MC_MULTIPLE = "MC_MULTIPLE",
-  TRUE_FALSE = "TRUE_FALSE",
+  MC_ORDER = "MC_ORDER",
   OPEN_TEXT = "OPEN_TEXT",
-  ESTIMATION = "ESTIMATION",
-  ORDER = "ORDER",
-  POLL = "POLL",
+  NUMERIC = "NUMERIC",
+  SLIDER = "SLIDER",
+  TRUE_FALSE = "TRUE_FALSE",
 
-  // === PHOTO QUESTIONS (2) ===
-  PHOTO_QUESTION = "PHOTO_QUESTION",
-  PHOTO_OPEN = "PHOTO_OPEN",
+  // === PHOTO QUESTIONS (7) ===
+  PHOTO_MC_SINGLE = "PHOTO_MC_SINGLE",
+  PHOTO_MC_MULTIPLE = "PHOTO_MC_MULTIPLE",
+  PHOTO_MC_ORDER = "PHOTO_MC_ORDER",
+  PHOTO_OPEN_TEXT = "PHOTO_OPEN_TEXT",
+  PHOTO_NUMERIC = "PHOTO_NUMERIC",
+  PHOTO_SLIDER = "PHOTO_SLIDER",
+  PHOTO_TRUE_FALSE = "PHOTO_TRUE_FALSE",
 
   // === AUDIO QUESTIONS (2) ===
   AUDIO_QUESTION = "AUDIO_QUESTION",
@@ -75,25 +85,39 @@ export enum QuestionType {
   YOUTUBE_SCENE_QUESTION = "YOUTUBE_SCENE_QUESTION",
   YOUTUBE_NEXT_LINE = "YOUTUBE_NEXT_LINE",
   YOUTUBE_WHO_SAID_IT = "YOUTUBE_WHO_SAID_IT",
+
+  // === LEGACY TYPES (BACKWARDS COMPATIBILITY) ===
+  // Support old database entries that haven't been migrated yet
+  ORDER = "ORDER",               // Legacy: Use MC_ORDER instead
+  ESTIMATION = "ESTIMATION",     // Legacy: Use NUMERIC instead
+  POLL = "POLL",                 // Legacy: Use MC_SINGLE
+  PHOTO_QUESTION = "PHOTO_QUESTION",       // Legacy: Use PHOTO_MC_SINGLE
+  PHOTO_OPEN = "PHOTO_OPEN",               // Legacy: Use PHOTO_OPEN_TEXT
 }
 
 /**
  * Default timer durations per question type (in seconds)
  * These are tuned for optimal gameplay based on question complexity
+ * Photo questions get +5 seconds bonus for viewing images
  */
 export const DEFAULT_TIMER_BY_QUESTION_TYPE: Record<QuestionType, number> = {
   // Text questions
   [QuestionType.MC_SINGLE]: 15,              // Read + think about 4 options
   [QuestionType.MC_MULTIPLE]: 20,            // More options to consider
-  [QuestionType.TRUE_FALSE]: 10,             // Simple yes/no decision
+  [QuestionType.MC_ORDER]: 45,               // Multiple items to arrange
   [QuestionType.OPEN_TEXT]: 30,              // Typing takes time
-  [QuestionType.ESTIMATION]: 20,             // Think about the number
-  [QuestionType.ORDER]: 45,                  // Multiple items to arrange
-  [QuestionType.POLL]: 15,                   // No right/wrong, just choose
+  [QuestionType.NUMERIC]: 20,                // Think about the number
+  [QuestionType.SLIDER]: 15,                 // Quick slider adjustment
+  [QuestionType.TRUE_FALSE]: 10,             // Simple yes/no decision
 
-  // Photo questions
-  [QuestionType.PHOTO_QUESTION]: 20,         // Look at photo + think
-  [QuestionType.PHOTO_OPEN]: 30,             // Look at photo + type
+  // Photo questions (+5 seconds for viewing photos)
+  [QuestionType.PHOTO_MC_SINGLE]: 20,        // View photo(s) + think
+  [QuestionType.PHOTO_MC_MULTIPLE]: 25,      // View photo(s) + multiple options
+  [QuestionType.PHOTO_MC_ORDER]: 50,         // View photo(s) + arrange
+  [QuestionType.PHOTO_OPEN_TEXT]: 35,        // View photo(s) + type
+  [QuestionType.PHOTO_NUMERIC]: 25,          // View photo(s) + count/estimate
+  [QuestionType.PHOTO_SLIDER]: 20,           // View photo(s) + slider
+  [QuestionType.PHOTO_TRUE_FALSE]: 15,       // View photo(s) + yes/no
 
   // Audio questions
   [QuestionType.AUDIO_QUESTION]: 25,         // Listen + choose
@@ -112,6 +136,13 @@ export const DEFAULT_TIMER_BY_QUESTION_TYPE: Record<QuestionType, number> = {
   [QuestionType.YOUTUBE_SCENE_QUESTION]: 25, // Watch video + answer
   [QuestionType.YOUTUBE_NEXT_LINE]: 20,      // Quote recognition
   [QuestionType.YOUTUBE_WHO_SAID_IT]: 20,    // Voice recognition
+
+  // Legacy types (backwards compatibility)
+  [QuestionType.ORDER]: 45,                  // Same as MC_ORDER
+  [QuestionType.ESTIMATION]: 20,             // Same as NUMERIC
+  [QuestionType.POLL]: 15,                   // Same as MC_SINGLE
+  [QuestionType.PHOTO_QUESTION]: 20,         // Same as PHOTO_MC_SINGLE
+  [QuestionType.PHOTO_OPEN]: 35,             // Same as PHOTO_OPEN_TEXT
 };
 
 /**
@@ -123,16 +154,109 @@ export function getDefaultTimerForQuestionType(questionType: string): number {
   return DEFAULT_TIMER_BY_QUESTION_TYPE[questionType as QuestionType] ?? 15;
 }
 
-export enum MediaProvider {
-  UPLOAD = "UPLOAD",
-  SPOTIFY = "SPOTIFY",
-  YOUTUBE = "YOUTUBE",
-}
-
 export enum MediaType {
   IMAGE = "IMAGE",
   AUDIO = "AUDIO",
   VIDEO = "VIDEO",
+}
+
+/**
+ * Get the base question type by stripping media prefixes
+ * This allows reusing logic across text and media variants
+ * 
+ * @example
+ * getBaseQuestionType('PHOTO_MC_SINGLE') // returns 'MC_SINGLE'
+ * getBaseQuestionType('AUDIO_QUESTION') // returns 'MC_SINGLE'
+ * getBaseQuestionType('MC_SINGLE') // returns 'MC_SINGLE'
+ */
+export function getBaseQuestionType(type: QuestionType): QuestionType {
+  const typeStr = type.toString();
+  
+  // === LEGACY TYPE MAPPINGS (backwards compatibility) ===
+  // Map old types to new equivalents
+  if (typeStr === 'ORDER') return QuestionType.MC_ORDER;
+  if (typeStr === 'ESTIMATION') return QuestionType.NUMERIC;
+  if (typeStr === 'POLL') return QuestionType.MC_SINGLE;
+  if (typeStr === 'PHOTO_QUESTION') return QuestionType.PHOTO_MC_SINGLE;
+  if (typeStr === 'PHOTO_OPEN') return QuestionType.PHOTO_OPEN_TEXT;
+  
+  // Strip PHOTO_ prefix
+  if (typeStr.startsWith('PHOTO_')) {
+    return typeStr.replace('PHOTO_', '') as QuestionType;
+  }
+  
+  // Strip AUDIO_ prefix (legacy mapping)
+  if (typeStr === 'AUDIO_QUESTION') return QuestionType.MC_SINGLE;
+  if (typeStr === 'AUDIO_OPEN') return QuestionType.OPEN_TEXT;
+  
+  // Strip VIDEO_ prefix (legacy mapping)
+  if (typeStr === 'VIDEO_QUESTION') return QuestionType.MC_SINGLE;
+  if (typeStr === 'VIDEO_OPEN') return QuestionType.OPEN_TEXT;
+  
+  // Already a base type
+  return type;
+}
+
+/**
+ * Check if a question type requires photo media
+ */
+export function requiresPhotos(type: QuestionType): boolean {
+  return type.toString().startsWith('PHOTO_');
+}
+
+/**
+ * Get maximum allowed photos for a question type
+ */
+export function getMaxPhotos(type: QuestionType): number {
+  return requiresPhotos(type) ? 6 : 0;
+}
+
+/**
+ * Get the media type required for a question type
+ */
+export function getRequiredMediaType(type: QuestionType): MediaType | null {
+  const typeStr = type.toString();
+  if (typeStr.startsWith('PHOTO_')) return MediaType.IMAGE;
+  if (typeStr.startsWith('AUDIO_')) return MediaType.AUDIO;
+  if (typeStr.startsWith('VIDEO_')) return MediaType.VIDEO;
+  return null;
+}
+
+/**
+ * Aspect ratio categories for smart image layout
+ */
+export enum AspectRatioCategory {
+  ULTRA_WIDE = 'ULTRA_WIDE',  // > 2.5:1 (e.g. 21:9 cinema)
+  WIDE = 'WIDE',              // 1.7:1 to 2.5:1 (e.g. 16:9)
+  STANDARD = 'STANDARD',      // 1.2:1 to 1.7:1 (e.g. 4:3, 3:2)
+  SQUARE = 'SQUARE',          // 0.9:1 to 1.2:1 (almost square)
+  PORTRAIT = 'PORTRAIT',      // 0.6:1 to 0.9:1 (e.g. 9:16)
+  TALL = 'TALL',              // < 0.6:1 (very tall)
+}
+
+/**
+ * Determine aspect ratio category from dimensions
+ * Used for smart photo grid layouts
+ * 
+ * @param width Image width in pixels
+ * @param height Image height in pixels
+ * @returns AspectRatioCategory enum value
+ */
+export function getAspectRatioCategory(width: number, height: number): AspectRatioCategory {
+  const ratio = width / height;
+  
+  if (ratio > 2.5) return AspectRatioCategory.ULTRA_WIDE;
+  if (ratio > 1.7) return AspectRatioCategory.WIDE;
+  if (ratio > 1.2) return AspectRatioCategory.STANDARD;
+  if (ratio > 0.9) return AspectRatioCategory.SQUARE;
+  if (ratio > 0.6) return AspectRatioCategory.PORTRAIT;
+  return AspectRatioCategory.TALL;
+}
+
+export enum MediaProvider {
+  UPLOAD = "UPLOAD",
+  SPOTIFY = "SPOTIFY",
+  YOUTUBE = "YOUTUBE",
 }
 
 export enum QuestionStatus {

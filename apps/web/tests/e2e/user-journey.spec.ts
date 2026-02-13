@@ -295,7 +295,7 @@ test.describe('Question Creation with Media', () => {
     await page.click('button:has-text("Create Question")');
     
     // Select photo question type
-    await page.selectOption('select[name="type"]', 'PHOTO_QUESTION');
+    await page.selectOption('select[name="type"]', 'PHOTO_MC_SINGLE');
     
     // Upload photo (requires MediaLibrary component)
     const fileInput = page.locator('input[type="file"]');

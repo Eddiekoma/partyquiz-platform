@@ -271,17 +271,19 @@ model QuestionOption {
 
 // Extensible media model (IMPLEMENTATION CONSTRAINT 1.3)
 model QuestionMedia {
-  id         String @id @default(cuid())
-  questionId String
-  provider   String // UPLOAD, SPOTIFY, YOUTUBE
-  mediaType  String // IMAGE, AUDIO, VIDEO
-  reference  Json // Flexible: {trackId, videoId, assetId, etc.}
-  metadata   Json? // Optional: {startMs, durationMs, title, etc.}
-  order      Int
+  id          String @id @default(cuid())
+  questionId  String
+  provider    String // UPLOAD, SPOTIFY, YOUTUBE
+  mediaType   String // IMAGE, AUDIO, VIDEO
+  reference   Json // Flexible: {trackId, videoId, assetId, etc.}
+  metadata    Json? // Optional: {startMs, durationMs, title, etc.}
+  order       Int // Legacy field for general ordering
+  displayOrder Int @default(0) // Specific order for photo grid display (0-5)
 
   question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@index([questionId])
+  @@index([questionId, displayOrder]) // Optimized for photo grid queries
 }
 
 // ============================================

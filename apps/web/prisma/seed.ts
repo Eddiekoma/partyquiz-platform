@@ -197,11 +197,11 @@ async function main() {
     },
   });
 
-  // Q7: PHOTO_QUESTION
+  // Q7: PHOTO_MC_SINGLE
   const q7 = await prisma.question.create({
     data: {
       workspaceId: workspace.id,
-      type: 'PHOTO_QUESTION',
+      type: 'PHOTO_MC_SINGLE',
       title: 'Famous Landmark',
       prompt: 'What landmark is this?',
       difficulty: 2,
@@ -324,11 +324,11 @@ async function main() {
     },
   });
 
-  // Q12: PHOTO_OPEN
+  // Q12: PHOTO_OPEN_TEXT
   const q12 = await prisma.question.create({
     data: {
       workspaceId: workspace.id,
-      type: 'PHOTO_OPEN',
+      type: 'PHOTO_OPEN_TEXT_TEXT',
       title: 'Historical Figure',
       prompt: 'Name this person:',
       difficulty: 3,

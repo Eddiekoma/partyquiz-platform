@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { QuestionType } from "@partyquiz/shared";
+import { requiresPhotos, getBaseQuestionType } from "@partyquiz/shared";
 
 interface AnswerInputProps {
   questionType: QuestionType | string; // Allow string for database types
@@ -143,10 +144,10 @@ export function AnswerInput({
     );
   }
 
-  // Photo questions - PHOTO_QUESTION (MCQ with photo) and PHOTO_OPEN (open answer)
+  // Photo questions with OPEN_TEXT base type (PHOTO_OPEN_TEXT, AUDIO_OPEN, VIDEO_OPEN)
+  const baseType = getBaseQuestionType(questionType as QuestionType);
   if (
-    questionType === "PHOTO_QUESTION" ||
-    questionType === "PHOTO_OPEN"
+    requiresPhotos(questionType as QuestionType) && baseType === "OPEN_TEXT"
   ) {
     return (
       <div className="space-y-4">
@@ -255,8 +256,15 @@ export function AnswerInput({
     );
   }
 
-  // Spotify Music Year or Estimation (number input) - MUSIC_GUESS_YEAR, ESTIMATION
-  if (questionType === "MUSIC_GUESS_YEAR" || questionType === "ESTIMATION") {
+  // Numeric input questions - NUMERIC, SLIDER, ESTIMATION, PHOTO_NUMERIC, PHOTO_SLIDER, MUSIC_GUESS_YEAR
+  if (
+    questionType === "NUMERIC" ||
+    questionType === "SLIDER" ||
+    questionType === "ESTIMATION" ||
+    questionType === "PHOTO_NUMERIC" ||
+    questionType === "PHOTO_SLIDER" ||
+    questionType === "MUSIC_GUESS_YEAR"
+  ) {
     return (
       <div className="space-y-4">
         <input
@@ -399,6 +407,8 @@ function OrderingInput({
   disabled: boolean;
 }) {
   const [items, setItems] = useState(options);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   const moveUp = (index: number) => {
     if (index === 0) return;
@@ -414,43 +424,174 @@ function OrderingInput({
     setItems(newItems);
   };
 
+  // Drag & Drop handlers
+  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, index: number) => {
+    if (disabled) return;
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+    // Set drag image to be more visible
+    if (e.currentTarget) {
+      e.dataTransfer.setData("text/html", e.currentTarget.innerHTML);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>, index: number) => {
+    e.preventDefault();
+    if (disabled || draggedIndex === null) return;
+    e.dataTransfer.dropEffect = "move";
+    setDragOverIndex(index);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverIndex(null);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>, dropIndex: number) => {
+    e.preventDefault();
+    if (disabled || draggedIndex === null || draggedIndex === dropIndex) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    const newItems = [...items];
+    const draggedItem = newItems[draggedIndex];
+    
+    // Remove from old position
+    newItems.splice(draggedIndex, 1);
+    // Insert at new position
+    newItems.splice(dropIndex, 0, draggedItem);
+    
+    setItems(newItems);
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  };
+
+  // Touch handlers for mobile (fallback for older browsers)
+  const [touchStartY, setTouchStartY] = useState<number | null>(null);
+  const [touchCurrentY, setTouchCurrentY] = useState<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>, index: number) => {
+    if (disabled) return;
+    setDraggedIndex(index);
+    setTouchStartY(e.touches[0].clientY);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (disabled || draggedIndex === null || touchStartY === null) return;
+    setTouchCurrentY(e.touches[0].clientY);
+    
+    // Prevent scrolling while dragging
+    e.preventDefault();
+    
+    // Calculate which item we're over
+    const touch = e.touches[0];
+    const elements = document.elementsFromPoint(touch.clientX, touch.clientY);
+    const orderItem = elements.find(el => el.hasAttribute('data-order-index'));
+    if (orderItem) {
+      const overIndex = parseInt(orderItem.getAttribute('data-order-index') || '0');
+      setDragOverIndex(overIndex);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (disabled || draggedIndex === null || dragOverIndex === null || draggedIndex === dragOverIndex) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      setTouchStartY(null);
+      setTouchCurrentY(null);
+      return;
+    }
+
+    const newItems = [...items];
+    const draggedItem = newItems[draggedIndex];
+    
+    // Remove from old position
+    newItems.splice(draggedIndex, 1);
+    // Insert at new position
+    newItems.splice(dragOverIndex, 0, draggedItem);
+    
+    setItems(newItems);
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+    setTouchStartY(null);
+    setTouchCurrentY(null);
+  };
+
   return (
     <div className="space-y-4">
       <p className="text-center text-white/80 font-bold mb-4">
-        Order from first to last:
+        Sleep de items in de goede volgorde (of gebruik de ▲▼ knoppen):
       </p>
       <div className="space-y-2">
-        {items.map((item, index) => (
-          <div
-            key={item.id}
-            className="flex items-center gap-2 bg-slate-800/20 backdrop-blur-sm rounded-xl p-3"
-          >
-            <div className="flex flex-col gap-1">
-              <button
-                onClick={() => moveUp(index)}
-                disabled={disabled || index === 0}
-                className="p-1 text-white bg-slate-800/20 rounded hover:bg-slate-800/30 disabled:opacity-30 transition-all"
-              >
-                ▲
-              </button>
-              <button
-                onClick={() => moveDown(index)}
-                disabled={disabled || index === items.length - 1}
-                className="p-1 text-white bg-slate-800/20 rounded hover:bg-slate-800/30 disabled:opacity-30 transition-all"
-              >
-                ▼
-              </button>
+        {items.map((item, index) => {
+          const isDragging = draggedIndex === index;
+          const isDragOver = dragOverIndex === index && draggedIndex !== index;
+          
+          return (
+            <div
+              key={item.id}
+              data-order-index={index}
+              draggable={!disabled}
+              onDragStart={(e) => handleDragStart(e, index)}
+              onDragOver={(e) => handleDragOver(e, index)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, index)}
+              onDragEnd={handleDragEnd}
+              onTouchStart={(e) => handleTouchStart(e, index)}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              className={`flex items-center gap-2 bg-slate-800/20 backdrop-blur-sm rounded-xl p-3 transition-all ${
+                isDragging 
+                  ? "opacity-50 scale-95 rotate-2" 
+                  : isDragOver 
+                  ? "border-2 border-purple-500 scale-105 shadow-lg shadow-purple-500/50" 
+                  : "border-2 border-transparent"
+              } ${!disabled ? "cursor-move touch-none" : "cursor-not-allowed"}`}
+            >
+              {/* Drag handle icon */}
+              <div className="text-white/50 text-lg select-none">
+                ⋮⋮
+              </div>
+              
+              {/* Up/Down buttons (fallback) */}
+              <div className="flex flex-col gap-1">
+                <button
+                  onClick={() => moveUp(index)}
+                  disabled={disabled || index === 0}
+                  className="p-1 text-white bg-slate-800/20 rounded hover:bg-slate-800/30 disabled:opacity-30 transition-all"
+                  type="button"
+                >
+                  ▲
+                </button>
+                <button
+                  onClick={() => moveDown(index)}
+                  disabled={disabled || index === items.length - 1}
+                  className="p-1 text-white bg-slate-800/20 rounded hover:bg-slate-800/30 disabled:opacity-30 transition-all"
+                  type="button"
+                >
+                  ▼
+                </button>
+              </div>
+              
+              {/* Item text */}
+              <div className="flex-1 font-bold text-white select-none">
+                {index + 1}. {item.text}
+              </div>
             </div>
-            <div className="flex-1 font-bold text-white">
-              {item.text}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       <button
         onClick={() => onSubmit(items.map((item) => item.id))}
         disabled={disabled}
         className="w-full py-4 text-xl font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 active:scale-95 transition-all disabled:opacity-50"
+        type="button"
       >
         Submit Order
       </button>

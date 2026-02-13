@@ -11,6 +11,7 @@ import {
   getQuestionScoringMode,
   ScoringMode,
   getDefaultTimerForQuestionType,
+  getBaseQuestionType,
   // Speed Podium scoring
   calculateSpeedPodium,
   DEFAULT_SPEED_PODIUM_PERCENTAGES,
@@ -80,15 +81,22 @@ function shuffleArray<T>(array: T[]): T[] {
  * Determines if a question type should have its options shuffled
  * - TRUE_FALSE: Never shuffle (always True/False order)
  * - Open-ended types: No options to shuffle
- * - MC/ORDER/POLL types: Always shuffle for fairness
+ * - MC/ORDER types: Always shuffle for fairness
  */
 function shouldShuffleOptions(questionType: string): boolean {
-  // Types that should NOT be shuffled
+  // Get base type (strips PHOTO_, AUDIO_, VIDEO_ prefixes)
+  const baseType = getBaseQuestionType(questionType as QuestionType).toString().toUpperCase();
+  
+  // Types that should NOT be shuffled (by base type)
   const noShuffleTypes = [
     "TRUE_FALSE",
     "OPEN_TEXT",
-    "ESTIMATION", 
-    "PHOTO_OPEN",
+    "NUMERIC",
+    "SLIDER",
+  ];
+  
+  // Also don't shuffle legacy/special types
+  const noShuffleLegacy = [
     "AUDIO_OPEN",
     "VIDEO_OPEN",
     "MUSIC_GUESS_TITLE",
@@ -96,7 +104,7 @@ function shouldShuffleOptions(questionType: string): boolean {
     "MUSIC_GUESS_YEAR",
   ];
   
-  return !noShuffleTypes.includes(questionType);
+  return !noShuffleTypes.includes(baseType) && !noShuffleLegacy.includes(questionType.toUpperCase());
 }
 
 // =============================================================================
@@ -117,11 +125,18 @@ function formatAnswerForDisplay(
   rawAnswer: any,
   options: QuestionOptionDisplay[]
 ): { display: string; selectedOptionIds?: string[]; submittedOrder?: string[] } {
+  // Get base type (strips PHOTO_, AUDIO_, VIDEO_ prefixes)
+  const baseType = getBaseQuestionType(questionType as QuestionType).toString().toUpperCase();
   const type = questionType.toUpperCase();
   
-  // MC_SINGLE, PHOTO_QUESTION, AUDIO_QUESTION, VIDEO_QUESTION, YOUTUBE_WHO_SAID_IT
+  // MC_SINGLE, PHOTO_MC_SINGLE, AUDIO_QUESTION, VIDEO_QUESTION, YOUTUBE_WHO_SAID_IT
   // Answer is a single option ID
-  if (["MC_SINGLE", "PHOTO_QUESTION", "AUDIO_QUESTION", "VIDEO_QUESTION", "YOUTUBE_WHO_SAID_IT"].includes(type)) {
+  if (
+    baseType === "MC_SINGLE" || 
+    type === "AUDIO_QUESTION" || 
+    type === "VIDEO_QUESTION" || 
+    type === "YOUTUBE_WHO_SAID_IT"
+  ) {
     const selectedOption = options.find(opt => opt.id === rawAnswer);
     return {
       display: selectedOption?.text || String(rawAnswer),
@@ -129,8 +144,8 @@ function formatAnswerForDisplay(
     };
   }
   
-  // MC_MULTIPLE - Answer is an array of option IDs
-  if (type === "MC_MULTIPLE") {
+  // MC_MULTIPLE, PHOTO_MC_MULTIPLE - Answer is an array of option IDs
+  if (baseType === "MC_MULTIPLE") {
     const selectedIds = Array.isArray(rawAnswer) ? rawAnswer : [];
     const selectedTexts = selectedIds
       .map(id => options.find(opt => opt.id === id)?.text || id)
@@ -141,8 +156,8 @@ function formatAnswerForDisplay(
     };
   }
   
-  // TRUE_FALSE - Answer is boolean
-  if (type === "TRUE_FALSE") {
+  // TRUE_FALSE, PHOTO_TRUE_FALSE - Answer is boolean
+  if (baseType === "TRUE_FALSE") {
     if (typeof rawAnswer === "boolean") {
       return { display: rawAnswer ? "True" : "False" };
     }
@@ -150,8 +165,8 @@ function formatAnswerForDisplay(
     return { display: rawAnswer === "true" || rawAnswer === true ? "True" : "False" };
   }
   
-  // ORDER - Answer is array of option IDs in submitted order
-  if (type === "ORDER") {
+  // MC_ORDER, PHOTO_MC_ORDER - Answer is array of option IDs in submitted order
+  if (baseType === "MC_ORDER") {
     const orderedIds = Array.isArray(rawAnswer) ? rawAnswer : [];
     const orderedTexts = orderedIds
       .map((id, idx) => `${idx + 1}. ${options.find(opt => opt.id === id)?.text || id}`)
@@ -162,22 +177,13 @@ function formatAnswerForDisplay(
     };
   }
   
-  // ESTIMATION, MUSIC_GUESS_YEAR - Answer is a number
-  if (["ESTIMATION", "MUSIC_GUESS_YEAR"].includes(type)) {
+  // NUMERIC, PHOTO_NUMERIC, SLIDER, PHOTO_SLIDER, MUSIC_GUESS_YEAR - Answer is a number
+  if (baseType === "NUMERIC" || baseType === "SLIDER" || type === "MUSIC_GUESS_YEAR") {
     const num = typeof rawAnswer === "number" ? rawAnswer : parseFloat(rawAnswer);
     return { display: isNaN(num) ? String(rawAnswer) : num.toLocaleString("en-US") };
   }
   
-  // POLL - Answer is option ID (no correct/incorrect)
-  if (type === "POLL") {
-    const selectedOption = options.find(opt => opt.id === rawAnswer);
-    return {
-      display: selectedOption?.text || String(rawAnswer),
-      selectedOptionIds: rawAnswer ? [rawAnswer] : [],
-    };
-  }
-  
-  // OPEN_TEXT, PHOTO_OPEN, AUDIO_OPEN, VIDEO_OPEN, MUSIC_GUESS_TITLE, MUSIC_GUESS_ARTIST, 
+  // OPEN_TEXT, PHOTO_OPEN_TEXT, AUDIO_OPEN, VIDEO_OPEN, MUSIC_GUESS_TITLE, MUSIC_GUESS_ARTIST, 
   // YOUTUBE_SCENE_QUESTION, YOUTUBE_NEXT_LINE - Answer is text string
   // Default: just show the raw answer as string
   return { display: String(rawAnswer || "(leeg)") };
@@ -2276,6 +2282,7 @@ io.on("connection", (socket: Socket) => {
             select: {
               id: true,
               name: true,
+              avatar: true,
             },
           },
         },
@@ -2283,6 +2290,21 @@ io.on("connection", (socket: Socket) => {
           answeredAt: "asc",
         },
       });
+
+      // Get ALL players in the session to identify who didn't answer
+      const allPlayers = await prisma.livePlayer.findMany({
+        where: {
+          sessionId: session.id,
+        },
+        select: {
+          id: true,
+          name: true,
+          avatar: true,
+        },
+      });
+
+      // Create a Set of player IDs who answered
+      const answeredPlayerIds = new Set(answers.map(a => a.playerId));
 
       // Get settings and check if explanation should be shown
       const settings = (quizItem?.settingsJson as { showExplanation?: boolean } | null) || {};
@@ -2318,8 +2340,10 @@ io.on("connection", (socket: Socket) => {
           // MC_SINGLE/TRUE_FALSE: Send single correct option ID
           const correctOption = options.find(opt => opt.isCorrect);
           correctOptionId = correctOption?.id || null;
-        } else if (questionType === "ESTIMATION" || questionType === "MUSIC_GUESS_YEAR") {
-          // ESTIMATION/MUSIC_GUESS_YEAR: Send correct number and margin
+        } else if (getBaseQuestionType(questionType as QuestionType).toString().toUpperCase() === "NUMERIC" || 
+                   getBaseQuestionType(questionType as QuestionType).toString().toUpperCase() === "SLIDER" ||
+                   questionType === "MUSIC_GUESS_YEAR") {
+          // NUMERIC/SLIDER/MUSIC_GUESS_YEAR: Send correct number and margin
           if (settingsJson?.correctAnswer !== undefined) {
             correctNumber = parseFloat(String(settingsJson.correctAnswer));
           } else if (options.length > 0) {
@@ -2334,7 +2358,7 @@ io.on("connection", (socket: Socket) => {
           } else {
             estimationMargin = 10; // Default 10%
           }
-        } else if (questionType === "OPEN_TEXT" || questionType === "PHOTO_OPEN" || 
+        } else if (getBaseQuestionType(questionType as QuestionType).toString().toUpperCase() === "OPEN_TEXT" ||
                    questionType === "AUDIO_OPEN" || questionType === "VIDEO_OPEN") {
           // Open text types: Send correct text answer and acceptable alternatives
           const correctOptions = options.filter(opt => opt.isCorrect);
@@ -2381,16 +2405,32 @@ io.on("connection", (socket: Socket) => {
         // Margin for estimation scoring (percentage)
         estimationMargin,
         explanation: showExplanation ? quizItem?.question?.explanation : null,
+        // Answered players with their scores
         answers: answers.map((a) => ({
           playerId: a.playerId,
           playerName: a.player.name,
+          playerAvatar: a.player.avatar,
           answer: a.payloadJson,
           isCorrect: a.isCorrect,
           points: a.score,
         })),
+        // Players who didn't answer (no answer entry)
+        noAnswerPlayers: allPlayers
+          .filter(p => !answeredPlayerIds.has(p.id))
+          .map(p => ({
+            playerId: p.id,
+            playerName: p.name,
+            playerAvatar: p.avatar,
+          })),
       });
 
-      logger.info({ sessionCode, itemId, answerCount: answers.length, showExplanation }, "Answers revealed");
+      logger.info({ 
+        sessionCode, 
+        itemId, 
+        answerCount: answers.length,
+        noAnswerCount: allPlayers.length - answers.length, 
+        showExplanation 
+      }, "Answers revealed");
     } catch (error) {
       logger.error({ error }, "Error revealing answers");
       socket.emit("error", { message: "Failed to reveal answers" });
@@ -2727,16 +2767,17 @@ io.on("connection", (socket: Socket) => {
         // Validate and score the answer using the new complete validation
         // This handles TRUE_FALSE (boolean), OLDER_NEWER (string), MCQ (option ID), etc.
         
-        // For ESTIMATION, get margin from question.options[0].order if not in settingsJson
+        // For NUMERIC/SLIDER, get margin from question.options[0].order if not in settingsJson
+        const baseType = getBaseQuestionType(questionType as QuestionType).toString().toUpperCase();
         let estimationMargin = settingsJson?.estimationMargin;
-        if (questionType === "ESTIMATION" && estimationMargin === undefined && question.options.length > 0) {
+        if ((baseType === "NUMERIC" || baseType === "SLIDER") && estimationMargin === undefined && question.options.length > 0) {
           estimationMargin = question.options[0].order || 10;
         }
         
         // For OPEN_TEXT types, extract acceptableAnswers from extra correct options
         let validationAcceptableAnswers = settingsJson?.acceptableAnswers as string[] | undefined;
         if (
-          (questionType === "OPEN_TEXT" || questionType === "PHOTO_OPEN" ||
+          (baseType === "OPEN_TEXT" ||
            questionType === "AUDIO_OPEN" || questionType === "VIDEO_OPEN") &&
           question.options.length > 1
         ) {
@@ -2788,7 +2829,8 @@ io.on("connection", (socket: Socket) => {
 
         // Store answer in database
         // For OPEN_TEXT, store auto score separately for host review
-        const isOpenTextType = questionType === "OPEN_TEXT" || questionType === "PHOTO_OPEN" ||
+        const baseTypeForValidation = getBaseQuestionType(questionType as QuestionType).toString().toUpperCase();
+        const isOpenTextType = baseTypeForValidation === "OPEN_TEXT" ||
                                questionType === "AUDIO_OPEN" || questionType === "VIDEO_OPEN";
         
         const liveAnswer = await prisma.liveAnswer.create({
@@ -2810,6 +2852,8 @@ io.on("connection", (socket: Socket) => {
           timestamp: Date.now(),
           isCorrect: validation.isCorrect,
           score: validation.score,
+          scorePercentage: validation.scorePercentage,
+          maxScore: basePoints,
           streak: validation.isCorrect ? currentStreak + 1 : 0,
         });
 
