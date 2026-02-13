@@ -85,14 +85,26 @@ export enum QuestionType {
   YOUTUBE_SCENE_QUESTION = "YOUTUBE_SCENE_QUESTION",
   YOUTUBE_NEXT_LINE = "YOUTUBE_NEXT_LINE",
   YOUTUBE_WHO_SAID_IT = "YOUTUBE_WHO_SAID_IT",
+}
 
-  // === LEGACY TYPES (BACKWARDS COMPATIBILITY) ===
-  // Support old database entries that haven't been migrated yet
-  ORDER = "ORDER",               // Legacy: Use MC_ORDER instead
-  ESTIMATION = "ESTIMATION",     // Legacy: Use NUMERIC instead
-  POLL = "POLL",                 // Legacy: Use MC_SINGLE
-  PHOTO_QUESTION = "PHOTO_QUESTION",       // Legacy: Use PHOTO_MC_SINGLE
-  PHOTO_OPEN = "PHOTO_OPEN",               // Legacy: Use PHOTO_OPEN_TEXT
+/**
+ * Legacy type mappings for backwards compatibility
+ * Database has been migrated, these are for old client code only
+ */
+export const LEGACY_TYPE_MAPPING = {
+  ORDER: QuestionType.MC_ORDER,
+  ESTIMATION: QuestionType.NUMERIC,
+  POLL: QuestionType.MC_SINGLE,
+  PHOTO_QUESTION: QuestionType.PHOTO_MC_SINGLE,
+  PHOTO_OPEN: QuestionType.PHOTO_OPEN_TEXT,
+} as const;
+
+/**
+ * Helper to normalize legacy types to modern equivalents
+ */
+export function normalizeQuestionType(type: string): QuestionType {
+  // @ts-ignore - Check if it's a legacy type
+  return LEGACY_TYPE_MAPPING[type] || (type as QuestionType);
 }
 
 /**
@@ -136,22 +148,17 @@ export const DEFAULT_TIMER_BY_QUESTION_TYPE: Record<QuestionType, number> = {
   [QuestionType.YOUTUBE_SCENE_QUESTION]: 25, // Watch video + answer
   [QuestionType.YOUTUBE_NEXT_LINE]: 20,      // Quote recognition
   [QuestionType.YOUTUBE_WHO_SAID_IT]: 20,    // Voice recognition
-
-  // Legacy types (backwards compatibility)
-  [QuestionType.ORDER]: 45,                  // Same as MC_ORDER
-  [QuestionType.ESTIMATION]: 20,             // Same as NUMERIC
-  [QuestionType.POLL]: 15,                   // Same as MC_SINGLE
-  [QuestionType.PHOTO_QUESTION]: 20,         // Same as PHOTO_MC_SINGLE
-  [QuestionType.PHOTO_OPEN]: 35,             // Same as PHOTO_OPEN_TEXT
 };
 
 /**
  * Get the default timer duration for a question type
+ * Handles legacy types by normalizing them first
  * @param questionType The type of question
  * @returns Timer duration in seconds (defaults to 15 if type unknown)
  */
 export function getDefaultTimerForQuestionType(questionType: string): number {
-  return DEFAULT_TIMER_BY_QUESTION_TYPE[questionType as QuestionType] ?? 15;
+  const normalized = normalizeQuestionType(questionType);
+  return DEFAULT_TIMER_BY_QUESTION_TYPE[normalized] ?? 15;
 }
 
 export enum MediaType {

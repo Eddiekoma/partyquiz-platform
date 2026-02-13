@@ -3,46 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { hasPermission, WorkspaceRole, Permission, AuditAction, EntityType } from "@/lib/permissions";
 import { z } from "zod";
+import { QuestionType } from "@partyquiz/shared";
 
 const updateQuestionSchema = z.object({
-  type: z.enum([
-    // Text-based variants
-    "MC_SINGLE",
-    "MC_MULTIPLE",
-    "TRUE_FALSE",
-    "OPEN_TEXT",
-    "NUMERIC",
-    "SLIDER",
-    "ORDER",
-    "MC_ORDER",
-    // Photo variants
-    "PHOTO_MC_SINGLE",
-    "PHOTO_MC_MULTIPLE",
-    "PHOTO_TRUE_FALSE",
-    "PHOTO_OPEN_TEXT",
-    "PHOTO_NUMERIC",
-    "PHOTO_SLIDER",
-    "PHOTO_MC_ORDER",
-    // Audio/Video variants
-    "AUDIO_QUESTION",
-    "AUDIO_OPEN",
-    "VIDEO_QUESTION",
-    "VIDEO_OPEN",
-    // Music variants
-    "MUSIC_INTRO",
-    "MUSIC_SNIPPET",
-    "MUSIC_GUESS_TITLE",
-    "MUSIC_GUESS_ARTIST",
-    "MUSIC_GUESS_YEAR",
-    // YouTube variants
-    "YOUTUBE_SCENE_QUESTION",
-    "YOUTUBE_NEXT_LINE",
-    "YOUTUBE_WHO_SAID_IT",
-    // Other types
-    "POLL",
-    // Legacy types (backward compatibility)
-    "ESTIMATION",
-  ]).optional(),
+  type: z.nativeEnum(QuestionType).optional(),
   title: z.string().min(1).optional(),
   prompt: z.string().optional(),
   explanation: z.string().optional(),

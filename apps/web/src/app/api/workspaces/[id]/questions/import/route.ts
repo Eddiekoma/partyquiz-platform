@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { hasPermission, WorkspaceRole, Permission, AuditAction, EntityType } from "@/lib/permissions";
 import { z } from "zod";
+import { normalizeQuestionType } from "@partyquiz/shared";
 
 /**
  * POST /api/workspaces/[id]/questions/import
@@ -135,7 +136,7 @@ export async function POST(
         await prisma.question.create({
           data: {
             workspaceId,
-            type: questionData.type,
+            type: normalizeQuestionType(questionData.type),
             title: questionData.title,
             prompt: questionData.prompt,
             explanation: questionData.explanation || null,

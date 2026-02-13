@@ -133,8 +133,8 @@ export function AnswerInput({
     );
   }
 
-  // Ordering Question - ORDER
-  if (questionType === "ORDER") {
+  // Ordering Question - MC_ORDER (and legacy ORDER, PHOTO_MC_ORDER)
+  if (questionType === "MC_ORDER" || questionType === "ORDER" || questionType === "PHOTO_MC_ORDER") {
     return (
       <OrderingInput
         options={options || []}

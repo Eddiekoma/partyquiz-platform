@@ -6,33 +6,8 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { UploadZone } from "@/components/ui/Upload";
-import { parseTimestamp, formatTimestamp } from "@partyquiz/shared";
+import { parseTimestamp, formatTimestamp, QuestionType, normalizeQuestionType } from "@partyquiz/shared";
 import { ScoringInfoCard } from "@/components/ScoringInfoCard";
-
-type QuestionType =
-  | "MC_SINGLE"
-  | "MC_MULTIPLE"
-  | "TRUE_FALSE"
-  | "OPEN_TEXT"
-  | "ESTIMATION"
-  | "ORDER"
-  | "PHOTO_MC_SINGLE"
-  | "PHOTO_MC_MULTIPLE"
-  | "PHOTO_MC_ORDER"
-  | "PHOTO_OPEN_TEXT"
-  | "PHOTO_NUMERIC"
-  | "PHOTO_SLIDER"
-  | "PHOTO_TRUE_FALSE"
-  | "AUDIO_QUESTION"
-  | "VIDEO_QUESTION"
-  | "MUSIC_INTRO"
-  | "MUSIC_SNIPPET"
-  | "POLL"
-  | "AUDIO_OPEN"
-  | "VIDEO_OPEN"
-  | "YOUTUBE_SCENE_QUESTION"
-  | "YOUTUBE_NEXT_LINE"
-  | "YOUTUBE_WHO_SAID_IT";
 
 interface QuestionOption {
   id?: string;
@@ -359,14 +334,14 @@ export default function EditQuestionPage() {
       return;
     }
 
-    // Validate ESTIMATION fields - correctAnswer must be > 0 and margin must be >= 0
-    if (selectedType === "ESTIMATION") {
+    // Validate NUMERIC fields - correctAnswer must be > 0 and margin must be >= 0
+    if (selectedType === QuestionType.NUMERIC) {
       if (!estimationAnswer || estimationAnswer <= 0) {
-        alert("Please enter a correct answer greater than 0 for estimation questions");
+        alert("Please enter a correct answer greater than 0 for numeric estimation questions");
         return;
       }
       if (estimationMargin === undefined || estimationMargin < 0) {
-        alert("Please enter a valid margin percentage (0 or higher) for estimation questions");
+        alert("Please enter a valid margin percentage (0 or higher) for numeric estimation questions");
         return;
       }
     }
@@ -390,27 +365,26 @@ export default function EditQuestionPage() {
       let questionOptions: QuestionOption[] | undefined;
 
       switch (selectedType) {
-        case "MC_SINGLE":
-        case "MC_MULTIPLE":
-        case "POLL":
+        case QuestionType.MC_SINGLE:
+        case QuestionType.MC_MULTIPLE:
           questionOptions = options.filter((opt) => opt.text.trim() !== "");
           break;
-        case "TRUE_FALSE":
+        case QuestionType.TRUE_FALSE:
           questionOptions = [
             { text: "True", isCorrect: trueFalseAnswer === true, order: 0 },
             { text: "False", isCorrect: trueFalseAnswer === false, order: 1 },
           ];
           break;
-        case "ORDER":
+        case QuestionType.MC_ORDER:
           questionOptions = orderItems
             .filter((item) => item.text.trim() !== "")
             .map((item, index) => ({
               text: item.text,
-              isCorrect: true, // All items are "correct" for ORDER
+              isCorrect: true, // All items are "correct" for MC_ORDER
               order: item.correctOrder,
             }));
           break;
-        case "ESTIMATION":
+        case QuestionType.NUMERIC:
           // Store correctAnswer in text field, margin in order field
           questionOptions = [
             { 
@@ -420,10 +394,10 @@ export default function EditQuestionPage() {
             },
           ];
           break;
-        case "OPEN_TEXT":
-        case "PHOTO_OPEN_TEXT":
-        case "AUDIO_OPEN":
-        case "VIDEO_OPEN":
+        case QuestionType.OPEN_TEXT:
+        case QuestionType.PHOTO_OPEN_TEXT:
+        case QuestionType.AUDIO_OPEN:
+        case QuestionType.VIDEO_OPEN:
           // Store correct answer in options with isCorrect: true
           if (openTextAnswer.trim()) {
             // Primary correct answer
@@ -497,29 +471,30 @@ export default function EditQuestionPage() {
   }
 
   const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
-    MC_SINGLE: "Multiple Choice (Single)",
-    MC_MULTIPLE: "Multiple Choice (Multiple)",
-    TRUE_FALSE: "True/False",
-    OPEN_TEXT: "Open Text",
-    ESTIMATION: "Estimation",
-    ORDER: "Order",
-    PHOTO_MC_SINGLE: "Photo MC (Single)",
-    PHOTO_MC_MULTIPLE: "Photo MC (Multiple)",
-    PHOTO_MC_ORDER: "Photo Order",
-    PHOTO_OPEN_TEXT: "Photo Open Text",
-    PHOTO_NUMERIC: "Photo Numeric",
-    PHOTO_SLIDER: "Photo Slider",
-    PHOTO_TRUE_FALSE: "Photo True/False",
-    AUDIO_QUESTION: "Audio Question",
-    VIDEO_QUESTION: "Video Question",
-    MUSIC_INTRO: "Music Intro",
-    MUSIC_SNIPPET: "Music Snippet",
-    YOUTUBE_SCENE_QUESTION: "YouTube Scene Question",
-    YOUTUBE_NEXT_LINE: "YouTube Next Line",
-    YOUTUBE_WHO_SAID_IT: "YouTube Who Said It",
-    POLL: "Poll",
-    AUDIO_OPEN: "Audio Open",
-    VIDEO_OPEN: "Video Open",
+    [QuestionType.MC_SINGLE]: "Multiple Choice (Single)",
+    [QuestionType.MC_MULTIPLE]: "Multiple Choice (Multiple)",
+    [QuestionType.MC_ORDER]: "Multiple Choice (Order)",
+    [QuestionType.TRUE_FALSE]: "True/False",
+    [QuestionType.OPEN_TEXT]: "Open Text",
+    [QuestionType.NUMERIC]: "Numeric Estimation",
+    [QuestionType.SLIDER]: "Slider",
+    [QuestionType.PHOTO_MC_SINGLE]: "Photo MC (Single)",
+    [QuestionType.PHOTO_MC_MULTIPLE]: "Photo MC (Multiple)",
+    [QuestionType.PHOTO_MC_ORDER]: "Photo Order",
+    [QuestionType.PHOTO_OPEN_TEXT]: "Photo Open Text",
+    [QuestionType.PHOTO_NUMERIC]: "Photo Numeric",
+    [QuestionType.PHOTO_SLIDER]: "Photo Slider",
+    [QuestionType.PHOTO_TRUE_FALSE]: "Photo True/False",
+    [QuestionType.AUDIO_QUESTION]: "Audio Question",
+    [QuestionType.AUDIO_OPEN]: "Audio Open",
+    [QuestionType.VIDEO_QUESTION]: "Video Question",
+    [QuestionType.VIDEO_OPEN]: "Video Open",
+    [QuestionType.MUSIC_GUESS_TITLE]: "Music - Guess Title",
+    [QuestionType.MUSIC_GUESS_ARTIST]: "Music - Guess Artist",
+    [QuestionType.MUSIC_GUESS_YEAR]: "Music - Guess Year",
+    [QuestionType.YOUTUBE_SCENE_QUESTION]: "YouTube Scene Question",
+    [QuestionType.YOUTUBE_NEXT_LINE]: "YouTube Next Line",
+    [QuestionType.YOUTUBE_WHO_SAID_IT]: "YouTube Who Said It",
   };
 
   return (
@@ -674,10 +649,10 @@ export default function EditQuestionPage() {
           </Card>
         )}
 
-        {/* ESTIMATION */}
-        {selectedType === "ESTIMATION" && (
+        {/* NUMERIC ESTIMATION */}
+        {selectedType === QuestionType.NUMERIC && (
           <Card className="p-6">
-            <label className="block text-sm font-semibold mb-4">Estimation Settings</label>
+            <label className="block text-sm font-semibold mb-4">Numeric Estimation Settings</label>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm text-slate-400 mb-2">Correct Answer</label>
@@ -706,8 +681,8 @@ export default function EditQuestionPage() {
           </Card>
         )}
 
-        {/* ORDER */}
-        {selectedType === "ORDER" && (
+        {/* MC_ORDER */}
+        {selectedType === QuestionType.MC_ORDER && (
           <Card className="p-6">
             <label className="block text-sm font-semibold mb-4">
               Items to Order (drag to reorder - correct order)
@@ -752,8 +727,8 @@ export default function EditQuestionPage() {
           </Card>
         )}
 
-        {/* POLL */}
-        {selectedType === "POLL" && (
+        {/* Multiple Choice (Single or Multiple) */}
+        {(selectedType === QuestionType.MC_SINGLE || selectedType === QuestionType.MC_MULTIPLE) && (
           <Card className="p-6">
             <label className="block text-sm font-semibold mb-4">Poll Options (no correct answer)</label>
             <div className="space-y-3">
@@ -917,7 +892,9 @@ export default function EditQuestionPage() {
         )}
 
         {/* Spotify Integration for MUSIC types */}
-        {(selectedType === "MUSIC_INTRO" || selectedType === "MUSIC_SNIPPET") && (
+        {(selectedType === QuestionType.MUSIC_GUESS_TITLE || 
+          selectedType === QuestionType.MUSIC_GUESS_ARTIST || 
+          selectedType === QuestionType.MUSIC_GUESS_YEAR) && (
           <Card className="p-6">
             <label className="block text-sm font-semibold mb-4">Spotify Track</label>
             <div className="space-y-3">

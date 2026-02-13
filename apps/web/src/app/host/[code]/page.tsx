@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { WSMessageType, type Player as SharedPlayer, type ConnectionStatus, QuestionType, type SwanChaseGameState } from "@partyquiz/shared";
 import Link from "next/link";
-import { QuestionTypeBadge } from "@/components/QuestionTypeBadge";
+import { QuestionTypeBadge, getQuestionTypeIcon } from "@/components/QuestionTypeBadge";
 import { AnswerPanel, type PlayerAnswer } from "@/components/host/AnswerPanel";
 import QRCode from "react-qr-code";
 import { SwanChaseConfig } from "@/components/host/SwanChaseConfig";
@@ -368,9 +368,12 @@ export default function HostControlPage() {
     }) => {
       console.log("[Host] PLAYER_ANSWERED:", data);
       setCurrentItemAnswers(prev => {
-        // Avoid duplicates (same player for same item)
-        if (prev.some(a => a.playerId === data.playerId && a.itemId === data.itemId)) {
-          return prev;
+        // If player already answered this item, update with new answer (overwrite)
+        const existingIdx = prev.findIndex(a => a.playerId === data.playerId && a.itemId === data.itemId);
+        if (existingIdx !== -1) {
+          const updated = [...prev];
+          updated[existingIdx] = data;
+          return updated;
         }
         return [...prev, data];
       });
@@ -542,8 +545,12 @@ export default function HostControlPage() {
         playerName: string;
         playerAvatar?: string;
         answer: any;
+        answerDisplay?: string;
         isCorrect: boolean | null;
         points: number;
+        timeSpentMs?: number;
+        selectedOptionIds?: string[];
+        submittedOrder?: string[];
       }>;
       noAnswerPlayers?: Array<{
         playerId: string;
@@ -557,7 +564,7 @@ export default function HostControlPage() {
       
       // Merge answered players and no-answer players
       const allPlayerAnswers: PlayerAnswer[] = [
-        // Answered players (with actual answers)
+        // Answered players (with actual answers, using server-formatted display)
         ...data.answers.map(a => ({
           playerId: a.playerId,
           playerName: a.playerName,
@@ -565,12 +572,15 @@ export default function HostControlPage() {
           itemId: data.itemId,
           questionType: data.questionType,
           answer: a.answer,
-          answerDisplay: typeof a.answer === 'string' ? a.answer : JSON.stringify(a.answer),
+          answerDisplay: a.answerDisplay || (typeof a.answer === 'string' ? a.answer : JSON.stringify(a.answer)),
           rawAnswer: a.answer,
           score: a.points,
           isCorrect: a.isCorrect,
           answeredAt: now,
           noAnswer: false,
+          timeSpentMs: a.timeSpentMs,
+          selectedOptionIds: a.selectedOptionIds,
+          submittedOrder: a.submittedOrder,
         })),
         // Non-answered players (with special status)
         ...(data.noAnswerPlayers || []).map(p => ({
@@ -1816,30 +1826,7 @@ export default function HostControlPage() {
                           >
                             <span className="flex items-center">
                               <span className="mr-2">
-                                {item.itemType === "QUESTION" && (() => {
-                                  // Get question type specific emoji
-                                  const qType = item.question?.type?.toUpperCase();
-                                  switch (qType) {
-                                    case "MC_SINGLE": return "🔘";
-                                    case "MC_MULTIPLE": return "☑️";
-                                    case "TRUE_FALSE": return "⚖️";
-                                    case "OPEN_TEXT": return "✏️";
-                                    case "ESTIMATION": return "🔢";
-                                    case "ORDER": return "📊";
-                                    case "POLL": return "📋";
-                                    case "AUDIO_QUESTION": return "�";
-                                    case "AUDIO_OPEN": return "🎵";
-                                    case "VIDEO_QUESTION": return "🎬";
-                                    case "VIDEO_OPEN": return "📹";
-                                    case "MUSIC_GUESS_TITLE": return "🎶";
-                                    case "MUSIC_GUESS_ARTIST": return "🎤";
-                                    case "MUSIC_GUESS_YEAR": return "📅";
-                                    case "YOUTUBE_WHO_SAID_IT": return "💬";
-                                    case "YOUTUBE_SCENE_QUESTION": return "🎥";
-                                    case "YOUTUBE_NEXT_LINE": return "📝";
-                                    default: return "�📝";
-                                  }
-                                })()}
+                                {item.itemType === "QUESTION" && getQuestionTypeIcon(item.question?.type || "")}
                                 {item.itemType === "MINIGAME" && "🎮"}
                                 {item.itemType === "SCOREBOARD" && "📊"}
                                 {item.itemType === "BREAK" && "☕"}

@@ -4,26 +4,46 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import Link from "next/link";
+import { QuestionTypeBadge } from "@/components/QuestionTypeBadge";
 
-// Question types - matches the QuestionType enum in @partyquiz/shared (19 types)
+// Question types - matches the QuestionType enum in @partyquiz/shared (24 types + legacy)
 type QuestionTypeValue =
+  // === TEXT QUESTIONS (7) ===
   | "MC_SINGLE"
   | "MC_MULTIPLE"
+  | "MC_ORDER"
   | "TRUE_FALSE"
   | "OPEN_TEXT"
-  | "ESTIMATION"
-  | "ORDER"
-  | "POLL"
+  | "NUMERIC"
+  | "SLIDER"
+  // === PHOTO QUESTIONS (7) ===
+  | "PHOTO_MC_SINGLE"
+  | "PHOTO_MC_MULTIPLE"
+  | "PHOTO_MC_ORDER"
+  | "PHOTO_TRUE_FALSE"
+  | "PHOTO_OPEN_TEXT"
+  | "PHOTO_NUMERIC"
+  | "PHOTO_SLIDER"
+  // === AUDIO QUESTIONS (2) ===
   | "AUDIO_QUESTION"
   | "AUDIO_OPEN"
+  // === VIDEO QUESTIONS (2) ===
   | "VIDEO_QUESTION"
   | "VIDEO_OPEN"
+  // === SPOTIFY MUSIC (3) ===
   | "MUSIC_GUESS_TITLE"
   | "MUSIC_GUESS_ARTIST"
   | "MUSIC_GUESS_YEAR"
+  // === YOUTUBE VIDEOS (3) ===
   | "YOUTUBE_SCENE_QUESTION"
   | "YOUTUBE_NEXT_LINE"
-  | "YOUTUBE_WHO_SAID_IT";
+  | "YOUTUBE_WHO_SAID_IT"
+  // === LEGACY (backwards compatibility) ===
+  | "ESTIMATION"
+  | "ORDER"
+  | "POLL"
+  | "PHOTO_QUESTION"
+  | "PHOTO_OPEN";
 
 type Difficulty = 1 | 2 | 3 | 4 | 5;
 type Status = "DRAFT" | "PUBLISHED";
@@ -63,43 +83,81 @@ interface QuestionSet {
 }
 
 const QUESTION_TYPE_LABELS: Record<QuestionTypeValue, string> = {
-  MC_SINGLE: "Multiple Choice (Single)",
-  MC_MULTIPLE: "Multiple Choice (Multiple)",
+  // === TEXT QUESTIONS (7) ===
+  MC_SINGLE: "Multiple Choice",
+  MC_MULTIPLE: "Multiple Choice (Multi)",
+  MC_ORDER: "Put in Order",
   TRUE_FALSE: "True/False",
   OPEN_TEXT: "Open Text",
+  NUMERIC: "Numeric",
+  SLIDER: "Slider",
+  // === PHOTO QUESTIONS (7) ===
+  PHOTO_MC_SINGLE: "Photo MC",
+  PHOTO_MC_MULTIPLE: "Photo MC (Multi)",
+  PHOTO_MC_ORDER: "Photo Order",
+  PHOTO_TRUE_FALSE: "Photo True/False",
+  PHOTO_OPEN_TEXT: "Photo Open",
+  PHOTO_NUMERIC: "Photo Numeric",
+  PHOTO_SLIDER: "Photo Slider",
+  // === AUDIO QUESTIONS (2) ===
+  AUDIO_QUESTION: "Audio Question",
+  AUDIO_OPEN: "Audio Open",
+  // === VIDEO QUESTIONS (2) ===
+  VIDEO_QUESTION: "Video Question",
+  VIDEO_OPEN: "Video Open",
+  // === SPOTIFY MUSIC (3) ===
+  MUSIC_GUESS_TITLE: "Guess the Song",
+  MUSIC_GUESS_ARTIST: "Guess the Artist",
+  MUSIC_GUESS_YEAR: "Guess the Year",
+  // === YOUTUBE VIDEOS (3) ===
+  YOUTUBE_SCENE_QUESTION: "Video Scene",
+  YOUTUBE_NEXT_LINE: "Next Line",
+  YOUTUBE_WHO_SAID_IT: "Who Said It?",
+  // === LEGACY (backwards compatibility) ===
   ESTIMATION: "Estimation",
   ORDER: "Order",
   POLL: "Poll",
-  AUDIO_QUESTION: "Audio Question",
-  AUDIO_OPEN: "Audio Open",
-  VIDEO_QUESTION: "Video Question",
-  VIDEO_OPEN: "Video Open",
-  MUSIC_GUESS_TITLE: "Music: Guess Title",
-  MUSIC_GUESS_ARTIST: "Music: Guess Artist",
-  MUSIC_GUESS_YEAR: "Music: Guess Year",
-  YOUTUBE_SCENE_QUESTION: "YouTube Scene Question",
-  YOUTUBE_NEXT_LINE: "YouTube Next Line",
-  YOUTUBE_WHO_SAID_IT: "YouTube Who Said It",
+  PHOTO_QUESTION: "Photo Question",
+  PHOTO_OPEN: "Photo Open Text",
 };
 
 const QUESTION_TYPE_ICONS: Record<QuestionTypeValue, string> = {
+  // === TEXT QUESTIONS (7) ===
   MC_SINGLE: "🔘",
   MC_MULTIPLE: "☑️",
+  MC_ORDER: "📊",
   TRUE_FALSE: "✅",
   OPEN_TEXT: "✏️",
-  ESTIMATION: "🎯",
-  ORDER: "�",
-  POLL: "📋",
+  NUMERIC: "🔢",
+  SLIDER: "🎚️",
+  // === PHOTO QUESTIONS (7) ===
+  PHOTO_MC_SINGLE: "📷",
+  PHOTO_MC_MULTIPLE: "📷",
+  PHOTO_MC_ORDER: "📷",
+  PHOTO_TRUE_FALSE: "📷",
+  PHOTO_OPEN_TEXT: "📷",
+  PHOTO_NUMERIC: "📷",
+  PHOTO_SLIDER: "�",
+  // === AUDIO QUESTIONS (2) ===
   AUDIO_QUESTION: "🔊",
   AUDIO_OPEN: "🔊",
+  // === VIDEO QUESTIONS (2) ===
   VIDEO_QUESTION: "🎬",
   VIDEO_OPEN: "🎬",
-  MUSIC_GUESS_TITLE: "�",
-  MUSIC_GUESS_ARTIST: "�",
-  MUSIC_GUESS_YEAR: "�",
+  // === SPOTIFY MUSIC (3) ===
+  MUSIC_GUESS_TITLE: "🎵",
+  MUSIC_GUESS_ARTIST: "🎤",
+  MUSIC_GUESS_YEAR: "📅",
+  // === YOUTUBE VIDEOS (3) ===
   YOUTUBE_SCENE_QUESTION: "▶️",
   YOUTUBE_NEXT_LINE: "💬",
-  YOUTUBE_WHO_SAID_IT: "�️",
+  YOUTUBE_WHO_SAID_IT: "🗣️",
+  // === LEGACY (backwards compatibility) ===
+  ESTIMATION: "🎯",
+  ORDER: "📊",
+  POLL: "📋",
+  PHOTO_QUESTION: "📷",
+  PHOTO_OPEN: "📷",
 };
 
 export default function QuestionSetDetailPage() {
@@ -539,8 +597,8 @@ export default function QuestionSetDetailPage() {
             {questions.map((question) => (
               <div key={question.id} className="backdrop-blur-xl bg-slate-800/40 border border-slate-700/50 rounded-xl p-4 hover:bg-slate-800/60 transition-all">
                 <div className="flex items-start gap-4">
-                  <div className="text-3xl flex-shrink-0">
-                    {QUESTION_TYPE_ICONS[question.type]}
+                  <div className="flex-shrink-0">
+                    <QuestionTypeBadge type={question.type} size="md" showLabel={false} />
                   </div>
 
                   <div className="flex-1 min-w-0">
@@ -566,7 +624,7 @@ export default function QuestionSetDetailPage() {
                     )}
 
                     <div className="flex flex-wrap items-center gap-3 text-sm mb-3">
-                      <span className="text-slate-400">{QUESTION_TYPE_LABELS[question.type]}</span>
+                      <QuestionTypeBadge type={question.type} size="sm" />
                       <span className={`px-2 py-1 rounded border ${getDifficultyColor(question.difficulty)}`}>
                         {getDifficultyLabel(question.difficulty)}
                       </span>

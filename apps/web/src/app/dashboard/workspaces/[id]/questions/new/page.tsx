@@ -16,58 +16,70 @@ interface QuestionSet {
   questionCount: number;
 }
 
-// Question types - matches the QuestionType enum in @partyquiz/shared
+// Question types - matches the QuestionType enum in @partyquiz/shared (24 types)
 type QuestionTypeValue =
+  // === TEXT QUESTIONS (7) ===
   | "MC_SINGLE"
   | "MC_MULTIPLE"
+  | "MC_ORDER"
   | "TRUE_FALSE"
   | "OPEN_TEXT"
-  | "ESTIMATION"
-  | "ORDER"
-  | "POLL"
+  | "NUMERIC"
+  | "SLIDER"
+  // === PHOTO QUESTIONS (7) ===
   | "PHOTO_MC_SINGLE"
   | "PHOTO_MC_MULTIPLE"
   | "PHOTO_MC_ORDER"
+  | "PHOTO_TRUE_FALSE"
   | "PHOTO_OPEN_TEXT"
   | "PHOTO_NUMERIC"
   | "PHOTO_SLIDER"
-  | "PHOTO_TRUE_FALSE"
+  // === AUDIO QUESTIONS (2) ===
   | "AUDIO_QUESTION"
   | "AUDIO_OPEN"
+  // === VIDEO QUESTIONS (2) ===
   | "VIDEO_QUESTION"
   | "VIDEO_OPEN"
+  // === SPOTIFY MUSIC (3) ===
   | "MUSIC_GUESS_TITLE"
   | "MUSIC_GUESS_ARTIST"
   | "MUSIC_GUESS_YEAR"
+  // === YOUTUBE VIDEOS (3) ===
   | "YOUTUBE_SCENE_QUESTION"
   | "YOUTUBE_NEXT_LINE"
   | "YOUTUBE_WHO_SAID_IT";
 
 const QUESTION_TYPES: { value: QuestionTypeValue; label: string; description: string }[] = [
-  { value: "MC_SINGLE", label: "Multiple Choice (Single)", description: "Choose one correct answer" },
-  { value: "MC_MULTIPLE", label: "Multiple Choice (Multiple)", description: "Choose multiple correct answers" },
+  // === TEXT QUESTIONS (7) ===
+  { value: "MC_SINGLE", label: "Multiple Choice", description: "Choose one correct answer" },
+  { value: "MC_MULTIPLE", label: "Multiple Choice (Multi)", description: "Choose multiple correct answers" },
+  { value: "MC_ORDER", label: "Put in Order", description: "Arrange items in correct order" },
   { value: "TRUE_FALSE", label: "True/False", description: "Simple true or false question" },
-  { value: "OPEN_TEXT", label: "Open Text", description: "Free text answer" },
-  { value: "ESTIMATION", label: "Estimation", description: "Guess a number (Swan Race compatible)" },
-  { value: "ORDER", label: "Order", description: "Put items in correct order" },
-  { value: "PHOTO_MC_SINGLE", label: "Photo MC (Single)", description: "Multiple choice with photo" },
-  { value: "PHOTO_MC_MULTIPLE", label: "Photo MC (Multiple)", description: "Multiple choice with photo" },
-  { value: "PHOTO_MC_ORDER", label: "Photo Order", description: "Order items with photo" },
-  { value: "PHOTO_OPEN_TEXT", label: "Photo Open Text", description: "Open text with photo" },
-  { value: "PHOTO_NUMERIC", label: "Photo Numeric", description: "Number estimation with photo" },
-  { value: "PHOTO_SLIDER", label: "Photo Slider", description: "Slider estimation with photo" },
-  { value: "PHOTO_TRUE_FALSE", label: "Photo True/False", description: "True/False with photo" },
-  { value: "AUDIO_QUESTION", label: "Audio Question", description: "Question with audio" },
-  { value: "VIDEO_QUESTION", label: "Video Question", description: "Question with video" },
-  { value: "MUSIC_GUESS_TITLE", label: "Music: Guess Title", description: "Guess song title from Spotify preview" },
-  { value: "MUSIC_GUESS_ARTIST", label: "Music: Guess Artist", description: "Guess artist from Spotify preview" },
-  { value: "MUSIC_GUESS_YEAR", label: "Music: Guess Year", description: "Guess release year from Spotify preview" },
-  { value: "YOUTUBE_SCENE_QUESTION", label: "YouTube Scene Question", description: "Question about a YouTube video scene" },
-  { value: "YOUTUBE_NEXT_LINE", label: "YouTube Next Line", description: "Guess the next line in a YouTube video" },
-  { value: "YOUTUBE_WHO_SAID_IT", label: "YouTube Who Said It", description: "Identify who said what in a YouTube video" },
-  { value: "POLL", label: "Poll", description: "No correct answer, just opinions" },
+  { value: "OPEN_TEXT", label: "Open Text", description: "Free text answer with fuzzy matching" },
+  { value: "NUMERIC", label: "Numeric", description: "Guess a number (distance-based scoring)" },
+  { value: "SLIDER", label: "Slider", description: "Estimate on a slider (distance-based scoring)" },
+  // === PHOTO QUESTIONS (7) ===
+  { value: "PHOTO_MC_SINGLE", label: "Photo MC", description: "Multiple choice with photo(s)" },
+  { value: "PHOTO_MC_MULTIPLE", label: "Photo MC (Multi)", description: "Multiple choice with photo(s)" },
+  { value: "PHOTO_MC_ORDER", label: "Photo Order", description: "Order items with photo(s)" },
+  { value: "PHOTO_TRUE_FALSE", label: "Photo True/False", description: "True/False with photo(s)" },
+  { value: "PHOTO_OPEN_TEXT", label: "Photo Open", description: "Open text with photo(s)" },
+  { value: "PHOTO_NUMERIC", label: "Photo Numeric", description: "Number estimation with photo(s)" },
+  { value: "PHOTO_SLIDER", label: "Photo Slider", description: "Slider estimation with photo(s)" },
+  // === AUDIO QUESTIONS (2) ===
+  { value: "AUDIO_QUESTION", label: "Audio Question", description: "Multiple choice with audio" },
   { value: "AUDIO_OPEN", label: "Audio Open", description: "Open answer with audio" },
+  // === VIDEO QUESTIONS (2) ===
+  { value: "VIDEO_QUESTION", label: "Video Question", description: "Multiple choice with video" },
   { value: "VIDEO_OPEN", label: "Video Open", description: "Open answer with video" },
+  // === SPOTIFY MUSIC (3) ===
+  { value: "MUSIC_GUESS_TITLE", label: "Guess the Song", description: "Guess song title from Spotify preview" },
+  { value: "MUSIC_GUESS_ARTIST", label: "Guess the Artist", description: "Guess artist from Spotify preview" },
+  { value: "MUSIC_GUESS_YEAR", label: "Guess the Year", description: "Guess release year from Spotify preview" },
+  // === YOUTUBE VIDEOS (3) ===
+  { value: "YOUTUBE_SCENE_QUESTION", label: "Video Scene", description: "Question about a YouTube video scene" },
+  { value: "YOUTUBE_NEXT_LINE", label: "Next Line", description: "Guess the next line in a YouTube video" },
+  { value: "YOUTUBE_WHO_SAID_IT", label: "Who Said It?", description: "Identify who said what in a YouTube video" },
 ];
 
 // Categorized question types
@@ -87,14 +99,14 @@ const QUESTION_CATEGORIES: Category[] = [
     label: "Text Questions",
     icon: "📝",
     description: "Basic questions without media",
-    types: ["MC_SINGLE", "MC_MULTIPLE", "TRUE_FALSE", "OPEN_TEXT", "ESTIMATION", "ORDER", "POLL"],
+    types: ["MC_SINGLE", "MC_MULTIPLE", "MC_ORDER", "TRUE_FALSE", "OPEN_TEXT", "NUMERIC", "SLIDER"],
   },
   {
     key: "photo",
     label: "Photo Questions",
     icon: "📷",
     description: "Questions with uploaded images",
-    types: ["PHOTO_MC_SINGLE", "PHOTO_MC_MULTIPLE", "PHOTO_MC_ORDER", "PHOTO_OPEN_TEXT", "PHOTO_NUMERIC", "PHOTO_SLIDER", "PHOTO_TRUE_FALSE"],
+    types: ["PHOTO_MC_SINGLE", "PHOTO_MC_MULTIPLE", "PHOTO_MC_ORDER", "PHOTO_TRUE_FALSE", "PHOTO_OPEN_TEXT", "PHOTO_NUMERIC", "PHOTO_SLIDER"],
   },
   {
     key: "audio",
@@ -302,14 +314,14 @@ export default function NewQuestionPage() {
       return;
     }
 
-    // Validate ESTIMATION fields - correctAnswer must be > 0 and margin must be >= 0
-    if (selectedType === "ESTIMATION") {
+    // Validate NUMERIC fields - correctAnswer must be > 0 and margin must be >= 0
+    if (selectedType === "NUMERIC" || selectedType === "PHOTO_NUMERIC") {
       if (!estimationAnswer || estimationAnswer <= 0) {
-        alert("Please enter a correct answer greater than 0 for estimation questions");
+        alert("Please enter a correct answer greater than 0 for numeric questions");
         return;
       }
       if (estimationMargin === undefined || estimationMargin < 0) {
-        alert("Please enter a valid margin percentage (0 or higher) for estimation questions");
+        alert("Please enter a valid margin percentage (0 or higher) for numeric questions");
         return;
       }
     }
@@ -326,18 +338,14 @@ export default function NewQuestionPage() {
           questionOptions = options.filter(opt => opt.text.trim() !== "");
           break;
         case "TRUE_FALSE":
+        case "PHOTO_TRUE_FALSE":
           questionOptions = [
             { text: "True", isCorrect: trueFalseAnswer === true, order: 0 },
             { text: "False", isCorrect: trueFalseAnswer === false, order: 1 },
           ];
           break;
-        case "POLL":
-          questionOptions = options.filter(opt => opt.text.trim() !== "").map(opt => ({
-            ...opt,
-            isCorrect: false, // Polls have no correct answer
-          }));
-          break;
-        case "ORDER":
+        case "MC_ORDER":
+        case "PHOTO_MC_ORDER":
           questionOptions = orderItems
             .filter(item => item.text.trim() !== "")
             .map(item => ({
@@ -346,7 +354,19 @@ export default function NewQuestionPage() {
               order: item.correctOrder,
             }));
           break;
-        case "ESTIMATION":
+        case "NUMERIC":
+        case "PHOTO_NUMERIC":
+          // Store correctAnswer in text field, margin in order field
+          questionOptions = [
+            { 
+              text: String(estimationAnswer), 
+              isCorrect: true, 
+              order: estimationMargin 
+            }
+          ];
+          break;
+        case "SLIDER":
+        case "PHOTO_SLIDER":
           // Store correctAnswer in text field, margin in order field
           questionOptions = [
             { 
@@ -628,9 +648,12 @@ export default function NewQuestionPage() {
           </Card>
         )}
 
-        {selectedType === "ESTIMATION" && (
+        {(selectedType === "NUMERIC" || selectedType === "PHOTO_NUMERIC" || selectedType === "SLIDER" || selectedType === "PHOTO_SLIDER") && (
           <Card className="p-6">
-            <label className="block text-sm font-semibold mb-4">Correct Answer & Margin</label>
+            <label className="block text-sm font-semibold mb-4">
+              Correct Answer & Margin
+              {(selectedType === "SLIDER" || selectedType === "PHOTO_SLIDER") && " (Slider)"}
+            </label>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm text-slate-400 mb-2">Correct Answer</label>
@@ -657,8 +680,8 @@ export default function NewQuestionPage() {
           </Card>
         )}
 
-        {/* ORDER */}
-        {selectedType === "ORDER" && (
+        {/* MC_ORDER & PHOTO_MC_ORDER */}
+        {(selectedType === "MC_ORDER" || selectedType === "PHOTO_MC_ORDER") && (
           <Card className="p-6">
             <label className="block text-sm font-semibold mb-4">
               Items to Order (in correct order)
@@ -705,47 +728,6 @@ export default function NewQuestionPage() {
             <p className="text-sm text-slate-400 mt-2">
               Players will need to drag these items into the correct order
             </p>
-          </Card>
-        )}
-
-        {/* POLL */}
-        {selectedType === "POLL" && (
-          <Card className="p-6">
-            <label className="block text-sm font-semibold mb-4">
-              Poll Options (no correct answer)
-            </label>
-            <div className="space-y-3">
-              {options.map((option, index) => (
-                <div key={index} className="flex gap-3 items-center">
-                  <span className="text-slate-500 text-2xl">📊</span>
-                  <Input
-                    value={option.text}
-                    onChange={(e) => {
-                      const newOptions = [...options];
-                      newOptions[index] = { ...option, text: e.target.value };
-                      setOptions(newOptions);
-                    }}
-                    placeholder={`Option ${index + 1}`}
-                    className="flex-1"
-                  />
-                  {options.length > 2 && (
-                    <button
-                      onClick={() => setOptions(options.filter((_, i) => i !== index))}
-                      className="px-3 py-2 text-red-600 hover:bg-red-50 rounded"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-            <Button
-              onClick={() => setOptions([...options, { text: "", isCorrect: false, order: options.length }])}
-              variant="secondary"
-              className="mt-3"
-            >
-              + Add Option
-            </Button>
           </Card>
         )}
 

@@ -210,6 +210,45 @@ model SpotifyIntegration {
 // QUESTIONS & QUESTION BANK
 // ============================================
 
+// PostgreSQL Enum for Question Types (24 official types)
+enum QuestionType {
+  // === TEXT QUESTIONS (7) ===
+  MC_SINGLE
+  MC_MULTIPLE
+  MC_ORDER
+  TRUE_FALSE
+  OPEN_TEXT
+  NUMERIC
+  SLIDER
+
+  // === PHOTO QUESTIONS (7) ===
+  PHOTO_MC_SINGLE
+  PHOTO_MC_MULTIPLE
+  PHOTO_MC_ORDER
+  PHOTO_TRUE_FALSE
+  PHOTO_OPEN_TEXT
+  PHOTO_NUMERIC
+  PHOTO_SLIDER
+
+  // === AUDIO QUESTIONS (2) ===
+  AUDIO_QUESTION
+  AUDIO_OPEN
+
+  // === VIDEO QUESTIONS (2) ===
+  VIDEO_QUESTION
+  VIDEO_OPEN
+
+  // === SPOTIFY MUSIC (3) ===
+  MUSIC_GUESS_TITLE
+  MUSIC_GUESS_ARTIST
+  MUSIC_GUESS_YEAR
+
+  // === YOUTUBE VIDEOS (3) ===
+  YOUTUBE_SCENE_QUESTION
+  YOUTUBE_NEXT_LINE
+  YOUTUBE_WHO_SAID_IT
+}
+
 model QuestionSet {
   id          String   @id @default(cuid())
   workspaceId String
@@ -226,12 +265,12 @@ model QuestionSet {
 }
 
 model Question {
-  id            String   @id @default(cuid())
+  id            String       @id @default(cuid())
   workspaceId   String
   questionSetId String?
-  type          String // QuestionType enum
+  type          QuestionType // Database enum for type safety
   title         String
-  prompt        String   @db.Text
+  prompt        String       @db.Text
   explanation   String?  @db.Text
   difficulty    Int      @default(3)
   tagsJson      Json     @default("[]")

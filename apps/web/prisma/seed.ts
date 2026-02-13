@@ -164,7 +164,7 @@ async function main() {
   const q5 = await prisma.question.create({
     data: {
       workspaceId: workspace.id,
-      type: 'ESTIMATION',
+      type: 'NUMERIC',
       title: 'Days in Year',
       prompt: 'How many days in a non-leap year?',
       difficulty: 1,
@@ -176,11 +176,11 @@ async function main() {
     },
   });
 
-  // Q6: ORDER
+  // Q6: MC_ORDER
   const q6 = await prisma.question.create({
     data: {
       workspaceId: workspace.id,
-      type: 'ORDER',
+      type: 'MC_ORDER',
       title: 'Planet Order',
       prompt: 'Order planets by distance from Sun:',
       difficulty: 4,
@@ -303,11 +303,11 @@ async function main() {
     },
   });
 
-  // Q11: POLL
+  // Q11: MC_SINGLE (Poll style)
   const q11 = await prisma.question.create({
     data: {
       workspaceId: workspace.id,
-      type: 'POLL',
+      type: 'MC_SINGLE',
       title: 'Pizza Poll',
       prompt: 'Favorite pizza topping?',
       difficulty: 1,
@@ -328,7 +328,7 @@ async function main() {
   const q12 = await prisma.question.create({
     data: {
       workspaceId: workspace.id,
-      type: 'PHOTO_OPEN_TEXT_TEXT',
+      type: 'PHOTO_OPEN_TEXT',
       title: 'Historical Figure',
       prompt: 'Name this person:',
       difficulty: 3,
