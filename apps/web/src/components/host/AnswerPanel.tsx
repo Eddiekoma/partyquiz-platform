@@ -3,6 +3,14 @@
 import { useState, useMemo } from "react";
 import { QuestionType } from "@partyquiz/shared";
 
+// Helper to check if a question type is an open text type (allows score adjustment)
+const isOpenTextType = (questionType: string | undefined): boolean => {
+  if (!questionType) return false;
+  const type = questionType.toUpperCase();
+  return type === "OPEN_TEXT" || type === "PHOTO_OPEN" || 
+         type === "AUDIO_OPEN" || type === "VIDEO_OPEN";
+};
+
 /**
  * Represents a player's answer in the host answer panel
  */
@@ -21,6 +29,11 @@ export interface PlayerAnswer {
   timeSpentMs?: number; // How long it took to answer (milliseconds)
   selectedOptionIds?: string[];
   submittedOrder?: string[];
+  // For OPEN_TEXT: auto scoring info (allows host to adjust)
+  answerId?: string; // Database ID for score adjustment
+  autoScore?: number; // Auto-calculated score
+  autoScorePercentage?: number; // Auto-calculated percentage (0-100)
+  isManuallyAdjusted?: boolean; // Host has adjusted
 }
 
 interface AnswerPanelProps {
@@ -33,6 +46,8 @@ interface AnswerPanelProps {
   correctOrder?: Array<{ id: string; text: string; position: number }>;
   // For MC questions, show options with correct indicator
   options?: Array<{ id: string; text: string; isCorrect?: boolean }>;
+  // For OPEN_TEXT: callback to adjust score
+  onAdjustScore?: (answerId: string, playerId: string, itemId: string, scorePercentage: number) => void;
 }
 
 /**
@@ -47,8 +62,11 @@ export function AnswerPanel({
   onToggle,
   correctOrder,
   options,
+  onAdjustScore,
 }: AnswerPanelProps) {
   const [sortBy, setSortBy] = useState<"time" | "score" | "name">("time");
+  // Track which answers are being adjusted (show buttons)
+  const [adjustingAnswerId, setAdjustingAnswerId] = useState<string | null>(null);
 
   // Sort answers based on selected criteria
   const sortedAnswers = useMemo(() => {
@@ -114,11 +132,11 @@ export function AnswerPanel({
     
     // Partial correct: has points but not marked as fully correct
     if (!answer.isCorrect && answer.score > 0) {
-      return { icon: "🟡", color: "text-yellow-400", label: "Gedeeltelijk" };
+      return { icon: "🟡", color: "text-yellow-400", label: "Partial" };
     }
     
     // Completely wrong
-    return { icon: "❌", color: "text-red-400", label: "Fout" };
+    return { icon: "❌", color: "text-red-400", label: "Wrong" };
   };
 
   // Format time spent answering
@@ -203,13 +221,13 @@ export function AnswerPanel({
       const displayValue = answer.answerDisplay || 
         (answer.rawAnswer !== undefined && answer.rawAnswer !== null 
           ? String(answer.rawAnswer) 
-          : "(geen antwoord)");
+          : "(no answer)");
       
       return (
         <div className="flex items-center gap-2">
           <span className="font-mono text-sm font-bold text-white">{displayValue}</span>
           {answer.score > 0 && (
-            <span className="text-xs text-slate-400">(+{answer.score} punten)</span>
+            <span className="text-xs text-slate-400">(+{answer.score} points)</span>
           )}
         </div>
       );
@@ -228,9 +246,9 @@ export function AnswerPanel({
       >
         <div className="flex items-center gap-3">
           <span className="text-lg">{isExpanded ? "▼" : "▶"}</span>
-          <span className="font-medium text-white">Antwoorden</span>
+          <span className="font-medium text-white">Answers</span>
           <span className="text-sm text-slate-400">
-            {answers.length}/{totalPlayers} spelers
+            {answers.length}/{totalPlayers} players
           </span>
         </div>
         
@@ -254,7 +272,7 @@ export function AnswerPanel({
           {/* Option distribution for MC questions */}
           {optionDistribution && Object.keys(optionDistribution).length > 0 && (
             <div className="px-4 py-3 bg-slate-700 border-b border-slate-600">
-              <div className="text-xs text-slate-400 mb-2 font-medium">Antwoord verdeling:</div>
+              <div className="text-xs text-slate-400 mb-2 font-medium">Answer distribution:</div>
               <div className="space-y-1.5">
                 {Object.entries(optionDistribution).map(([optId, data]) => {
                   const percentage = answers.length > 0 
@@ -301,7 +319,7 @@ export function AnswerPanel({
               onClick={() => setSortBy("name")}
               className={`px-2 py-1 rounded ${sortBy === "name" ? "bg-blue-600 text-white" : "text-slate-300 hover:bg-slate-600"}`}
             >
-              👤 Naam
+              👤 Name
             </button>
           </div>
           
@@ -309,14 +327,14 @@ export function AnswerPanel({
           <div className="max-h-64 overflow-y-auto">
             {sortedAnswers.length === 0 ? (
               <div className="px-4 py-8 text-center text-slate-400">
-                Nog geen antwoorden ontvangen...
+                No answers received yet...
               </div>
             ) : (
               <table className="w-full text-sm">
                 <thead className="bg-slate-700 sticky top-0">
                   <tr className="text-left text-xs text-slate-400">
-                    <th className="px-4 py-2">Speler</th>
-                    <th className="px-4 py-2">Antwoord</th>
+                    <th className="px-4 py-2">Player</th>
+                    <th className="px-4 py-2">Answer</th>
                     <th className="px-4 py-2 text-center w-16">✓/✗</th>
                     <th className="px-4 py-2 text-right w-20">Score</th>
                   </tr>
@@ -339,7 +357,7 @@ export function AnswerPanel({
                           <div className="flex items-center gap-2">
                             <span className="text-lg">{answer.playerAvatar || "👤"}</span>
                             <div>
-                              <div className="font-medium text-white">{answer.playerName || "(onbekend)"}</div>
+                              <div className="font-medium text-white">{answer.playerName || "(unknown)"}</div>
                               <div className="text-xs text-slate-400 flex items-center gap-2">
                                 <span>{formatTimeAgo(answer.answeredAt)}</span>
                                 {timeSpent && (
@@ -356,10 +374,74 @@ export function AnswerPanel({
                           <span className={`text-lg ${status.color}`}>{status.icon}</span>
                         </td>
                         <td className="px-4 py-2 text-right">
-                          {answer.score > 0 ? (
-                            <span className="font-medium text-green-400">+{answer.score}</span>
+                          {/* For OPEN_TEXT types: show score adjustment buttons */}
+                          {isOpenTextType(answer.questionType) && answer.answerId && onAdjustScore ? (
+                            <div className="flex flex-col items-end gap-1">
+                              {/* Current score with edit button */}
+                              <div className="flex items-center gap-2">
+                                {answer.isManuallyAdjusted && (
+                                  <span className="text-xs text-purple-400" title="Manually adjusted">✏️</span>
+                                )}
+                                <span className={`font-medium ${answer.score > 0 ? "text-green-400" : "text-slate-400"}`}>
+                                  {answer.score > 0 ? `+${answer.score}` : "0"}
+                                </span>
+                                <button
+                                  onClick={() => setAdjustingAnswerId(
+                                    adjustingAnswerId === answer.answerId ? null : answer.answerId!
+                                  )}
+                                  className="text-xs px-1.5 py-0.5 rounded bg-slate-600 hover:bg-slate-500 text-slate-300"
+                                  title="Adjust score"
+                                >
+                                  ✏️
+                                </button>
+                              </div>
+                              
+                              {/* Score adjustment buttons (shown when editing) */}
+                              {adjustingAnswerId === answer.answerId && (
+                                <div className="flex gap-1 mt-1">
+                                  {[0, 25, 50, 75, 100].map((pct) => {
+                                    const maxScore = answer.maxScore || 10;
+                                    const pctScore = Math.round((pct / 100) * maxScore);
+                                    const isCurrentScore = answer.score === pctScore;
+                                    return (
+                                      <button
+                                        key={pct}
+                                        onClick={() => {
+                                          onAdjustScore(answer.answerId!, answer.playerId, answer.itemId, pct);
+                                          setAdjustingAnswerId(null);
+                                        }}
+                                        className={`text-xs px-1.5 py-1 rounded font-medium transition-all ${
+                                          isCurrentScore
+                                            ? "bg-purple-600 text-white ring-2 ring-purple-400"
+                                            : pct === 100
+                                            ? "bg-green-600/80 text-white hover:bg-green-500"
+                                            : pct === 0
+                                            ? "bg-red-600/80 text-white hover:bg-red-500"
+                                            : "bg-slate-600 text-slate-200 hover:bg-slate-500"
+                                        }`}
+                                        title={`${pct}% = ${pctScore} points`}
+                                      >
+                                        {pct}%
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                              
+                              {/* Show auto score hint if different */}
+                              {answer.autoScorePercentage !== undefined && !answer.isManuallyAdjusted && (
+                                <span className="text-xs text-slate-500">
+                                  Auto: {answer.autoScorePercentage}%
+                                </span>
+                              )}
+                            </div>
                           ) : (
-                            <span className="text-slate-400">0</span>
+                            // Default score display for non-OPEN_TEXT
+                            answer.score > 0 ? (
+                              <span className="font-medium text-green-400">+{answer.score}</span>
+                            ) : (
+                              <span className="text-slate-400">0</span>
+                            )
                           )}
                         </td>
                       </tr>
@@ -374,7 +456,7 @@ export function AnswerPanel({
           {answers.length > 0 && (
             <div className="px-4 py-2 bg-slate-700 border-t border-slate-600 text-xs text-slate-300 flex justify-between">
               <span>
-                Gemiddelde score: <strong className="text-white">{stats.avgScore}</strong> punten
+                Average score: <strong className="text-white">{stats.avgScore}</strong> points
               </span>
               <span>
                 {Math.round((stats.correctCount / answers.length) * 100)}% correct

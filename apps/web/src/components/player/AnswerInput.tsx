@@ -39,48 +39,70 @@ export function AnswerInput({
       );
     }
 
+    // MC_SINGLE: Select first, then submit
     return (
-      <div className="space-y-3">
-        {options?.map((option) => (
-          <button
-            key={option.id}
-            onClick={() => {
-              setAnswer(option.id);
-              setTimeout(() => onSubmit(option.id), 100);
-            }}
-            disabled={disabled}
-            className="w-full p-4 text-lg font-bold text-white bg-slate-800/20 backdrop-blur-sm rounded-xl hover:bg-slate-800/30 active:scale-95 transition-all disabled:opacity-50"
-          >
-            {option.text}
-          </button>
-        ))}
+      <div className="space-y-4">
+        <div className="space-y-3">
+          {options?.map((option) => (
+            <button
+              key={option.id}
+              onClick={() => setAnswer(option.id)}
+              disabled={disabled}
+              className={`w-full p-4 text-lg font-bold text-white rounded-xl active:scale-95 transition-all disabled:opacity-50 ${
+                answer === option.id
+                  ? "bg-purple-600 ring-4 ring-purple-400 scale-[1.02]"
+                  : "bg-slate-800/20 backdrop-blur-sm hover:bg-slate-800/30"
+              }`}
+            >
+              {option.text}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => onSubmit(answer)}
+          disabled={disabled || !answer}
+          className="w-full py-4 text-xl font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 active:scale-95 transition-all disabled:opacity-50 disabled:from-gray-500 disabled:to-gray-600"
+        >
+          Submit Answer
+        </button>
       </div>
     );
   }
 
-  // True/False
+  // True/False - Select first, then submit
   if (questionType === "TRUE_FALSE") {
     return (
-      <div className="grid grid-cols-2 gap-4">
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <button
+            onClick={() => setAnswer(true)}
+            disabled={disabled}
+            className={`p-6 text-2xl font-black text-white rounded-2xl active:scale-95 transition-all disabled:opacity-50 ${
+              answer === true
+                ? "bg-green-600 ring-4 ring-green-400 scale-[1.02]"
+                : "bg-green-500/80 backdrop-blur-sm hover:bg-green-600/80"
+            }`}
+          >
+            ✅ TRUE
+          </button>
+          <button
+            onClick={() => setAnswer(false)}
+            disabled={disabled}
+            className={`p-6 text-2xl font-black text-white rounded-2xl active:scale-95 transition-all disabled:opacity-50 ${
+              answer === false
+                ? "bg-red-600 ring-4 ring-red-400 scale-[1.02]"
+                : "bg-red-500/80 backdrop-blur-sm hover:bg-red-600/80"
+            }`}
+          >
+            ❌ FALSE
+          </button>
+        </div>
         <button
-          onClick={() => {
-            setAnswer(true);
-            setTimeout(() => onSubmit(true), 100);
-          }}
-          disabled={disabled}
-          className="p-6 text-2xl font-black text-white bg-green-500/80 backdrop-blur-sm rounded-2xl hover:bg-green-600/80 active:scale-95 transition-all disabled:opacity-50"
+          onClick={() => onSubmit(answer)}
+          disabled={disabled || answer === null}
+          className="w-full py-4 text-xl font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 active:scale-95 transition-all disabled:opacity-50 disabled:from-gray-500 disabled:to-gray-600"
         >
-          ✅ TRUE
-        </button>
-        <button
-          onClick={() => {
-            setAnswer(false);
-            setTimeout(() => onSubmit(false), 100);
-          }}
-          disabled={disabled}
-          className="p-6 text-2xl font-black text-white bg-red-500/80 backdrop-blur-sm rounded-2xl hover:bg-red-600/80 active:scale-95 transition-all disabled:opacity-50"
-        >
-          ❌ FALSE
+          Submit Answer
         </button>
       </div>
     );

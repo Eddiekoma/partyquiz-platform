@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import { WSMessage, WSMessageType } from "@partyquiz/shared";
+import { WSMessage, WSMessageType, SwanChaseGameState } from "@partyquiz/shared";
 import { YouTubePlayer, YouTubePlayerControls } from "@/components/YouTubePlayer";
 import { extractYouTubeVideoId } from "@partyquiz/shared";
 import { PlayerConnectionStatus } from "@/components/live/PlayerConnectionStatus";
+import { SwanChaseConfig } from "@/components/host/SwanChaseConfig";
 
 interface HostControlPanelProps {
   session: any;
@@ -23,6 +24,8 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
   const [timeRemaining, setTimeRemaining] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPaused, setIsPaused] = useState(session.status === "PAUSED");
+  const [showSwanChaseConfig, setShowSwanChaseConfig] = useState(false);
+  const [swanChaseState, setSwanChaseState] = useState<SwanChaseGameState | null>(null);
   const youtubePlayerRef = useRef<HTMLDivElement>(null);
 
   // Flatten all items for easy navigation
@@ -73,6 +76,22 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
 
         case WSMessageType.SESSION_RESUMED:
           setIsPaused(false);
+          break;
+
+        case WSMessageType.SWAN_CHASE_STARTED:
+          setSwanChaseState(message.payload?.gameState || null);
+          setShowSwanChaseConfig(false);
+          break;
+
+        case WSMessageType.SWAN_CHASE_STATE:
+          setSwanChaseState(message.payload?.gameState || null);
+          break;
+
+        case WSMessageType.SWAN_CHASE_ENDED:
+          // Keep final state visible
+          if (message.payload?.gameState) {
+            setSwanChaseState(message.payload.gameState);
+          }
           break;
 
         default:
@@ -407,15 +426,25 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
               👁️ Reveal Answers
             </button>
           )}
+        </div>
 
-          <button
-            onClick={startSwanRace}
-            disabled={!isConnected || isPaused}
-            className="w-full px-4 py-3 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 disabled:bg-gray-300 transition-colors"
-          >
-            🦢 Start Swan Race
-          </button>
+        {/* Minigames Section */}
+        <div className="mt-6 border-t border-slate-700 pt-4">
+          <h3 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+            🎮 Minigames
+          </h3>
+          <div className="space-y-2">
+            <button
+              onClick={() => setShowSwanChaseConfig(!showSwanChaseConfig)}
+              className="w-full px-4 py-3 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center gap-2"
+            >
+              🦢 {showSwanChaseConfig ? "Hide" : "Configure"} Swan Chase
+            </button>
+          </div>
+        </div>
 
+        {/* Session Controls */}
+        <div className="mt-6 border-t border-slate-700 pt-4">
           <button
             onClick={endSession}
             disabled={!isConnected}
@@ -434,6 +463,19 @@ export default function HostControlPanel({ session, quiz }: HostControlPanelProp
         {error && (
           <div className="mt-4 p-3 bg-red-900/50 border border-red-700 rounded-lg">
             <p className="text-red-300 text-sm">{error}</p>
+          </div>
+        )}
+
+        {/* Swan Chase Configuration */}
+        {showSwanChaseConfig && (
+          <div className="mt-4">
+            <SwanChaseConfig
+              sessionCode={session.code}
+              players={session.players || []}
+              socket={socket}
+              isConnected={isConnected}
+              gameState={swanChaseState}
+            />
           </div>
         )}
       </div>

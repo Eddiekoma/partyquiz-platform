@@ -85,6 +85,22 @@ export function ScoringInfoCard({
         <p className="text-sm text-slate-400 mt-1">{scoringInfo.description}</p>
       </div>
 
+      {/* Host manual review notice for FUZZY_TEXT types */}
+      {scoringInfo.mode === ScoringMode.FUZZY_TEXT && (
+        <div className="bg-amber-900/30 border border-amber-600/50 rounded-lg p-3 mb-4">
+          <div className="flex items-start gap-2">
+            <span className="text-lg">👨‍💼</span>
+            <div>
+              <p className="text-sm font-semibold text-amber-300">Host review required</p>
+              <p className="text-xs text-amber-200/80 mt-1">
+                A preliminary score is automatically assigned based on fuzzy matching, 
+                but the host can manually adjust scores during the quiz if needed.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Scoring tiers - with example indicator */}
       {scoringInfo.tiers.length > 0 && (
         <div className="space-y-2 mb-4">

@@ -3,11 +3,12 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import { WSMessageType, type Player as SharedPlayer, type ConnectionStatus, QuestionType } from "@partyquiz/shared";
+import { WSMessageType, type Player as SharedPlayer, type ConnectionStatus, QuestionType, type SwanChaseGameState } from "@partyquiz/shared";
 import Link from "next/link";
 import { QuestionTypeBadge } from "@/components/QuestionTypeBadge";
 import { AnswerPanel, type PlayerAnswer } from "@/components/host/AnswerPanel";
 import QRCode from "react-qr-code";
+import { SwanChaseConfig } from "@/components/host/SwanChaseConfig";
 
 interface Player {
   id: string;
@@ -102,9 +103,15 @@ export default function HostControlPage() {
     rawAnswer: any;
     isCorrect: boolean | null;
     score: number;
+    maxScore?: number;
     answeredAt: number;
     selectedOptionIds?: string[];
     submittedOrder?: string[];
+    // OPEN_TEXT score adjustment fields
+    answerId?: string;
+    autoScore?: number;
+    autoScorePercentage?: number;
+    isManuallyAdjusted?: boolean;
   }>>([]);
   const [showAnswerPanel, setShowAnswerPanel] = useState(false);
   // History of all answers per item (preserved across questions)
@@ -118,9 +125,15 @@ export default function HostControlPage() {
     rawAnswer: any;
     isCorrect: boolean | null;
     score: number;
+    maxScore?: number;
     answeredAt: number;
     selectedOptionIds?: string[];
     submittedOrder?: string[];
+    // OPEN_TEXT score adjustment fields
+    answerId?: string;
+    autoScore?: number;
+    autoScorePercentage?: number;
+    isManuallyAdjusted?: boolean;
   }>>>(new Map());
   // Show question history sidebar
   const [showQuestionHistory, setShowQuestionHistory] = useState(false);
@@ -128,6 +141,9 @@ export default function HostControlPage() {
   const [selectedHistoryItemId, setSelectedHistoryItemId] = useState<string | null>(null);
   // Answer counts per item (restored from server after page refresh)
   const [answerCountsMap, setAnswerCountsMap] = useState<Record<string, number>>({});
+  // Swan Chase state
+  const [showSwanChaseConfig, setShowSwanChaseConfig] = useState(false);
+  const [swanChaseState, setSwanChaseState] = useState<SwanChaseGameState | null>(null);
 
   // Refs to access current values in event handlers
   const currentItemAnswersRef = useRef(currentItemAnswers);
@@ -344,6 +360,11 @@ export default function HostControlPage() {
       answeredAt: number;
       selectedOptionIds?: string[];
       submittedOrder?: string[];
+      // For OPEN_TEXT: auto scoring info
+      answerId?: string;
+      autoScore?: number;
+      autoScorePercentage?: number;
+      isManuallyAdjusted?: boolean;
     }) => {
       console.log("[Host] PLAYER_ANSWERED:", data);
       setCurrentItemAnswers(prev => {
@@ -469,6 +490,65 @@ export default function HostControlPage() {
       }
     };
 
+    // Listen for score adjusted (host adjusted OPEN_TEXT score)
+    const handleScoreAdjusted = (data: {
+      itemId: string;
+      playerId: string;
+      previousScore: number;
+      newScore: number;
+      newScorePercentage: number;
+      adjustedBy: string;
+    }) => {
+      console.log("[Host] SCORE_ADJUSTED received:", data);
+      // Update the answer in currentItemAnswers
+      setCurrentItemAnswers(prev => prev.map(answer => {
+        if (answer.playerId === data.playerId && answer.itemId === data.itemId) {
+          return {
+            ...answer,
+            score: data.newScore,
+            isCorrect: data.newScore > 0,
+            isManuallyAdjusted: true,
+          };
+        }
+        return answer;
+      }));
+      // Also update in answer history
+      setAnswerHistory(prev => {
+        const updated = new Map(prev);
+        const itemAnswers = updated.get(data.itemId);
+        if (itemAnswers) {
+          updated.set(data.itemId, itemAnswers.map(answer => {
+            if (answer.playerId === data.playerId) {
+              return {
+                ...answer,
+                score: data.newScore,
+                isCorrect: data.newScore > 0,
+                isManuallyAdjusted: true,
+              };
+            }
+            return answer;
+          }));
+        }
+        return updated;
+      });
+    };
+
+    // Swan Chase handlers
+    const handleSwanChaseStarted = (data: SwanChaseGameState) => {
+      console.log("[Host] Swan Chase started:", data);
+      setSwanChaseState(data);
+      setShowSwanChaseConfig(true);
+    };
+
+    const handleSwanChaseState = (data: SwanChaseGameState) => {
+      setSwanChaseState(data);
+    };
+
+    const handleSwanChaseEnded = (data: SwanChaseGameState) => {
+      console.log("[Host] Swan Chase ended:", data);
+      setSwanChaseState(data);
+    };
+
     // Set up all listeners
     socket.on(WSMessageType.SESSION_STATE, handleSessionState);
     socket.on(WSMessageType.PLAYER_JOINED, handlePlayerJoined);
@@ -485,6 +565,10 @@ export default function HostControlPage() {
     socket.on("error", handleNativeError); // Socket.IO native error event
     socket.on(WSMessageType.REJOIN_TOKEN_GENERATED, handleRejoinTokenGenerated);
     socket.on(WSMessageType.LEADERBOARD_UPDATE, handleLeaderboardUpdate);
+    socket.on("SCORE_ADJUSTED", handleScoreAdjusted);
+    socket.on(WSMessageType.SWAN_CHASE_STARTED, handleSwanChaseStarted);
+    socket.on(WSMessageType.SWAN_CHASE_STATE, handleSwanChaseState);
+    socket.on(WSMessageType.SWAN_CHASE_ENDED, handleSwanChaseEnded);
 
     console.log("[Host] Event listeners registered successfully");
 
@@ -507,6 +591,10 @@ export default function HostControlPage() {
       socket.off("error", handleNativeError);
       socket.off(WSMessageType.REJOIN_TOKEN_GENERATED, handleRejoinTokenGenerated);
       socket.off(WSMessageType.LEADERBOARD_UPDATE, handleLeaderboardUpdate);
+      socket.off("SCORE_ADJUSTED", handleScoreAdjusted);
+      socket.off(WSMessageType.SWAN_CHASE_STARTED, handleSwanChaseStarted);
+      socket.off(WSMessageType.SWAN_CHASE_STATE, handleSwanChaseState);
+      socket.off(WSMessageType.SWAN_CHASE_ENDED, handleSwanChaseEnded);
     };
   }, [socket, code]); // Only depend on socket, not on isConnected or hasJoinedRoom
 
@@ -803,6 +891,19 @@ export default function HostControlPage() {
     });
   }, [socket, code]);
 
+  // Adjust score for OPEN_TEXT answers (host manual override)
+  const adjustScore = useCallback((answerId: string, playerId: string, itemId: string, scorePercentage: number) => {
+    if (!socket) return;
+    console.log("[Host] Adjusting score:", { answerId, playerId, itemId, scorePercentage });
+    socket.emit("ADJUST_SCORE", {
+      sessionCode: code,
+      answerId,
+      playerId,
+      itemId,
+      scorePercentage,
+    });
+  }, [socket, code]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center">
@@ -1050,10 +1151,10 @@ export default function HostControlPage() {
             <div className="mt-6 pt-4 border-t border-slate-700">
               <h3 className="text-sm font-semibold text-slate-500 uppercase mb-3 flex items-center gap-2">
                 <span>📴</span>
-                <span>Verlaten ({leftPlayers.length})</span>
+                <span>Left ({leftPlayers.length})</span>
               </h3>
               <p className="text-xs text-slate-500 mb-3">
-                Spelers die weg zijn maar punten hebben behaald
+                Players who left but earned points
               </p>
               <div className="space-y-2">
                 {leftPlayers
@@ -1072,13 +1173,13 @@ export default function HostControlPage() {
                       </span>
                       <span 
                         className="w-2 h-2 rounded-full flex-shrink-0 bg-slate-500"
-                        title="Verlaten sessie"
+                        title="Left session"
                       />
                       <button
                         onClick={() => generateRejoinLink(player.id)}
                         disabled={generatingToken === player.id}
                         className="p-1 text-blue-400 hover:text-blue-300 hover:bg-blue-900/30 rounded transition-all"
-                        title="Genereer rejoin link"
+                        title="Generate rejoin link"
                       >
                         {generatingToken === player.id ? "⏳" : "🔗"}
                       </button>
@@ -1207,16 +1308,16 @@ export default function HostControlPage() {
                   {/* ESTIMATION: Show correct number on host */}
                   {currentItem.question.type === "ESTIMATION" && (
                     <div className="bg-slate-700/50 border-2 border-slate-600 rounded-lg p-4">
-                      <p className="text-sm text-slate-400 mb-2">Correcte antwoord:</p>
+                      <p className="text-sm text-slate-400 mb-2">Correct answer:</p>
                       <p className="text-2xl font-bold text-green-400">
                         {currentItem.question.options?.[0]?.text 
-                          ? Number(currentItem.question.options[0].text).toLocaleString("nl-NL")
-                          : "Niet ingesteld"}
+                          ? Number(currentItem.question.options[0].text).toLocaleString("en-US")
+                          : "Not set"}
                       </p>
                       {currentItem.question.options?.[0]?.order !== undefined && 
                        currentItem.question.options[0].order > 0 && (
                         <p className="text-sm text-slate-400 mt-1">
-                          ±{currentItem.question.options[0].order}% marge voor volle punten
+                          ±{currentItem.question.options[0].order}% margin for full points
                         </p>
                       )}
                     </div>
@@ -1229,10 +1330,31 @@ export default function HostControlPage() {
                     currentItem.question.type === "VIDEO_OPEN") && 
                     currentItem.question.options?.[0] && (
                     <div className="bg-slate-700/50 border-2 border-slate-600 rounded-lg p-4">
-                      <p className="text-sm text-slate-400 mb-2">Correcte antwoord:</p>
+                      <p className="text-sm text-slate-400 mb-2">Correct answer:</p>
                       <p className="text-xl font-bold text-green-400">
                         {currentItem.question.options[0].text}
                       </p>
+                    </div>
+                  )}
+
+                  {/* Host instructions for OPEN_TEXT scoring */}
+                  {(currentItem.question.type === "OPEN_TEXT" ||
+                    currentItem.question.type === "PHOTO_OPEN" ||
+                    currentItem.question.type === "AUDIO_OPEN" ||
+                    currentItem.question.type === "VIDEO_OPEN") && (
+                    <div className="bg-amber-900/30 border border-amber-600/50 rounded-lg p-4 mt-3">
+                      <div className="flex items-start gap-3">
+                        <span className="text-2xl">📝</span>
+                        <div>
+                          <p className="font-semibold text-amber-300 mb-1">
+                            Manual Review Required
+                          </p>
+                          <p className="text-sm text-amber-200/80">
+                            An automatic preliminary score has been assigned based on fuzzy matching. 
+                            Review the answers below and adjust the score if needed using the percentage buttons (0%, 25%, 50%, 75%, 100%).
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   )}
 
@@ -1266,7 +1388,7 @@ export default function HostControlPage() {
                         {shouldShowHistory && !isLiveQuestion && (
                           <div className="mb-2 flex items-center gap-2">
                             <span className="bg-blue-900/50 text-blue-300 text-xs px-2 py-1 rounded-full">
-                              📊 Opgeslagen antwoorden ({answersToShow.length})
+                              📊 Saved answers ({answersToShow.length})
                             </span>
                           </div>
                         )}
@@ -1291,6 +1413,7 @@ export default function HostControlPage() {
                               }))
                             : undefined
                           }
+                          onAdjustScore={adjustScore}
                         />
                       </div>
                     );
@@ -1485,6 +1608,69 @@ export default function HostControlPage() {
               )}
             </div>
           </div>
+
+          {/* Minigames Section */}
+          <div className="bg-slate-800 rounded-xl p-6 border-2 border-purple-600/30">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-purple-400 uppercase flex items-center gap-2">
+                🎮 Minigames
+              </h3>
+              <span className="text-xs text-slate-500">
+                Start fun games between questions
+              </span>
+            </div>
+            
+            <div className="grid grid-cols-1 gap-3">
+              {/* Swan Chase */}
+              <button
+                onClick={() => setShowSwanChaseConfig(!showSwanChaseConfig)}
+                className={`w-full px-6 py-4 rounded-lg font-medium transition-all text-left ${
+                  showSwanChaseConfig 
+                    ? 'bg-purple-600 hover:bg-purple-500' 
+                    : 'bg-slate-700 hover:bg-slate-600 border-2 border-purple-600/30 hover:border-purple-600/50'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-2xl">🦢</span>
+                      <span className="font-bold">Swan Chase</span>
+                    </div>
+                    <p className="text-sm text-slate-300">
+                      Teams race: boats chase swans in real-time!
+                    </p>
+                  </div>
+                  <span className="text-sm px-3 py-1 bg-slate-900/50 rounded-full">
+                    {showSwanChaseConfig ? "Hide ▲" : "Configure ▼"}
+                  </span>
+                </div>
+              </button>
+
+              {/* Placeholder for future minigames */}
+              <div className="px-6 py-4 bg-slate-700/30 border-2 border-dashed border-slate-600 rounded-lg text-center text-slate-500 text-sm">
+                💡 More minigames coming soon...
+              </div>
+            </div>
+          </div>
+
+          {/* Swan Chase Configuration Panel */}
+          {showSwanChaseConfig && (
+            <div className="mt-6">
+              <SwanChaseConfig
+                sessionCode={code}
+                players={session.players.map(p => ({
+                  id: p.id,
+                  name: p.name,
+                  avatar: p.avatar ?? null,
+                  score: p.score,
+                  isOnline: p.isOnline ?? true,
+                }))}
+                socket={socket}
+                isConnected={isConnected}
+                gameState={swanChaseState}
+              />
+            </div>
+          )}
         </main>
 
         {/* Right Sidebar - Quiz Overview */}

@@ -122,3 +122,28 @@ export const youtubeReferenceSchema = z.object({
   startSeconds: z.number().int().min(0).default(0),
   endSeconds: z.number().int().min(0).optional(),
 });
+
+// Swan Chase player movement schemas
+export const swanChaseBoatMoveSchema = z.object({
+  sessionCode: z.string().length(6),
+  playerId: z.string(),
+  angle: z.number().min(0).max(360), // 0-360 degrees
+  speed: z.number().min(0).max(1), // 0-1 throttle
+});
+
+export const swanChaseBoatSprintSchema = z.object({
+  sessionCode: z.string().length(6),
+  playerId: z.string(),
+});
+
+export const swanChaseSwanMoveSchema = z.object({
+  sessionCode: z.string().length(6),
+  playerId: z.string(),
+  angle: z.number().min(0).max(360),
+  speed: z.number().min(0).max(1),
+});
+
+export const swanChaseSwanDashSchema = z.object({
+  sessionCode: z.string().length(6),
+  playerId: z.string(),
+});

@@ -3,12 +3,14 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import { QuestionType, WSMessageType } from "@partyquiz/shared";
+import { QuestionType, WSMessageType, SwanChaseGameState } from "@partyquiz/shared";
 import { QuestionDisplay } from "@/components/player/QuestionDisplay";
 import { AnswerInput } from "@/components/player/AnswerInput";
 import { Timer } from "@/components/player/Timer";
 import { ScoreDisplay } from "@/components/player/ScoreDisplay";
 import { SwanRace } from "@/components/SwanRace";
+import { BoatControls } from "@/components/player/BoatControls";
+import { SwanControls } from "@/components/player/SwanControls";
 import { Leaderboard } from "@/components/player/Leaderboard";
 
 interface LeaderboardEntry {
@@ -45,6 +47,8 @@ export default function GamePage() {
   } | null>(null);
   const [currentScore, setCurrentScore] = useState(0);
   const [showSwanRace, setShowSwanRace] = useState(false);
+  const [showSwanChase, setShowSwanChase] = useState(false);
+  const [swanChaseState, setSwanChaseState] = useState<SwanChaseGameState | null>(null);
   const [playerId, setPlayerId] = useState<string>("");
   const [playerName, setPlayerName] = useState<string>("");
   const [explanation, setExplanation] = useState<string | null>(null);
@@ -70,6 +74,12 @@ export default function GamePage() {
     position: 1 | 2 | 3;
     bonusPoints: number;
     bonusPercentage: number;
+  } | null>(null);
+  // Score adjustment notification (host manually adjusted score)
+  const [scoreAdjustment, setScoreAdjustment] = useState<{
+    oldScore: number;
+    newScore: number;
+    newScorePercentage: number;
   } | null>(null);
 
   const { socket, isConnected } = useWebSocket();
@@ -110,13 +120,28 @@ export default function GamePage() {
     socket.on("SWAN_RACE_STARTED", (data: any) => {
       console.log("[Player] Swan Race started:", data);
       setShowSwanRace(true);
+      setShowSwanChase(false);
       setCurrentItem(null); // Hide current question
+    });
+
+    // Listen for Swan Chase started
+    socket.on(WSMessageType.SWAN_CHASE_STARTED, (data: any) => {
+      console.log("[Player] Swan Chase started:", data);
+      setShowSwanChase(true);
+      setShowSwanRace(false);
+      setCurrentItem(null);
+    });
+
+    // Listen for Swan Chase state updates
+    socket.on(WSMessageType.SWAN_CHASE_STATE, (state: SwanChaseGameState) => {
+      setSwanChaseState(state);
     });
 
     // Listen for item started (new question)
     socket.on("ITEM_STARTED", (data: any) => {
       console.log("[Player] Item started:", data);
       setShowSwanRace(false); // Hide Swan Race
+      setShowSwanChase(false); // Hide Swan Chase
       
       // timerDuration from server is in SECONDS, convert to MS for internal use
       const timerMs = (data.timerDuration || 4) * 1000;
@@ -154,6 +179,7 @@ export default function GamePage() {
       setAcceptableAnswers(null); // Reset acceptable answers
       setWaitingForNext(false); // Reset waiting state
       setSpeedPodiumResult(null); // Reset speed podium result
+      setScoreAdjustment(null); // Reset score adjustment notification
     });
 
     // Listen for item locked (time's up)
@@ -349,8 +375,33 @@ export default function GamePage() {
       }
     });
 
+    // Listen for score adjustment (host manually adjusted OPEN_TEXT score)
+    socket.on(WSMessageType.SCORE_ADJUSTED, (data: any) => {
+      console.log("[Player] Score adjusted:", data);
+      // Only show notification if this player's score was adjusted
+      if (data.playerId === playerId) {
+        const oldScore = data.previousScore ?? data.oldScore ?? 0;
+        const newScore = data.newScore ?? 0;
+        const scoreDiff = newScore - oldScore;
+        // Update current score with the difference
+        setCurrentScore((prev) => prev + scoreDiff);
+        // Show notification
+        setScoreAdjustment({
+          oldScore: oldScore,
+          newScore: newScore,
+          newScorePercentage: data.newScorePercentage ?? 0,
+        });
+        // Auto-hide notification after 5 seconds
+        setTimeout(() => {
+          setScoreAdjustment(null);
+        }, 5000);
+      }
+    });
+
     return () => {
       socket.off("SWAN_RACE_STARTED");
+      socket.off(WSMessageType.SWAN_CHASE_STARTED);
+      socket.off(WSMessageType.SWAN_CHASE_STATE);
       socket.off("ITEM_STARTED");
       socket.off("ITEM_LOCKED");
       socket.off("SESSION_PAUSED");
@@ -365,6 +416,7 @@ export default function GamePage() {
       socket.off(WSMessageType.ITEM_CANCELLED);
       socket.off("ERROR");
       socket.off(WSMessageType.SPEED_PODIUM_RESULTS);
+      socket.off(WSMessageType.SCORE_ADJUSTED);
     };
   }, [socket, isConnected, code, router, playerId]);
 
@@ -421,6 +473,47 @@ export default function GamePage() {
     });
   };
 
+  // Swan Chase handlers
+  const handleSwanChaseMove = (angle: number, speed: number) => {
+    if (!socket || !showSwanChase) return;
+
+    socket.emit(WSMessageType.BOAT_MOVE, {
+      sessionCode: code.toUpperCase(),
+      playerId,
+      angle,
+      speed,
+    });
+  };
+
+  const handleSwanChaseSprint = () => {
+    if (!socket || !showSwanChase) return;
+
+    socket.emit(WSMessageType.BOAT_SPRINT, {
+      sessionCode: code.toUpperCase(),
+      playerId,
+    });
+  };
+
+  const handleSwanChaseSwanMove = (angle: number, speed: number) => {
+    if (!socket || !showSwanChase) return;
+
+    socket.emit(WSMessageType.SWAN_MOVE, {
+      sessionCode: code.toUpperCase(),
+      playerId,
+      angle,
+      speed,
+    });
+  };
+
+  const handleSwanChaseDash = () => {
+    if (!socket || !showSwanChase) return;
+
+    socket.emit(WSMessageType.SWAN_DASH, {
+      sessionCode: code.toUpperCase(),
+      playerId,
+    });
+  };
+
   if (!isConnected) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -462,6 +555,53 @@ export default function GamePage() {
     );
   }
 
+  // Show Swan Chase if active
+  if (showSwanChase) {
+    const myPlayer = swanChaseState?.players.find((p) => p.id === playerId);
+    const isBoat = myPlayer?.type === "BOAT";
+
+    if (isBoat) {
+      return (
+        <div className="flex-1 flex flex-col">
+          <Leaderboard
+            sessionCode={code.toUpperCase()}
+            visible={showScoreboard}
+            entries={scoreboardData}
+            currentPlayerId={playerId}
+          />
+          <BoatControls
+            sessionCode={code.toUpperCase()}
+            playerId={playerId}
+            gameState={swanChaseState}
+            onMove={handleSwanChaseMove}
+            onSprint={handleSwanChaseSprint}
+            socket={socket}
+          />
+        </div>
+      );
+    } else {
+      // Swan controls
+      return (
+        <div className="flex-1 flex flex-col">
+          <Leaderboard
+            sessionCode={code.toUpperCase()}
+            visible={showScoreboard}
+            entries={scoreboardData}
+            currentPlayerId={playerId}
+          />
+          <SwanControls
+            sessionCode={code.toUpperCase()}
+            playerId={playerId}
+            gameState={swanChaseState}
+            onMove={handleSwanChaseSwanMove}
+            onDash={handleSwanChaseDash}
+            socket={socket}
+          />
+        </div>
+      );
+    }
+  }
+
   if (!currentItem) {
     return (
       <div className="flex-1 flex items-center justify-center">
@@ -481,6 +621,29 @@ export default function GamePage() {
 
   return (
     <div className="flex-1 flex flex-col p-4 relative">
+      {/* Score Adjustment Notification */}
+      {scoreAdjustment && (
+        <div className="fixed inset-x-0 top-20 flex justify-center z-50 pointer-events-none animate-in slide-in-from-top duration-300">
+          <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-4 border-2 border-white/20">
+            <div className="text-4xl">
+              {scoreAdjustment.newScore > scoreAdjustment.oldScore ? "📈" : 
+               scoreAdjustment.newScore < scoreAdjustment.oldScore ? "📉" : "✏️"}
+            </div>
+            <div>
+              <p className="text-sm font-medium text-white/80">Score adjusted by host</p>
+              <p className="text-xl font-bold">
+                {scoreAdjustment.oldScore} → {scoreAdjustment.newScore} points
+                <span className="ml-2 text-lg">
+                  ({scoreAdjustment.newScore > scoreAdjustment.oldScore ? "+" : ""}
+                  {scoreAdjustment.newScore - scoreAdjustment.oldScore})
+                </span>
+              </p>
+              <p className="text-sm text-white/60">{scoreAdjustment.newScorePercentage}% awarded</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Scoreboard Overlay */}
       <Leaderboard
         sessionCode={code.toUpperCase()}
@@ -555,14 +718,14 @@ export default function GamePage() {
                 : answerResult.score > 0 
                   ? scorePercentage !== null
                     ? scorePercentage >= 90 
-                      ? "Bijna perfect!" 
+                      ? "Almost perfect!" 
                       : scorePercentage >= 70 
-                        ? "Goed gedaan!" 
+                        ? "Well done!" 
                         : scorePercentage >= 50 
-                          ? "Redelijk!" 
-                          : "Punten!"
-                    : "Gedeeltelijk goed!"
-                  : "Helaas!"}
+                          ? "Not bad!" 
+                          : "Points!"
+                    : "Partially correct!"
+                  : "Too bad!"}
             </p>
             {/* Show percentage for partial scores */}
             {answerResult.score > 0 && scorePercentage !== null && scorePercentage < 100 && (
@@ -597,15 +760,15 @@ export default function GamePage() {
             <div className="text-5xl mb-4 animate-pulse">⏳</div>
             <p className="text-2xl font-bold text-white mb-2">
               {answerResult.isCorrect 
-                ? "Goed gedaan!" 
+                ? "Well done!" 
                 : answerResult.score > 0 
                   ? scorePercentage !== null && scorePercentage >= 70 
-                    ? "Bijna!" 
-                    : "Punten gepakt!" 
-                  : "Volgende keer beter!"}
+                    ? "Almost!" 
+                    : "Points earned!" 
+                  : "Better luck next time!"}
             </p>
-            <p className="text-lg text-white/60">Wachten op volgende vraag...</p>
-            <p className="text-sm text-white/40 mt-2">Score: {currentScore} punten</p>
+            <p className="text-lg text-white/60">Waiting for next question...</p>
+            <p className="text-sm text-white/40 mt-2">Score: {currentScore} points</p>
           </div>
         )}
 
@@ -648,19 +811,19 @@ export default function GamePage() {
                 {/* Player's submitted answer */}
                 {submittedAnswer && (
                   <div className="p-4 rounded-xl bg-slate-700/60 text-white">
-                    <p className="text-sm text-white/60 mb-1">Jouw antwoord:</p>
+                    <p className="text-sm text-white/60 mb-1">Your answer:</p>
                     <p className="text-lg font-bold">{String(submittedAnswer)}</p>
                   </div>
                 )}
                 {/* Correct answer */}
                 <div className="p-6 rounded-xl bg-green-500/80 text-white text-center">
-                  <p className="text-sm text-white/80 mb-1">Correct antwoord:</p>
+                  <p className="text-sm text-white/80 mb-1">Correct answer:</p>
                   <p className="text-xl font-bold">{correctText}</p>
                 </div>
                 {/* Acceptable alternatives if any */}
                 {acceptableAnswers && acceptableAnswers.length > 0 && (
                   <div className="p-3 rounded-lg bg-slate-800/60 text-white/60 text-sm">
-                    <p className="mb-1">Ook goed: {acceptableAnswers.join(", ")}</p>
+                    <p className="mb-1">Also accepted: {acceptableAnswers.join(", ")}</p>
                   </div>
                 )}
               </div>
@@ -676,20 +839,20 @@ export default function GamePage() {
                       ? "bg-green-600/40 border border-green-500/50" 
                       : "bg-red-600/40 border border-red-500/50"
                   }`}>
-                    <p className="text-sm text-white/60 mb-1">Jouw antwoord:</p>
+                    <p className="text-sm text-white/60 mb-1">Your answer:</p>
                     <p className="text-2xl font-bold text-white">
                       {typeof submittedAnswer === "number" 
-                        ? submittedAnswer.toLocaleString("nl-NL") 
+                        ? submittedAnswer.toLocaleString("en-US") 
                         : String(submittedAnswer)}
                     </p>
                     {/* Show difference */}
                     {typeof submittedAnswer === "number" && (
                       <p className="text-sm text-white/70 mt-1">
                         {submittedAnswer === correctNumber 
-                          ? "🎯 Exact goed!" 
+                          ? "🎯 Exactly right!" 
                           : submittedAnswer > correctNumber 
-                            ? `↑ ${(submittedAnswer - correctNumber).toLocaleString("nl-NL")} te hoog`
-                            : `↓ ${(correctNumber - submittedAnswer).toLocaleString("nl-NL")} te laag`
+                            ? `↑ ${(submittedAnswer - correctNumber).toLocaleString("en-US")} too high`
+                            : `↓ ${(correctNumber - submittedAnswer).toLocaleString("en-US")} too low`
                         }
                       </p>
                     )}
@@ -697,11 +860,11 @@ export default function GamePage() {
                 )}
                 {/* Correct answer */}
                 <div className="p-6 rounded-xl bg-green-500/80 text-white text-center">
-                  <p className="text-sm text-white/80 mb-1">Correct antwoord:</p>
-                  <p className="text-3xl font-bold">{correctNumber.toLocaleString("nl-NL")}</p>
+                  <p className="text-sm text-white/80 mb-1">Correct answer:</p>
+                  <p className="text-3xl font-bold">{correctNumber.toLocaleString("en-US")}</p>
                   {estimationMargin && (
                     <p className="text-sm text-white/70 mt-2">
-                      Marge voor volle punten: ±{estimationMargin}%
+                      Margin for full points: ±{estimationMargin}%
                     </p>
                   )}
                 </div>

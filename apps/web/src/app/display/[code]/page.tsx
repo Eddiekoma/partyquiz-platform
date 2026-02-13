@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { WSMessageType } from "@partyquiz/shared";
 import { SwanRace } from "@/components/SwanRace";
+import { SwanChaseDisplay } from "@/components/SwanChaseDisplay";
 import { QuestionTypeBadge } from "@/components/QuestionTypeBadge";
 import QRCode from "react-qr-code";
 
@@ -91,6 +92,12 @@ export default function DisplayPage() {
     socket.emit(WSMessageType.HOST_JOIN_SESSION, {
       sessionCode: code,
     });
+
+    // Request current session state after joining (catch-up mechanism)
+    setTimeout(() => {
+      console.log("[Display] Requesting current session state...");
+      socket.emit("GET_SESSION_STATE", { sessionCode: code });
+    }, 500); // Wait 500ms for room join to complete
   }, [socket, isConnected, code]);
 
   // Set up event listeners SEPARATELY
@@ -110,6 +117,20 @@ export default function DisplayPage() {
       console.log("[Display] SESSION_STATE received:", data);
       if (data.players) {
         setSession(prev => prev ? { ...prev, players: data.players } : null);
+      }
+      
+      // Check if Swan Chase is currently active
+      if (data.currentActivity === "SWAN_CHASE" || data.activeMinigame === "SWAN_CHASE") {
+        console.log("[Display] Session state indicates Swan Chase is active");
+        setMinigameType("SWAN_CHASE");
+        setDisplayState("minigame");
+      }
+      
+      // Check if Swan Race is currently active
+      if (data.currentActivity === "SWAN_RACE" || data.activeMinigame === "SWAN_RACE") {
+        console.log("[Display] Session state indicates Swan Race is active");
+        setMinigameType("SWAN_RACE");
+        setDisplayState("minigame");
       }
     };
 
@@ -285,6 +306,13 @@ export default function DisplayPage() {
       setDisplayState("minigame");
     };
 
+    // Listen for swan chase (new game mode)
+    const handleSwanChaseStarted = () => {
+      console.log("[Display] SWAN_CHASE_STARTED");
+      setMinigameType("SWAN_CHASE");
+      setDisplayState("minigame");
+    };
+
     // Listen for session pause/resume/end
     const handleSessionPaused = () => {
       setDisplayState("paused");
@@ -350,6 +378,7 @@ export default function DisplayPage() {
     socket.on("SHOW_SCOREBOARD", handleShowScoreboard);
     socket.on("HIDE_SCOREBOARD", handleHideScoreboard);
     socket.on(WSMessageType.SWAN_RACE_STARTED, handleSwanRaceStarted);
+    socket.on(WSMessageType.SWAN_CHASE_STARTED, handleSwanChaseStarted);
     socket.on(WSMessageType.SESSION_PAUSED, handleSessionPaused);
     socket.on(WSMessageType.SESSION_RESUMED, handleSessionResumed);
     socket.on(WSMessageType.SESSION_ENDED, handleSessionEnded);
@@ -374,6 +403,7 @@ export default function DisplayPage() {
       socket.off("SHOW_SCOREBOARD", handleShowScoreboard);
       socket.off("HIDE_SCOREBOARD", handleHideScoreboard);
       socket.off(WSMessageType.SWAN_RACE_STARTED, handleSwanRaceStarted);
+      socket.off(WSMessageType.SWAN_CHASE_STARTED, handleSwanChaseStarted);
       socket.off(WSMessageType.SESSION_PAUSED, handleSessionPaused);
       socket.off(WSMessageType.SESSION_RESUMED, handleSessionResumed);
       socket.off(WSMessageType.SESSION_ENDED, handleSessionEnded);
@@ -631,8 +661,8 @@ export default function DisplayPage() {
             {currentQuestion.type === "ESTIMATION" && displayState !== "reveal" && (
               <div className="text-center py-8">
                 <div className="text-6xl mb-6">🔢</div>
-                <p className="text-2xl font-bold text-white mb-4">Voer je schatting in!</p>
-                <p className="text-lg text-white/60">Typ een getal op je telefoon</p>
+                <p className="text-2xl font-bold text-white mb-4">Enter your estimate!</p>
+                <p className="text-lg text-white/60">Type a number on your phone</p>
               </div>
             )}
             
@@ -643,8 +673,8 @@ export default function DisplayPage() {
               currentQuestion.type === "VIDEO_OPEN") && displayState !== "reveal" && (
               <div className="text-center py-8">
                 <div className="text-6xl mb-6">✍️</div>
-                <p className="text-2xl font-bold text-white mb-4">Typ je antwoord!</p>
-                <p className="text-lg text-white/60">Voer je antwoord in op je telefoon</p>
+                <p className="text-2xl font-bold text-white mb-4">Type your answer!</p>
+                <p className="text-lg text-white/60">Enter your answer on your phone</p>
               </div>
             )}
             
@@ -659,11 +689,11 @@ export default function DisplayPage() {
             {displayState === "reveal" && correctNumber !== null && currentQuestion.type === "ESTIMATION" && (
               <div className="text-center py-8">
                 <div className="p-8 rounded-2xl bg-green-500/80 text-white">
-                  <p className="text-2xl font-bold mb-2">Correcte antwoord:</p>
-                  <p className="text-6xl font-black mb-4">{correctNumber.toLocaleString("nl-NL")}</p>
+                  <p className="text-2xl font-bold mb-2">Correct answer:</p>
+                  <p className="text-6xl font-black mb-4">{correctNumber.toLocaleString("en-US")}</p>
                   {estimationMargin !== null && estimationMargin > 0 && (
                     <p className="text-xl text-white/80">
-                      ±{estimationMargin}% marge voor volle punten
+                      ±{estimationMargin}% margin for full points
                     </p>
                   )}
                 </div>
@@ -826,6 +856,11 @@ export default function DisplayPage() {
               <p className="text-2xl text-slate-400">Swan Race in progress...</p>
             </div>
           </div>
+        )}
+
+        {/* MINIGAME STATE - Swan Chase */}
+        {displayState === "minigame" && minigameType === "SWAN_CHASE" && (
+          <SwanChaseDisplay sessionCode={code} />
         )}
 
         {/* PAUSED STATE */}

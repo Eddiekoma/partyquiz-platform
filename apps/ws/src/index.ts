@@ -29,6 +29,14 @@ import {
   lockItemCommandSchema,
   revealAnswersCommandSchema,
   startSwanRaceCommandSchema,
+  // Swan Chase imports
+  startSwanChaseCommandSchema,
+  swanChaseInputCommandSchema,
+  swanChaseBoatMoveSchema,
+  swanChaseBoatSprintSchema,
+  swanChaseSwanMoveSchema,
+  swanChaseSwanDashSchema,
+  SwanChaseMode,
   type Player,
   type PlayerJoinedEvent,
   type SessionStateEvent,
@@ -128,7 +136,7 @@ function formatAnswerForDisplay(
       .map(id => options.find(opt => opt.id === id)?.text || id)
       .join(", ");
     return {
-      display: selectedTexts || "(geen selectie)",
+      display: selectedTexts || "(no selection)",
       selectedOptionIds: selectedIds,
     };
   }
@@ -136,10 +144,10 @@ function formatAnswerForDisplay(
   // TRUE_FALSE - Answer is boolean
   if (type === "TRUE_FALSE") {
     if (typeof rawAnswer === "boolean") {
-      return { display: rawAnswer ? "Waar" : "Onwaar" };
+      return { display: rawAnswer ? "True" : "False" };
     }
     // Sometimes sent as string "true"/"false"
-    return { display: rawAnswer === "true" || rawAnswer === true ? "Waar" : "Onwaar" };
+    return { display: rawAnswer === "true" || rawAnswer === true ? "True" : "False" };
   }
   
   // ORDER - Answer is array of option IDs in submitted order
@@ -149,7 +157,7 @@ function formatAnswerForDisplay(
       .map((id, idx) => `${idx + 1}. ${options.find(opt => opt.id === id)?.text || id}`)
       .join(" → ");
     return {
-      display: orderedTexts || "(geen volgorde)",
+      display: orderedTexts || "(no order)",
       submittedOrder: orderedIds,
     };
   }
@@ -157,7 +165,7 @@ function formatAnswerForDisplay(
   // ESTIMATION, MUSIC_GUESS_YEAR - Answer is a number
   if (["ESTIMATION", "MUSIC_GUESS_YEAR"].includes(type)) {
     const num = typeof rawAnswer === "number" ? rawAnswer : parseFloat(rawAnswer);
-    return { display: isNaN(num) ? String(rawAnswer) : num.toLocaleString("nl-NL") };
+    return { display: isNaN(num) ? String(rawAnswer) : num.toLocaleString("en-US") };
   }
   
   // POLL - Answer is option ID (no correct/incorrect)
@@ -626,6 +634,14 @@ interface SwanRaceState {
 
 const swanRaceGames = new Map<string, SwanRaceState>();
 
+// =============================================================================
+// SWAN CHASE GAME (New game mode)
+// =============================================================================
+import { SwanChaseGameEngine } from "./lib/swan-chase-engine";
+
+const swanChaseGames = new Map<string, SwanChaseGameEngine>();
+
+
 // Connection Status Tracking
 interface PlayerConnection {
   playerId: string;
@@ -905,6 +921,15 @@ function updateSwanRace(sessionCode: string, playerId: string, strokeDuration: n
 function stopSwanRace(sessionCode: string) {
   swanRaceGames.delete(sessionCode);
   logger.info({ sessionCode }, "Swan Race stopped");
+}
+
+function stopSwanChase(sessionCode: string) {
+  const gameEngine = swanChaseGames.get(sessionCode);
+  if (gameEngine) {
+    gameEngine.stop();
+    swanChaseGames.delete(sessionCode);
+    logger.info({ sessionCode }, "Swan Chase stopped and cleaned up");
+  }
 }
 
 const logger = pino({
@@ -1434,6 +1459,10 @@ io.on("connection", (socket: Socket) => {
           answeredAt: number;
           selectedOptionIds?: string[];
           submittedOrder?: string[];
+          answerId?: string; // For score adjustment
+          autoScore?: number;
+          autoScorePercentage?: number;
+          isManuallyAdjusted?: boolean;
         }>> = {};
 
         for (const answer of allAnswers) {
@@ -1488,6 +1517,10 @@ io.on("connection", (socket: Socket) => {
             answeredAt: answer.answeredAt.getTime(),
             selectedOptionIds: formatted.selectedOptionIds,
             submittedOrder: formatted.submittedOrder,
+            answerId: answer.id, // For score adjustment
+            autoScore: (answer as any).autoScore ?? undefined,
+            autoScorePercentage: (answer as any).autoScorePercentage ?? undefined,
+            isManuallyAdjusted: (answer as any).isManuallyAdjusted ?? false,
           });
         }
 
@@ -1602,6 +1635,92 @@ io.on("connection", (socket: Socket) => {
       }
     }
   );
+
+  // Get current session state (for late joiners / display catch-up)
+  socket.on("GET_SESSION_STATE", async (data: { sessionCode: string }) => {
+    try {
+      const { sessionCode } = data;
+      logger.info({ sessionCode, socketId: socket.id }, "Client requesting current session state");
+
+      // Get session from database
+      const session = await prisma.liveSession.findUnique({
+        where: { code: sessionCode },
+        include: { players: true },
+      });
+
+      if (!session) {
+        logger.warn({ sessionCode }, "Session not found for state request");
+        return;
+      }
+
+      // Check if there's an active minigame
+      let activeMinigame: string | null = null;
+      let minigameData: any = null;
+
+      // Check Swan Chase
+      const swanChaseGame = swanChaseGames.get(sessionCode);
+      if (swanChaseGame) {
+        activeMinigame = "SWAN_CHASE";
+        minigameData = swanChaseGame.getState();
+        logger.info({ sessionCode }, "Swan Chase game active - sending state to late joiner");
+        
+        // Emit both SESSION_STATE and SWAN_CHASE_STARTED to catch up the display
+        socket.emit(WSMessageType.SESSION_STATE, {
+          sessionCode,
+          currentActivity: "SWAN_CHASE",
+          activeMinigame: "SWAN_CHASE",
+          players: session.players.map(p => ({
+            id: p.id,
+            name: p.name,
+            avatar: p.avatar,
+          })),
+        });
+        
+        socket.emit(WSMessageType.SWAN_CHASE_STARTED, minigameData);
+        return;
+      }
+
+      // Check Swan Race
+      const swanRaceGame = swanRaceGames.get(sessionCode);
+      if (swanRaceGame && swanRaceGame.isActive) {
+        activeMinigame = "SWAN_RACE";
+        logger.info({ sessionCode }, "Swan Race game active - sending state to late joiner");
+        
+        socket.emit(WSMessageType.SESSION_STATE, {
+          sessionCode,
+          currentActivity: "SWAN_RACE",
+          activeMinigame: "SWAN_RACE",
+          players: session.players.map(p => ({
+            id: p.id,
+            name: p.name,
+            avatar: p.avatar,
+          })),
+        });
+        
+        socket.emit("SWAN_RACE_STARTED", {
+          sessionCode,
+          players: Array.from(swanRaceGame.players.values()),
+        });
+        return;
+      }
+
+      // No active minigame - send normal session state
+      socket.emit(WSMessageType.SESSION_STATE, {
+        sessionCode,
+        currentActivity: null,
+        activeMinigame: null,
+        players: session.players.map(p => ({
+          id: p.id,
+          name: p.name,
+          avatar: p.avatar,
+        })),
+      });
+
+      logger.debug({ sessionCode, activeMinigame }, "Session state sent to client");
+    } catch (error) {
+      logger.error({ error }, "Error handling GET_SESSION_STATE");
+    }
+  });
 
   // Player rejoins session (after page navigation/reconnect)
   socket.on(
@@ -2668,6 +2787,10 @@ io.on("connection", (socket: Socket) => {
         }, "Answer validation details");
 
         // Store answer in database
+        // For OPEN_TEXT, store auto score separately for host review
+        const isOpenTextType = questionType === "OPEN_TEXT" || questionType === "PHOTO_OPEN" ||
+                               questionType === "AUDIO_OPEN" || questionType === "VIDEO_OPEN";
+        
         const liveAnswer = await prisma.liveAnswer.create({
           data: {
             sessionId: session.id,
@@ -2767,6 +2890,13 @@ io.on("connection", (socket: Socket) => {
           answeredAt: Date.now(),
           selectedOptionIds: answerFormatted.selectedOptionIds,
           submittedOrder: answerFormatted.submittedOrder,
+          // For OPEN_TEXT: include auto scoring info for host review
+          ...(isOpenTextType ? {
+            answerId: liveAnswer.id,
+            autoScore: validation.score,
+            autoScorePercentage: validation.scorePercentage,
+            isManuallyAdjusted: false,
+          } : {}),
         };
         
         logger.info({ playerAnsweredPayload }, "Sending PLAYER_ANSWERED to host");
@@ -2785,6 +2915,151 @@ io.on("connection", (socket: Socket) => {
       } catch (error) {
         logger.error({ error }, "Error submitting answer");
         socket.emit("error", { message: "Failed to submit answer" });
+      }
+    }
+  );
+
+  // Host adjusts player's score for OPEN_TEXT questions
+  socket.on(
+    "ADJUST_SCORE",
+    async (data: { 
+      sessionCode: string; 
+      answerId: string; 
+      playerId: string; 
+      itemId: string; 
+      scorePercentage: number; // 0, 25, 50, 75, 100
+    }) => {
+      try {
+        const { sessionCode, answerId, playerId, itemId, scorePercentage } = data;
+        
+        logger.info({ sessionCode, answerId, playerId, scorePercentage }, "Host adjusting score");
+
+        // Verify host is authenticated
+        if (!socket.data.isHost) {
+          socket.emit("error", { message: "Only host can adjust scores" });
+          return;
+        }
+
+        // Find the answer
+        const answer = await prisma.liveAnswer.findUnique({
+          where: { id: answerId },
+          include: {
+            player: true,
+            quizItem: {
+              include: {
+                question: true,
+              },
+            },
+          },
+        });
+
+        if (!answer) {
+          socket.emit("error", { message: "Answer not found" });
+          return;
+        }
+
+        // Calculate new score based on percentage
+        const maxScore = answer.maxScore || 10;
+        const previousScore = answer.score;
+        const newScore = Math.round((scorePercentage / 100) * maxScore);
+
+        // Update the answer with new score
+        await prisma.liveAnswer.update({
+          where: { id: answerId },
+          data: {
+            score: newScore,
+            isCorrect: newScore > 0,
+          },
+        });
+
+        // Update leaderboard in Redis
+        const scoreDifference = newScore - previousScore;
+        if (scoreDifference !== 0) {
+          // Calculate total score from DATABASE (source of truth), not Redis
+          const totalScoreResult = await prisma.liveAnswer.aggregate({
+            where: {
+              sessionId: answer.sessionId,
+              playerId: playerId,
+            },
+            _sum: { score: true },
+          });
+          const newTotalScore = totalScoreResult._sum.score || 0;
+
+          logger.info({
+            playerId,
+            previousScore,
+            newScore,
+            scoreDifference,
+            newTotalScore,
+          }, "Score adjustment calculated from database");
+
+          // Update Redis leaderboard with correct total
+          await updateLeaderboard(sessionCode, playerId, newTotalScore);
+
+          // Update cached player data
+          const cachedPlayer = await getPlayer(sessionCode, playerId);
+          if (cachedPlayer) {
+            await cachePlayer(sessionCode, playerId, {
+              ...cachedPlayer,
+              score: newTotalScore,
+            });
+          }
+
+          // Broadcast updated leaderboard
+          const leaderboard = await getLeaderboard(sessionCode, 10);
+          const enrichedLeaderboard = await Promise.all(
+            leaderboard.map(async (entry) => {
+              const player = await getPlayer(sessionCode, entry.playerId);
+              return {
+                playerId: entry.playerId,
+                playerName: player?.name || "Unknown",
+                avatar: player?.avatar || "👤",
+                totalScore: entry.score,
+              };
+            })
+          );
+
+          io.to(sessionCode).emit(WSMessageType.LEADERBOARD_UPDATE, {
+            leaderboard: enrichedLeaderboard,
+          });
+        }
+
+        // Send SCORE_ADJUSTED event to the player
+        const playerSockets = await io.in(sessionCode).fetchSockets();
+        for (const playerSocket of playerSockets) {
+          if (playerSocket.data.playerId === playerId) {
+            playerSocket.emit("SCORE_ADJUSTED", {
+              itemId,
+              playerId,
+              previousScore,
+              newScore,
+              newScorePercentage: scorePercentage,
+              adjustedBy: "host",
+            });
+          }
+        }
+
+        // Also emit to host to confirm
+        socket.emit("SCORE_ADJUSTED", {
+          itemId,
+          playerId,
+          previousScore,
+          newScore,
+          newScorePercentage: scorePercentage,
+          adjustedBy: "host",
+        });
+
+        logger.info({ 
+          answerId, 
+          playerId, 
+          previousScore, 
+          newScore, 
+          scorePercentage 
+        }, "Score adjusted by host");
+
+      } catch (error) {
+        logger.error({ error }, "Error adjusting score");
+        socket.emit("error", { message: "Failed to adjust score" });
       }
     }
   );
@@ -2869,6 +3144,306 @@ io.on("connection", (socket: Socket) => {
     }
   });
 
+  // Start Swan Chase (Host action - new game mode)
+  socket.on(WSMessageType.START_SWAN_CHASE, async (data: unknown) => {
+    try {
+      // Validate command
+      const command = startSwanChaseCommandSchema.parse(data);
+      const { sessionCode, mode, duration, teamAssignments } = command;
+      
+      logger.info({ sessionCode, mode, duration, teamCount: teamAssignments?.length }, "Host starting Swan Chase");
+
+      // Get active players from Redis
+      const playerKeys = await redis.keys(`session:${sessionCode}:player:*`);
+      const players = await Promise.all(
+        playerKeys.map(async (key) => {
+          const playerData = await redis.get(key);
+          return playerData ? JSON.parse(playerData) : null;
+        })
+      );
+
+      const validPlayers = players.filter((p) => p !== null);
+      
+      // Filter to only assigned players if teamAssignments provided
+      let playerIds: string[];
+      let playerNames: Map<string, string>;
+      
+      if (teamAssignments && teamAssignments.length > 0) {
+        // Use team assignments from host config
+        const assignedPlayerIds = teamAssignments.map((a) => a.playerId);
+        const assignedPlayers = validPlayers.filter((p) => assignedPlayerIds.includes(p.id));
+        
+        playerIds = assignedPlayers.map((p) => p.id);
+        playerNames = new Map(assignedPlayers.map((p) => [p.id, p.name]));
+        
+        logger.info({ 
+          sessionCode, 
+          blueCount: teamAssignments.filter((a) => a.team === "BLUE").length,
+          whiteCount: teamAssignments.filter((a) => a.team === "WHITE").length
+        }, "Using team assignments from host");
+      } else {
+        // Auto-assign teams
+        playerIds = validPlayers.map((p) => p.id);
+        playerNames = new Map(validPlayers.map((p) => [p.id, p.name]));
+        logger.info({ sessionCode, playerCount: playerIds.length }, "Auto-assigning teams");
+      }
+
+      if (playerIds.length < 2 || playerIds.length > 12) {
+        socket.emit("error", { message: "Swan Chase requires 2-12 players" });
+        return;
+      }
+
+      // Stop any existing Swan Chase game
+      const existingGame = swanChaseGames.get(sessionCode);
+      if (existingGame) {
+        existingGame.stop();
+        swanChaseGames.delete(sessionCode);
+      }
+
+      // Create and start new game
+      const selectedMode = (mode ?? SwanChaseMode.CLASSIC) as SwanChaseMode;
+      const gameEngine = new SwanChaseGameEngine(
+        sessionCode,
+        selectedMode,
+        playerIds,
+        playerNames,
+        duration,
+        teamAssignments // Pass team assignments to engine
+      );
+
+      swanChaseGames.set(sessionCode, gameEngine);
+
+      // Start physics loop with state broadcast
+      gameEngine.start((gameState) => {
+        // Broadcast game state to all clients at 30 FPS
+        io.to(sessionCode).emit(WSMessageType.SWAN_CHASE_STATE, gameState);
+
+        // Check if game ended
+        if (gameState.status === 'ENDED' && gameState.winner) {
+          // Emit end event
+          io.to(sessionCode).emit(WSMessageType.SWAN_CHASE_ENDED, {
+            winner: gameState.winner,
+            players: gameState.players,
+            duration: gameState.settings.duration - gameState.timeRemaining,
+          });
+
+          // Award points to players based on performance
+          setTimeout(async () => {
+            for (const player of gameState.players) {
+              try {
+                const points = player.score;
+                if (points > 0) {
+                  await updateLeaderboard(sessionCode, player.id, points);
+                  logger.info({ sessionCode, playerId: player.id, points, team: player.team }, "Swan Chase points awarded");
+                }
+              } catch (error) {
+                logger.error({ error, playerId: player.id }, "Failed to award Swan Chase points");
+              }
+            }
+            
+            // Clean up
+            swanChaseGames.delete(sessionCode);
+            logger.info({ sessionCode, winner: gameState.winner }, "Swan Chase game cleaned up");
+          }, 3000);
+        }
+      });
+
+      // Notify all clients that game started
+      io.to(sessionCode).emit(WSMessageType.SWAN_CHASE_STARTED, {
+        mode: mode || SwanChaseMode.TEAM_ESCAPE,
+        playerCount: playerIds.length,
+        settings: gameEngine.getState().settings,
+        players: gameEngine.getState().players.map(p => ({
+          id: p.id,
+          name: p.name,
+          team: p.team,
+          type: p.type,
+        })),
+      });
+
+      logger.info({ sessionCode, playerCount: playerIds.length, mode }, "Swan Chase started successfully");
+    } catch (error) {
+      logger.error({ error }, "Error starting Swan Chase");
+      socket.emit("error", { message: "Failed to start Swan Chase" });
+    }
+  });
+
+  // Swan Chase player input
+  socket.on(WSMessageType.SWAN_CHASE_INPUT, async (data: unknown) => {
+    try {
+      const command = swanChaseInputCommandSchema.parse(data);
+      const { sessionCode, playerId, input } = command;
+
+      const gameEngine = swanChaseGames.get(sessionCode);
+      if (!gameEngine) {
+        return; // Game not active
+      }
+
+      // Handle player input
+      gameEngine.handleInput(playerId, input);
+
+    } catch (error) {
+      logger.error({ error }, "Error handling Swan Chase input");
+    }
+  });
+
+  // Boat movement (Blue team)
+  socket.on(WSMessageType.BOAT_MOVE, async (data: unknown) => {
+    try {
+      const command = swanChaseBoatMoveSchema.parse(data);
+      const { sessionCode, playerId, angle, speed } = command;
+
+      const gameEngine = swanChaseGames.get(sessionCode);
+      if (!gameEngine) {
+        return; // Game not active
+      }
+
+      // Convert angle/speed to direction vector
+      const radians = (angle * Math.PI) / 180;
+      const direction = {
+        x: Math.cos(radians) * speed,
+        y: Math.sin(radians) * speed,
+      };
+
+      // Handle boat movement
+      gameEngine.handleInput(playerId, {
+        direction,
+        sprint: false,
+      });
+    } catch (error) {
+      logger.error({ error }, "Error handling boat movement");
+    }
+  });
+
+  // Boat sprint (Blue team ability)
+  socket.on(WSMessageType.BOAT_SPRINT, async (data: unknown) => {
+    try {
+      const command = swanChaseBoatSprintSchema.parse(data);
+      const { sessionCode, playerId } = command;
+
+      const gameEngine = swanChaseGames.get(sessionCode);
+      if (!gameEngine) {
+        return; // Game not active
+      }
+
+      // Handle sprint activation
+      gameEngine.handleInput(playerId, {
+        direction: { x: 0, y: 0 }, // Will use existing direction
+        sprint: true,
+      });
+      
+      logger.info({ sessionCode, playerId }, "Boat sprint activated");
+    } catch (error) {
+      logger.error({ error }, "Error handling boat sprint");
+    }
+  });
+
+  // Swan movement (White team)
+  socket.on(WSMessageType.SWAN_MOVE, async (data: unknown) => {
+    try {
+      const command = swanChaseSwanMoveSchema.parse(data);
+      const { sessionCode, playerId, angle, speed } = command;
+
+      const gameEngine = swanChaseGames.get(sessionCode);
+      if (!gameEngine) {
+        return; // Game not active
+      }
+
+      // Convert angle/speed to direction vector
+      const radians = (angle * Math.PI) / 180;
+      const direction = {
+        x: Math.cos(radians) * speed,
+        y: Math.sin(radians) * speed,
+      };
+
+      // Handle swan movement
+      gameEngine.handleInput(playerId, {
+        direction,
+        dash: false,
+      });
+    } catch (error) {
+      logger.error({ error }, "Error handling swan movement");
+    }
+  });
+
+  // Swan dash (White team ability)
+  socket.on(WSMessageType.SWAN_DASH, async (data: unknown) => {
+    try {
+      const command = swanChaseSwanDashSchema.parse(data);
+      const { sessionCode, playerId } = command;
+
+      const gameEngine = swanChaseGames.get(sessionCode);
+      if (!gameEngine) {
+        return; // Game not active
+      }
+
+      // Handle dash activation
+      gameEngine.handleInput(playerId, {
+        direction: { x: 0, y: 0 }, // Will use existing direction
+        dash: true,
+      });
+      
+      logger.info({ sessionCode, playerId }, "Swan dash activated");
+    } catch (error) {
+      logger.error({ error }, "Error handling swan dash");
+    }
+  });
+
+  // End Swan Chase game (Host action)
+  socket.on(WSMessageType.END_SWAN_CHASE, async (data: unknown) => {
+    try {
+      const { sessionCode } = data as { sessionCode: string };
+      
+      logger.info({ sessionCode }, "Host ending Swan Chase");
+
+      const gameEngine = swanChaseGames.get(sessionCode);
+      if (!gameEngine) {
+        socket.emit("error", { message: "No active Swan Chase game" });
+        return;
+      }
+
+      // Get final state before stopping
+      const finalState = gameEngine.getState();
+      
+      // Stop the game
+      gameEngine.stop();
+      swanChaseGames.delete(sessionCode);
+
+      // Broadcast game ended event with final state
+      io.to(sessionCode).emit(WSMessageType.SWAN_CHASE_ENDED, {
+        winner: finalState.winner,
+        players: finalState.players,
+        duration: finalState.settings.duration - (finalState.timeRemaining || 0),
+        round: finalState.round,
+        gameState: finalState,
+      });
+
+      // Award points to players
+      for (const player of finalState.players) {
+        try {
+          const points = player.score;
+          if (points > 0) {
+            await updateLeaderboard(sessionCode, player.id, points);
+            logger.info({ 
+              sessionCode, 
+              playerId: player.id, 
+              points, 
+              team: player.team,
+              status: player.status 
+            }, "Swan Chase points awarded");
+          }
+        } catch (error) {
+          logger.error({ error, playerId: player.id }, "Failed to award Swan Chase points");
+        }
+      }
+
+      logger.info({ sessionCode, winner: finalState.winner }, "Swan Chase ended by host");
+    } catch (error) {
+      logger.error({ error }, "Error ending Swan Chase");
+      socket.emit("error", { message: "Failed to end Swan Chase" });
+    }
+  });
+
   // Host ends session
   socket.on(WSMessageType.END_SESSION, async (data: { sessionCode: string }) => {
     try {
@@ -2930,7 +3505,8 @@ io.on("connection", (socket: Socket) => {
       await redis.set(
         `session:${sessionCode}:finalLeaderboard`,
         JSON.stringify(leaderboard),
-        { ex: 3600 } // Expire after 1 hour
+        "EX",
+        3600 // Expire after 1 hour
       );
 
       io.to(sessionCode).emit(WSMessageType.SESSION_ENDED, {

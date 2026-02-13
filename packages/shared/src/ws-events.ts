@@ -273,14 +273,48 @@ export const playerAnsweredEventSchema = z.object({
   rawAnswer: z.any(),
   isCorrect: z.boolean().nullable(), // null for POLL type
   score: z.number(),
+  maxScore: z.number().optional(),
   answeredAt: z.number(), // timestamp
   // For MC questions: which option(s) were selected
   selectedOptionIds: z.array(z.string()).optional(),
   // For ORDER questions: the order they submitted
   submittedOrder: z.array(z.string()).optional(),
+  // For OPEN_TEXT: auto scoring info (allows host to adjust)
+  answerId: z.string().optional(), // Database ID for score adjustment
+  autoScore: z.number().optional(), // Auto-calculated score
+  autoScorePercentage: z.number().optional(), // Auto-calculated percentage (0-100)
+  isManuallyAdjusted: z.boolean().optional(), // Host has adjusted
 });
 
 export type PlayerAnsweredEvent = z.infer<typeof playerAnsweredEventSchema>;
+
+/**
+ * Host adjusts a player's score for OPEN_TEXT questions
+ * Allows manual override of fuzzy matching score
+ */
+export const adjustScoreCommandSchema = z.object({
+  sessionCode: z.string(),
+  answerId: z.string(),
+  playerId: z.string(),
+  itemId: z.string(),
+  scorePercentage: z.number().min(0).max(100), // 0, 25, 50, 75, 100
+});
+
+export type AdjustScoreCommand = z.infer<typeof adjustScoreCommandSchema>;
+
+/**
+ * Score adjusted event (sent to player when host adjusts their score)
+ */
+export const scoreAdjustedEventSchema = z.object({
+  itemId: z.string(),
+  playerId: z.string(),
+  previousScore: z.number(),
+  newScore: z.number(),
+  newScorePercentage: z.number(),
+  adjustedBy: z.enum(["host", "system"]),
+});
+
+export type ScoreAdjustedEvent = z.infer<typeof scoreAdjustedEventSchema>;
 
 /**
  * Leaderboard update
@@ -401,3 +435,113 @@ export function checkInputRateLimit(playerId: string): boolean {
 export function clearInputRateLimit(playerId: string): void {
   inputRateLimits.delete(playerId);
 }
+
+// ============================================================================
+// SWAN CHASE GAME EVENTS
+// ============================================================================
+
+/**
+ * Host starts Swan Chase game
+ */
+export const startSwanChaseCommandSchema = z.object({
+  sessionCode: z.string(),
+  mode: z.enum(["CLASSIC", "ROUNDS"]).optional(),
+  duration: z.number().int().min(60).max(300).optional(), // 1-5 minutes
+  teamAssignments: z.array(z.object({
+    playerId: z.string(),
+    team: z.enum(["BLUE", "WHITE"]),
+  })).optional(), // Auto-assign if not provided
+});
+
+export type StartSwanChaseCommand = z.infer<typeof startSwanChaseCommandSchema>;
+
+/**
+ * Player movement input for Swan Chase
+ */
+export const swanChaseInputCommandSchema = z.object({
+  sessionCode: z.string(),
+  playerId: z.string(),
+  input: z.object({
+    direction: z.object({
+      x: z.number().min(-1).max(1),
+      y: z.number().min(-1).max(1),
+    }),
+    sprint: z.boolean().optional(),
+    dash: z.boolean().optional(),
+  }),
+  timestamp: z.number(),
+});
+
+export type SwanChaseInputCommand = z.infer<typeof swanChaseInputCommandSchema>;
+
+/**
+ * Game state update (server → all clients)
+ */
+export const swanChaseStateEventSchema = z.object({
+  sessionCode: z.string(),
+  players: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    team: z.enum(["BLUE", "WHITE"]),
+    type: z.enum(["BOAT", "SWAN"]),
+    position: z.object({ x: z.number(), y: z.number() }),
+    velocity: z.object({ x: z.number(), y: z.number() }),
+    rotation: z.number(),
+    status: z.enum(["ACTIVE", "TAGGED", "SAFE", "HUNTING", "DASHING"]),
+    score: z.number(),
+    tagsCount: z.number().optional(),
+  })),
+  timeRemaining: z.number(),
+  winner: z.enum(["BLUE", "WHITE", "DRAW"]).nullable(),
+});
+
+export type SwanChaseStateEvent = z.infer<typeof swanChaseStateEventSchema>;
+
+/**
+ * Boat tagged event
+ */
+export const boatTaggedEventSchema = z.object({
+  sessionCode: z.string(),
+  boatId: z.string(),
+  boatName: z.string(),
+  swanId: z.string(),
+  swanName: z.string(),
+  timestamp: z.number(),
+});
+
+export type BoatTaggedEvent = z.infer<typeof boatTaggedEventSchema>;
+
+/**
+ * Boat reached safe zone event
+ */
+export const boatSafeEventSchema = z.object({
+  sessionCode: z.string(),
+  boatId: z.string(),
+  boatName: z.string(),
+  timeRemaining: z.number(),
+});
+
+export type BoatSafeEvent = z.infer<typeof boatSafeEventSchema>;
+
+/**
+ * Game ended event with results
+ */
+export const swanChaseEndedEventSchema = z.object({
+  sessionCode: z.string(),
+  winner: z.enum(["BLUE", "WHITE", "DRAW"]),
+  finalScores: z.array(z.object({
+    playerId: z.string(),
+    playerName: z.string(),
+    team: z.enum(["BLUE", "WHITE"]),
+    score: z.number(),
+    status: z.string(),
+  })),
+  stats: z.object({
+    duration: z.number(),
+    totalTags: z.number(),
+    boatsInSafeZone: z.number(),
+  }),
+});
+
+export type SwanChaseEndedEvent = z.infer<typeof swanChaseEndedEventSchema>;
+

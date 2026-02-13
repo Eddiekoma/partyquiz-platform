@@ -398,10 +398,15 @@ model LiveAnswer {
   quizItemId  String
   payloadJson Json // Flexible answer format
   isCorrect   Boolean?
-  score       Int      @default(0)
+  score       Int      @default(0)  // Final score (after host adjustment)
   maxScore    Int?     // Maximum possible score for this question
   timeSpentMs Int?     // Time spent answering in milliseconds
   answeredAt  DateTime @default(now())
+  
+  // Manual score adjustment fields (for OPEN_TEXT hybrid scoring)
+  autoScore           Int?     // Auto-calculated score (fuzzy matching)
+  autoScorePercentage Int?     // Auto-calculated percentage (0-100)
+  isManuallyAdjusted  Boolean  @default(false) // Host has adjusted the score
 
   session  LiveSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   player   LivePlayer  @relation(fields: [playerId], references: [id], onDelete: Cascade)

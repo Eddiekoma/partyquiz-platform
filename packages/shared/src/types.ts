@@ -258,6 +258,15 @@ export enum WSMessageType {
   PAUSE_SESSION = "PAUSE_SESSION",
   RESUME_SESSION = "RESUME_SESSION",
   KICK_PLAYER = "KICK_PLAYER",
+  
+  // Swan Chase game
+  START_SWAN_CHASE = "START_SWAN_CHASE",
+  SWAN_CHASE_INPUT = "SWAN_CHASE_INPUT",
+  BOAT_MOVE = "BOAT_MOVE",
+  BOAT_SPRINT = "BOAT_SPRINT",
+  SWAN_MOVE = "SWAN_MOVE",
+  SWAN_DASH = "SWAN_DASH",
+  END_SWAN_CHASE = "END_SWAN_CHASE",
 
   // Server -> Client (State updates)
   SESSION_STATE = "SESSION_STATE",
@@ -276,6 +285,13 @@ export enum WSMessageType {
   POLL_RESULTS = "POLL_RESULTS",
   SPEED_PODIUM_RESULTS = "SPEED_PODIUM_RESULTS", // Top 3 fastest 100% correct players
   
+  // Swan Chase game events
+  SWAN_CHASE_STARTED = "SWAN_CHASE_STARTED",
+  SWAN_CHASE_STATE = "SWAN_CHASE_STATE",
+  BOAT_TAGGED = "BOAT_TAGGED",
+  BOAT_SAFE = "BOAT_SAFE",
+  SWAN_CHASE_ENDED = "SWAN_CHASE_ENDED",
+  
   // Server -> Client (Acknowledgements)
   ANSWER_RECEIVED = "ANSWER_RECEIVED",
   ANSWER_COUNT_UPDATED = "ANSWER_COUNT_UPDATED",
@@ -285,6 +301,10 @@ export enum WSMessageType {
   DEVICE_RECOGNIZED = "DEVICE_RECOGNIZED", // Device already has a player in this session
   GENERATE_REJOIN_TOKEN = "GENERATE_REJOIN_TOKEN", // Host requests rejoin token for player
   REJOIN_TOKEN_GENERATED = "REJOIN_TOKEN_GENERATED", // Server responds with token
+  
+  // Score adjustment (OPEN_TEXT manual scoring)
+  ADJUST_SCORE = "ADJUST_SCORE", // Host -> Server: adjust OPEN_TEXT answer score
+  SCORE_ADJUSTED = "SCORE_ADJUSTED", // Server -> Client: score was adjusted
   
   // Error
   ERROR = "ERROR",
@@ -323,4 +343,142 @@ export interface GameState {
     position: { x: number; y: number };
   }>;
   timeRemaining: number;
+}
+
+// ============================================================================
+// SWAN CHASE GAME TYPES (New game mode)
+// ============================================================================
+
+/**
+ * Swan Chase game modes
+ */
+export enum SwanChaseMode {
+  CLASSIC = "CLASSIC",        // Single round: Boats vs Swans
+  ROUNDS = "ROUNDS",          // 2 rounds with team swap
+  TEAM_ESCAPE = "TEAM_ESCAPE", // Legacy: same as CLASSIC
+  KING_OF_LAKE = "KING_OF_LAKE",      // Free-for-all (future)
+  SWAN_SWARM = "SWAN_SWARM",          // Co-op survival (future)
+}
+
+/**
+ * Player status in Swan Chase
+ */
+export enum SwanChasePlayerStatus {
+  // Boat statuses
+  ACTIVE = "ACTIVE",      // Can move, can be tagged
+  TAGGED = "TAGGED",      // Frozen, out of game
+  SAFE = "SAFE",          // In safe zone, can't be tagged
+  
+  // Swan statuses
+  HUNTING = "HUNTING",    // Normal chase mode
+  DASHING = "DASHING",    // Speed boost active
+}
+
+/**
+ * Team types
+ */
+export enum SwanChaseTeam {
+  BLUE = "BLUE",    // Boats team
+  WHITE = "WHITE",  // Swans team
+}
+
+/**
+ * Position in 2D space
+ */
+export interface Vector2D {
+  x: number;
+  y: number;
+}
+
+/**
+ * Player state in Swan Chase game
+ */
+export interface SwanChasePlayer {
+  id: string;
+  name: string;
+  avatar?: string | null;
+  team: SwanChaseTeam;
+  type: 'BOAT' | 'SWAN';
+  position: Vector2D;
+  velocity: Vector2D;
+  rotation: number; // 0-360 degrees
+  status: SwanChasePlayerStatus;
+  
+  // Stats
+  score: number;
+  tagsCount?: number; // For swans
+  
+  // Abilities
+  abilities: {
+    sprint: {
+      charges: number;
+      active: boolean;
+      cooldownUntil: number; // timestamp
+    };
+    dash?: {
+      charges: number;
+      active: boolean;
+      cooldownUntil: number;
+    };
+  };
+}
+
+/**
+ * Safe zone configuration
+ */
+export interface SafeZone {
+  position: Vector2D;
+  radius: number;
+}
+
+/**
+ * Obstacle in game area
+ */
+export interface Obstacle {
+  id: string;
+  type: 'ISLAND' | 'ROCK';
+  position: Vector2D;
+  radius: number;
+}
+
+/**
+ * Game settings based on player count
+ */
+export interface SwanChaseSettings {
+  totalPlayers: number;
+  boatsCount: number;
+  swansCount: number;
+  duration: number; // seconds
+  gameArea: {
+    width: number;
+    height: number;
+  };
+  safeZone: SafeZone;
+  speeds: {
+    boat: number; // px/sec
+    boatSprint: number;
+    swan: number;
+    swanDash: number;
+  };
+  tagRange: number; // collision distance
+  obstacles: Obstacle[];
+}
+
+/**
+ * Complete game state for Swan Chase
+ */
+export interface SwanChaseGameState {
+  mode: SwanChaseMode;
+  sessionCode: string;
+  round: 1 | 2;
+  status: 'COUNTDOWN' | 'ACTIVE' | 'ENDED';
+  startTime: number;
+  timeRemaining: number;
+  settings: SwanChaseSettings;
+  
+  players: SwanChasePlayer[];
+  
+  // Win tracking
+  winner: SwanChaseTeam | 'DRAW' | null;
+  winConditionMet: boolean;
 }

@@ -223,7 +223,7 @@ function SignInForm() {
             name="email"
             type="email"
             label="Email"
-            placeholder="jouw@email.com"
+            placeholder="your@email.com"
             value={formData.email}
             onChange={handleChange}
             required
