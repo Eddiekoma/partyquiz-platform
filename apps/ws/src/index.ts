@@ -79,32 +79,30 @@ function shuffleArray<T>(array: T[]): T[] {
 
 /**
  * Determines if a question type should have its options shuffled
- * - TRUE_FALSE: Never shuffle (always True/False order)
- * - Open-ended types: No options to shuffle
- * - MC/ORDER types: Always shuffle for fairness
+ * 
+ * SHUFFLE PHILOSOPHY:
+ * - Only shuffle when it's ESSENTIAL to the game mechanic
+ * - MC_ORDER: Shuffling IS the challenge (player must reorder items)
+ * - MC_SINGLE/MULTIPLE: No benefit - players see all options anyway
+ * - TRUE_FALSE: Never shuffle - always "True" then "False" by convention
+ * 
+ * Benefits of minimal shuffling:
+ * - Easier debugging (consistent option order)
+ * - Better UX (players see same order as question creator intended)
+ * - Simpler code (less Redis operations, fewer edge cases)
  */
 function shouldShuffleOptions(questionType: string): boolean {
   // Get base type (strips PHOTO_, AUDIO_, VIDEO_ prefixes)
   const baseType = getBaseQuestionType(questionType as QuestionType).toString().toUpperCase();
   
-  // Types that should NOT be shuffled (by base type)
-  const noShuffleTypes = [
-    "TRUE_FALSE",
-    "OPEN_TEXT",
-    "NUMERIC",
-    "SLIDER",
+  // ONLY shuffle ORDER questions - shuffling is the core mechanic
+  // For these types, the challenge IS to put items in correct order
+  const shuffleTypes = [
+    "MC_ORDER",        // Text ordering question
+    // PHOTO_MC_ORDER uses same base type, so it's included
   ];
   
-  // Also don't shuffle legacy/special types
-  const noShuffleLegacy = [
-    "AUDIO_OPEN",
-    "VIDEO_OPEN",
-    "MUSIC_GUESS_TITLE",
-    "MUSIC_GUESS_ARTIST", 
-    "MUSIC_GUESS_YEAR",
-  ];
-  
-  return !noShuffleTypes.includes(baseType) && !noShuffleLegacy.includes(questionType.toUpperCase());
+  return shuffleTypes.includes(baseType);
 }
 
 // =============================================================================
@@ -1478,7 +1476,11 @@ io.on("connection", (socket: Socket) => {
           }
 
           const questionType = answer.quizItem.question?.type || 'UNKNOWN';
-          const options = answer.quizItem.question?.options || [];
+          // Use each answer's own question options for formatting (not the current 
+          // question's shuffled options, which would be wrong for history items 
+          // from different questions)
+          const options = (answer.quizItem.question?.options || []).map(opt => ({ id: opt.id, text: opt.text }));
+          
           // FIX: Database column is 'payloadJson', not 'answer'
           const rawPayload = answer.payloadJson;
           
@@ -2303,8 +2305,18 @@ io.on("connection", (socket: Socket) => {
         },
       });
 
-      // Create a Set of player IDs who answered
-      const answeredPlayerIds = new Set(answers.map(a => a.playerId));
+      // Deduplicate answers: if player has multiple answers, keep only the LAST one
+      const lastAnswerPerPlayer = new Map<string, typeof answers[0]>();
+      for (const a of answers) {
+        const existing = lastAnswerPerPlayer.get(a.playerId);
+        if (!existing || a.answeredAt > existing.answeredAt) {
+          lastAnswerPerPlayer.set(a.playerId, a);
+        }
+      }
+      const deduplicatedAnswers = Array.from(lastAnswerPerPlayer.values());
+
+      // Create a Set of player IDs who answered (from deduplicated set)
+      const answeredPlayerIds = new Set(deduplicatedAnswers.map(a => a.playerId));
 
       // Get settings and check if explanation should be shown
       const settings = (quizItem?.settingsJson as { showExplanation?: boolean } | null) || {};
@@ -2312,6 +2324,9 @@ io.on("connection", (socket: Socket) => {
 
       // Build correct answer data based on question type
       const questionType = quizItem?.question?.type || "";
+      const baseType = quizItem?.question?.type 
+        ? getBaseQuestionType(quizItem.question.type as QuestionType).toString().toUpperCase()
+        : "";
       const settingsJson = (quizItem?.settingsJson as Record<string, unknown>) || {};
       let correctOptionId: string | null = null;
       let correctOptionIds: string[] | null = null;
@@ -2324,7 +2339,7 @@ io.on("connection", (socket: Socket) => {
       if (quizItem?.question?.options) {
         const options = quizItem.question.options;
         
-        if (questionType === "ORDER") {
+        if (baseType === "MC_ORDER") {
           // ORDER: Send correct order (sorted by 'order' field)
           const sortedOptions = [...options].sort((a, b) => (a.order || 0) - (b.order || 0));
           correctOrder = sortedOptions.map((opt, idx) => ({
@@ -2332,16 +2347,16 @@ io.on("connection", (socket: Socket) => {
             text: opt.text,
             position: idx + 1,
           }));
-        } else if (questionType === "MC_MULTIPLE") {
+        } else if (baseType === "MC_MULTIPLE") {
           // MC_MULTIPLE: Send all correct option IDs
           correctOptionIds = options.filter(opt => opt.isCorrect).map(opt => opt.id);
           correctOptionId = correctOptionIds[0] || null; // Backward compatibility
-        } else if (questionType === "TRUE_FALSE" || questionType === "MC_SINGLE") {
+        } else if (baseType === "TRUE_FALSE" || baseType === "MC_SINGLE") {
           // MC_SINGLE/TRUE_FALSE: Send single correct option ID
           const correctOption = options.find(opt => opt.isCorrect);
           correctOptionId = correctOption?.id || null;
-        } else if (getBaseQuestionType(questionType as QuestionType).toString().toUpperCase() === "NUMERIC" || 
-                   getBaseQuestionType(questionType as QuestionType).toString().toUpperCase() === "SLIDER" ||
+        } else if (baseType === "NUMERIC" || 
+                   baseType === "SLIDER" ||
                    questionType === "MUSIC_GUESS_YEAR") {
           // NUMERIC/SLIDER/MUSIC_GUESS_YEAR: Send correct number and margin
           if (settingsJson?.correctAnswer !== undefined) {
@@ -2358,7 +2373,7 @@ io.on("connection", (socket: Socket) => {
           } else {
             estimationMargin = 10; // Default 10%
           }
-        } else if (getBaseQuestionType(questionType as QuestionType).toString().toUpperCase() === "OPEN_TEXT" ||
+        } else if (baseType === "OPEN_TEXT" ||
                    questionType === "AUDIO_OPEN" || questionType === "VIDEO_OPEN") {
           // Open text types: Send correct text answer and acceptable alternatives
           const correctOptions = options.filter(opt => opt.isCorrect);
@@ -2387,9 +2402,27 @@ io.on("connection", (socket: Socket) => {
         }
       }
 
+      // Prepare options for answer formatting
+      const optionsForFormatting = quizItem?.question?.options?.map(opt => ({ id: opt.id, text: opt.text })) || [];
+
+      // Build full question context so player can display correct question on re-reveal
+      // (player's currentItem may hold a different question if host navigated back)
+      const revealQuestionContext = quizItem?.question ? {
+        prompt: quizItem.question.prompt,
+        title: quizItem.question.title || null,
+        options: quizItem.question.options.map(opt => ({
+          id: opt.id,
+          text: opt.text,
+          order: opt.order,
+        })),
+        settingsJson: quizItem.settingsJson || {},
+      } : null;
+
       io.to(sessionCode).emit(WSMessageType.REVEAL_ANSWERS, {
         itemId,
         questionType,
+        // Full question context for re-reveal support
+        questionContext: revealQuestionContext,
         // Single correct option (MC_SINGLE, TRUE_FALSE)
         correctOptionId,
         // Multiple correct options (MC_MULTIPLE)
@@ -2405,15 +2438,22 @@ io.on("connection", (socket: Socket) => {
         // Margin for estimation scoring (percentage)
         estimationMargin,
         explanation: showExplanation ? quizItem?.question?.explanation : null,
-        // Answered players with their scores
-        answers: answers.map((a) => ({
-          playerId: a.playerId,
-          playerName: a.player.name,
-          playerAvatar: a.player.avatar,
-          answer: a.payloadJson,
-          isCorrect: a.isCorrect,
-          points: a.score,
-        })),
+        // Answered players with their scores (deduplicated - last answer per player)
+        answers: deduplicatedAnswers.map((a) => {
+          const formatted = formatAnswerForDisplay(questionType, a.payloadJson, optionsForFormatting);
+          return {
+            playerId: a.playerId,
+            playerName: a.player.name,
+            playerAvatar: a.player.avatar,
+            answer: a.payloadJson,
+            answerDisplay: formatted.display,
+            isCorrect: a.isCorrect,
+            points: a.score,
+            timeSpentMs: a.timeSpentMs,
+            selectedOptionIds: formatted.selectedOptionIds,
+            submittedOrder: formatted.submittedOrder,
+          };
+        }),
         // Players who didn't answer (no answer entry)
         noAnswerPlayers: allPlayers
           .filter(p => !answeredPlayerIds.has(p.id))
@@ -2593,7 +2633,7 @@ io.on("connection", (socket: Socket) => {
           return;
         }
 
-        // Check if already answered this item
+        // Check if already answered this item (allow overwrite - last answer counts)
         const existingAnswer = await prisma.liveAnswer.findFirst({
           where: {
             sessionId: session.id,
@@ -2602,10 +2642,8 @@ io.on("connection", (socket: Socket) => {
           },
         });
 
-        if (existingAnswer) {
-          socket.emit("error", { message: "Already answered this question" });
-          return;
-        }
+        // Track previous score for leaderboard delta when overwriting
+        const previousScore = existingAnswer?.score ?? 0;
 
         // Get quiz item with question details for validation
         const quizItem = await prisma.quizItem.findUnique({
@@ -2654,17 +2692,27 @@ io.on("connection", (socket: Socket) => {
           // Record vote in Redis and get updated counts
           const pollResults = await recordPollVote(sessionCode, itemId, pollVote);
           
-          // Store the vote in database (for persistence)
-          await prisma.liveAnswer.create({
-            data: {
-              sessionId: session.id,
-              playerId,
-              quizItemId: itemId,
-              payloadJson: answer,
-              isCorrect: true, // All poll votes are "correct"
-              score: 0, // No score for polls
-            },
-          });
+          // Store the vote in database (for persistence, update if already voted)
+          if (existingAnswer) {
+            await prisma.liveAnswer.update({
+              where: { id: existingAnswer.id },
+              data: {
+                payloadJson: answer,
+                answeredAt: new Date(),
+              },
+            });
+          } else {
+            await prisma.liveAnswer.create({
+              data: {
+                sessionId: session.id,
+                playerId,
+                quizItemId: itemId,
+                payloadJson: answer,
+                isCorrect: true, // All poll votes are "correct"
+                score: 0, // No score for polls
+              },
+            });
+          }
           
           // Acknowledge to player
           socket.emit(WSMessageType.ANSWER_RECEIVED, {
@@ -2827,24 +2875,41 @@ io.on("connection", (socket: Socket) => {
           score: validation.score,
         }, "Answer validation details");
 
-        // Store answer in database
+        // Store answer in database (update if already exists - last answer counts)
         // For OPEN_TEXT, store auto score separately for host review
         const baseTypeForValidation = getBaseQuestionType(questionType as QuestionType).toString().toUpperCase();
         const isOpenTextType = baseTypeForValidation === "OPEN_TEXT" ||
                                questionType === "AUDIO_OPEN" || questionType === "VIDEO_OPEN";
         
-        const liveAnswer = await prisma.liveAnswer.create({
-          data: {
-            sessionId: session.id,
-            playerId,
-            quizItemId: itemId,
-            payloadJson: answer,
-            isCorrect: validation.isCorrect,
-            score: validation.score,
-            maxScore: basePoints,
-            timeSpentMs: timeSpentMs ?? null,
-          },
-        });
+        let liveAnswer;
+        if (existingAnswer) {
+          // Overwrite existing answer
+          liveAnswer = await prisma.liveAnswer.update({
+            where: { id: existingAnswer.id },
+            data: {
+              payloadJson: answer,
+              isCorrect: validation.isCorrect,
+              score: validation.score,
+              maxScore: basePoints,
+              timeSpentMs: timeSpentMs ?? null,
+              answeredAt: new Date(),
+            },
+          });
+          logger.info({ playerId, itemId, previousScore, newScore: validation.score }, "Answer overwritten");
+        } else {
+          liveAnswer = await prisma.liveAnswer.create({
+            data: {
+              sessionId: session.id,
+              playerId,
+              quizItemId: itemId,
+              payloadJson: answer,
+              isCorrect: validation.isCorrect,
+              score: validation.score,
+              maxScore: basePoints,
+              timeSpentMs: timeSpentMs ?? null,
+            },
+          });
+        }
 
         // Acknowledge to player with validation result
         socket.emit(WSMessageType.ANSWER_RECEIVED, {
@@ -2857,11 +2922,12 @@ io.on("connection", (socket: Socket) => {
           streak: validation.isCorrect ? currentStreak + 1 : 0,
         });
 
-        // Update leaderboard in Redis if player earned points (including partial scores for ORDER, ESTIMATION etc.)
-        if (validation.score > 0) {
+        // Update leaderboard in Redis (handle score delta when overwriting answers)
+        const scoreDelta = validation.score - previousScore;
+        if (scoreDelta !== 0) {
           // Get player's cached data
           const cachedPlayer = await getPlayer(sessionCode, playerId);
-          const newScore = (cachedPlayer?.score || 0) + validation.score;
+          const newScore = Math.max(0, (cachedPlayer?.score || 0) + scoreDelta);
 
           // Update Redis leaderboard
           await updateLeaderboard(sessionCode, playerId, newScore);
@@ -2913,10 +2979,22 @@ io.on("connection", (socket: Socket) => {
         });
 
         // Send detailed answer info to host (PLAYER_ANSWERED)
+        // Get shuffled options from Redis (if they exist) - players see shuffled order
+        let optionsForFormatting = question.options.map(opt => ({ id: opt.id, text: opt.text }));
+        const shuffledOptionsJson = await redis.get(`session:${sessionCode}:shuffledOptions`);
+        if (shuffledOptionsJson) {
+          try {
+            optionsForFormatting = JSON.parse(shuffledOptionsJson);
+            logger.debug("Using shuffled options for answer formatting");
+          } catch (error) {
+            logger.warn({ error }, "Failed to parse shuffled options, using original order");
+          }
+        }
+        
         const answerFormatted = formatAnswerForDisplay(
           questionType,
           answer,
-          question.options.map(opt => ({ id: opt.id, text: opt.text }))
+          optionsForFormatting
         );
 
         const playerAnsweredPayload = {

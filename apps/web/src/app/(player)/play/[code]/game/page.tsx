@@ -238,14 +238,34 @@ export default function GamePage() {
     socket.on("REVEAL_ANSWERS", (data: any) => {
       console.log("[Player] Reveal answers:", data);
       
+      // Update currentItem with question context from server.
+      // This is critical for re-reveal: when host navigates back to a previous
+      // question, the player's currentItem still holds the last active question.
+      // The server sends questionContext with the correct prompt/options for the
+      // question being revealed.
+      if (data.questionContext) {
+        setCurrentItem(prev => ({
+          id: data.itemId,
+          questionType: data.questionType || prev?.questionType || "",
+          prompt: data.questionContext.prompt,
+          options: data.questionContext.options || [],
+          settingsJson: data.questionContext.settingsJson || prev?.settingsJson || {},
+          // Preserve timer/media fields from previous state (not relevant for reveal)
+          mediaUrl: prev?.mediaUrl,
+          timerDuration: prev?.timerDuration || 0,
+          timerEndsAt: prev?.timerEndsAt,
+        }));
+      }
+
       // Find this player's submitted answer from the answers array
       if (data.answers && playerId) {
         const myAnswerData = data.answers.find((a: any) => a.playerId === playerId);
         if (myAnswerData) {
           setSubmittedAnswer(myAnswerData.answer);
           // Calculate score percentage if we have points info
-          if (myAnswerData.points !== undefined && currentItem?.settingsJson?.points) {
-            const basePoints = currentItem.settingsJson.points || 10;
+          const qContext = data.questionContext;
+          const basePoints = qContext?.settingsJson?.points || currentItem?.settingsJson?.points || 10;
+          if (myAnswerData.points !== undefined) {
             // Estimate percentage from score (without bonuses)
             const pct = Math.min(100, Math.round((myAnswerData.points / basePoints) * 100));
             setScorePercentage(pct);
@@ -262,7 +282,7 @@ export default function GamePage() {
         setCorrectNumber(data.correctNumber);
         setEstimationMargin(data.estimationMargin || null);
       } else if (data.correctOptionIds && data.correctOptionIds.length > 0) {
-        // MC_MULTIPLE: mark all correct options
+        // MC_MULTIPLE: mark all correct options on the (now-correct) currentItem
         setCurrentItem(prev => prev ? {
           ...prev,
           options: prev.options?.map(opt => ({
@@ -468,10 +488,18 @@ export default function GamePage() {
   }, [answerResult, showReveal, showScoreboard]);
 
   const handleSubmitAnswer = (answer: any) => {
-    if (!socket || !currentItem || isLocked || myAnswer !== null) return;
+    if (!socket || !currentItem || isLocked) return;
 
-    console.log("[Player] Submitting answer:", answer);
+    console.log("[Player] Submitting answer:", answer, myAnswer !== null ? "(overwrite)" : "(new)");
+    
+    // If overwriting, subtract old score first (server handles DB, we handle local display)
+    if (myAnswer !== null && answerResult?.score) {
+      setCurrentScore((prev) => Math.max(0, prev - answerResult.score));
+    }
+    
     setMyAnswer(answer);
+    setAnswerResult(null); // Reset result for new answer
+    setWaitingForNext(false);
 
     socket.emit("SUBMIT_ANSWER", {
       sessionCode: code.toUpperCase(),
@@ -682,16 +710,21 @@ export default function GamePage() {
           settingsJson={currentItem.settingsJson}
         />
 
-        {/* Answer Input - only show if not locked and no answer submitted */}
-        {!isLocked && !myAnswer && (
+        {/* Answer Input - show if not locked (allow changing answer before lock) */}
+        {!isLocked && (
           <div className="mt-8 w-full">
             <AnswerInput
               questionType={currentItem.questionType}
               options={currentItem.options}
               settingsJson={currentItem.settingsJson}
               onSubmit={handleSubmitAnswer}
-              disabled={isLocked || myAnswer !== null}
+              disabled={isLocked}
             />
+            {myAnswer !== null && (
+              <p className="text-center text-white/50 text-sm mt-2">
+                ✏️ You can change your answer until time runs out
+              </p>
+            )}
           </div>
         )}
 
