@@ -20,29 +20,31 @@ export function Timer({ timeRemaining, totalDuration }: TimerProps) {
     return "#ef4444"; // red-500
   };
 
-  const radius = 28;
+  const radius = 22;
+  const svgSize = 56;
+  const center = svgSize / 2;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (percentage / 100) * circumference;
 
   return (
-    <div className="relative w-20 h-20">
-      <svg className="w-full h-full transform -rotate-90">
+    <div className="relative w-14 h-14 md:w-20 md:h-20">
+      <svg className="w-full h-full transform -rotate-90" viewBox={`0 0 ${svgSize} ${svgSize}`}>
         {/* Background circle */}
         <circle
-          cx="40"
-          cy="40"
+          cx={center}
+          cy={center}
           r={radius}
           stroke="rgba(255, 255, 255, 0.2)"
-          strokeWidth="6"
+          strokeWidth="5"
           fill="none"
         />
         {/* Progress circle */}
         <circle
-          cx="40"
-          cy="40"
+          cx={center}
+          cy={center}
           r={radius}
           stroke={getStrokeColor()}
-          strokeWidth="6"
+          strokeWidth="5"
           fill="none"
           strokeDasharray={circumference}
           strokeDashoffset={strokeDashoffset}
@@ -52,7 +54,7 @@ export function Timer({ timeRemaining, totalDuration }: TimerProps) {
       </svg>
       {/* Time display */}
       <div className="absolute inset-0 flex items-center justify-center">
-        <span className={`text-2xl font-black ${getColor()}`}>
+        <span className={`text-lg md:text-2xl font-black ${getColor()}`}>
           {seconds}
         </span>
       </div>

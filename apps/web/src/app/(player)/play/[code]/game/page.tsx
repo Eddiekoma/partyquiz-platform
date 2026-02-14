@@ -656,25 +656,25 @@ export default function GamePage() {
   }
 
   return (
-    <div className="flex-1 flex flex-col p-4 relative">
+    <div className="flex-1 flex flex-col p-3 md:p-4">
       {/* Score Adjustment Notification */}
       {scoreAdjustment && (
-        <div className="fixed inset-x-0 top-20 flex justify-center z-50 pointer-events-none animate-in slide-in-from-top duration-300">
-          <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-4 border-2 border-white/20">
-            <div className="text-4xl">
+        <div className="fixed inset-x-0 top-16 flex justify-center z-50 pointer-events-none animate-in slide-in-from-top duration-300 px-4">
+          <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-4 py-3 md:px-6 md:py-4 rounded-xl shadow-2xl flex items-center gap-3 border-2 border-white/20">
+            <div className="text-3xl md:text-4xl">
               {scoreAdjustment.newScore > scoreAdjustment.oldScore ? "📈" : 
                scoreAdjustment.newScore < scoreAdjustment.oldScore ? "📉" : "✏️"}
             </div>
             <div>
-              <p className="text-sm font-medium text-white/80">Score adjusted by host</p>
-              <p className="text-xl font-bold">
+              <p className="text-xs md:text-sm font-medium text-white/80">Score adjusted by host</p>
+              <p className="text-lg md:text-xl font-bold">
                 {scoreAdjustment.oldScore} → {scoreAdjustment.newScore} points
-                <span className="ml-2 text-lg">
+                <span className="ml-2 text-base md:text-lg">
                   ({scoreAdjustment.newScore > scoreAdjustment.oldScore ? "+" : ""}
                   {scoreAdjustment.newScore - scoreAdjustment.oldScore})
                 </span>
               </p>
-              <p className="text-sm text-white/60">{scoreAdjustment.newScorePercentage}% awarded</p>
+              <p className="text-xs md:text-sm text-white/60">{scoreAdjustment.newScorePercentage}% awarded</p>
             </div>
           </div>
         </div>
@@ -688,21 +688,109 @@ export default function GamePage() {
         currentPlayerId={playerId}
       />
 
-      {/* Timer */}
-      <div className="absolute top-4 right-4 z-10">
+      {/* Top Bar: Score + Timer (flow layout, not absolute) */}
+      <div className="flex items-center justify-between mb-3 md:mb-4 flex-shrink-0">
+        <ScoreDisplay score={currentScore} />
         <Timer
           timeRemaining={timeRemaining}
           totalDuration={currentItem.timerDuration}
         />
       </div>
 
-      {/* Score */}
-      <div className="absolute top-4 left-4 z-10">
-        <ScoreDisplay score={currentScore} />
-      </div>
+      {/* Feedback ABOVE question — score result, time's up, waiting */}
+      {/* Time's Up - no answer submitted */}
+      {isLocked && !myAnswer && !answerResult && (
+        <div className="text-center mb-4 flex-shrink-0">
+          <div className="text-5xl md:text-7xl mb-2 md:mb-4">⏰</div>
+          <p className="text-2xl md:text-3xl font-black text-red-400 mb-1">Time&apos;s Up!</p>
+          <p className="text-lg md:text-xl text-white/70">No answer submitted</p>
+          <p className="text-base md:text-lg text-red-300 mt-1">0 points</p>
+        </div>
+      )}
 
-      {/* Question */}
-      <div className="flex-1 flex flex-col items-center justify-center max-w-4xl mx-auto w-full">
+      {/* Feedback - answer submitted, waiting for result */}
+      {myAnswer && !answerResult && (
+        <div className="text-center mb-4 flex-shrink-0">
+          <div className="text-4xl md:text-5xl mb-2 animate-pulse">📤</div>
+          <p className="text-lg md:text-xl font-bold text-white">Answer submitted!</p>
+          <p className="text-base md:text-lg text-white/80">Waiting for results...</p>
+        </div>
+      )}
+
+      {/* Answer Result feedback */}
+      {answerResult && !waitingForNext && (
+        <div className="text-center mb-4 flex-shrink-0">
+          {/* Icon based on score percentage */}
+          <div className="text-5xl md:text-7xl mb-2 md:mb-4 animate-bounce">
+            {answerResult.scorePercentage === 100 
+              ? "✅" 
+              : answerResult.scorePercentage !== undefined && answerResult.scorePercentage !== null && answerResult.scorePercentage >= 90
+                ? "🌟"
+                : answerResult.score > 0 
+                  ? "⭐" 
+                  : "❌"}
+          </div>
+          <p className="text-2xl md:text-3xl font-black text-white mb-1 md:mb-2">
+            {/* Graduated feedback based on percentage */}
+            {answerResult.scorePercentage === 100 
+              ? "Perfect!" 
+              : answerResult.scorePercentage !== undefined && answerResult.scorePercentage !== null && answerResult.scorePercentage >= 90
+                ? "Almost perfect!"
+                : answerResult.scorePercentage !== undefined && answerResult.scorePercentage !== null && answerResult.scorePercentage >= 70
+                  ? "Close enough!"
+                  : answerResult.scorePercentage !== undefined && answerResult.scorePercentage !== null && answerResult.scorePercentage >= 50
+                    ? "Partially correct!"
+                    : answerResult.score > 0
+                      ? "Points earned!"
+                      : "Too bad!"}
+          </p>
+          {/* Show percentage for non-perfect scores */}
+          {answerResult.score > 0 && answerResult.scorePercentage !== undefined && answerResult.scorePercentage !== null && answerResult.scorePercentage < 100 && (
+            <p className="text-base md:text-lg text-white/70 mb-1">{answerResult.scorePercentage}% correct</p>
+          )}
+          {answerResult.score > 0 && (
+            <p className="text-xl md:text-2xl font-bold text-yellow-300">
+              +{answerResult.score} points
+            </p>
+          )}
+          {/* Speed Podium bonus */}
+          {speedPodiumResult && (
+            <div className="mt-3 animate-pulse">
+              <div className="text-4xl md:text-5xl mb-1">
+                {speedPodiumResult.position === 1 ? "🥇" : speedPodiumResult.position === 2 ? "🥈" : "🥉"}
+              </div>
+              <p className="text-lg md:text-xl font-bold text-purple-300">
+                Speed Bonus: +{speedPodiumResult.bonusPoints}!
+              </p>
+              <p className="text-xs md:text-sm text-white/60">
+                {speedPodiumResult.position === 1 ? "Fastest correct answer!" : 
+                 speedPodiumResult.position === 2 ? "2nd fastest!" : "3rd fastest!"}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Waiting for next question - after auto-transition */}
+      {answerResult && waitingForNext && !showReveal && !showScoreboard && (
+        <div className="text-center mb-4 flex-shrink-0">
+          <div className="text-4xl md:text-5xl mb-2 md:mb-4 animate-pulse">⏳</div>
+          <p className="text-xl md:text-2xl font-bold text-white mb-1 md:mb-2">
+            {answerResult.isCorrect 
+              ? "Well done!" 
+              : answerResult.score > 0 
+                ? scorePercentage !== null && scorePercentage >= 70 
+                  ? "Almost!" 
+                  : "Points earned!" 
+                : "Better luck next time!"}
+          </p>
+          <p className="text-base md:text-lg text-white/60">Waiting for next question...</p>
+          <p className="text-xs md:text-sm text-white/40 mt-1">Score: {currentScore} points</p>
+        </div>
+      )}
+
+      {/* Question + Answer area */}
+      <div className="flex-1 flex flex-col items-center justify-center max-w-4xl mx-auto w-full min-w-0 overflow-y-auto">
         <QuestionDisplay
           questionType={currentItem.questionType}
           prompt={currentItem.prompt}
@@ -712,7 +800,7 @@ export default function GamePage() {
 
         {/* Answer Input - show if not locked (allow changing answer before lock) */}
         {!isLocked && (
-          <div className="mt-8 w-full">
+          <div className="mt-4 md:mt-8 w-full">
             <AnswerInput
               questionType={currentItem.questionType}
               options={currentItem.options}
@@ -721,107 +809,17 @@ export default function GamePage() {
               disabled={isLocked}
             />
             {myAnswer !== null && (
-              <p className="text-center text-white/50 text-sm mt-2">
+              <p className="text-center text-white/50 text-xs md:text-sm mt-2">
                 ✏️ You can change your answer until time runs out
               </p>
             )}
           </div>
         )}
 
-        {/* Time's Up - no answer submitted */}
-        {isLocked && !myAnswer && !answerResult && (
-          <div className="mt-8 text-center">
-            <div className="text-7xl mb-4">⏰</div>
-            <p className="text-3xl font-black text-red-400 mb-2">Time&apos;s Up!</p>
-            <p className="text-xl text-white/70">No answer submitted</p>
-            <p className="text-lg text-red-300 mt-2">0 points</p>
-          </div>
-        )}
-
-        {/* Feedback - answer submitted, waiting for result */}
-        {myAnswer && !answerResult && (
-          <div className="mt-8 text-center">
-            <div className="text-5xl mb-3 animate-pulse">📤</div>
-            <p className="text-xl font-bold text-white">Answer submitted!</p>
-            <p className="text-lg text-white/80">Waiting for results...</p>
-          </div>
-        )}
-
-        {answerResult && !waitingForNext && (
-          <div className="mt-8 text-center">
-            {/* Icon based on score percentage */}
-            <div className="text-7xl mb-4 animate-bounce">
-              {answerResult.scorePercentage === 100 
-                ? "✅" 
-                : answerResult.scorePercentage !== undefined && answerResult.scorePercentage !== null && answerResult.scorePercentage >= 90
-                  ? "🌟"
-                  : answerResult.score > 0 
-                    ? "⭐" 
-                    : "❌"}
-            </div>
-            <p className="text-3xl font-black text-white mb-2">
-              {/* Graduated feedback based on percentage */}
-              {answerResult.scorePercentage === 100 
-                ? "Perfect!" 
-                : answerResult.scorePercentage !== undefined && answerResult.scorePercentage !== null && answerResult.scorePercentage >= 90
-                  ? "Almost perfect!"
-                  : answerResult.scorePercentage !== undefined && answerResult.scorePercentage !== null && answerResult.scorePercentage >= 70
-                    ? "Close enough!"
-                    : answerResult.scorePercentage !== undefined && answerResult.scorePercentage !== null && answerResult.scorePercentage >= 50
-                      ? "Partially correct!"
-                      : answerResult.score > 0
-                        ? "Points earned!"
-                        : "Too bad!"}
-            </p>
-            {/* Show percentage for non-perfect scores */}
-            {answerResult.score > 0 && answerResult.scorePercentage !== undefined && answerResult.scorePercentage !== null && answerResult.scorePercentage < 100 && (
-              <p className="text-lg text-white/70 mb-1">{answerResult.scorePercentage}% correct</p>
-            )}
-            {answerResult.score > 0 && (
-              <p className="text-2xl font-bold text-yellow-300">
-                +{answerResult.score} points
-              </p>
-            )}
-            {/* Speed Podium bonus */}
-            {speedPodiumResult && (
-              <div className="mt-4 animate-pulse">
-                <div className="text-5xl mb-2">
-                  {speedPodiumResult.position === 1 ? "🥇" : speedPodiumResult.position === 2 ? "🥈" : "🥉"}
-                </div>
-                <p className="text-xl font-bold text-purple-300">
-                  Speed Bonus: +{speedPodiumResult.bonusPoints}!
-                </p>
-                <p className="text-sm text-white/60">
-                  {speedPodiumResult.position === 1 ? "Fastest correct answer!" : 
-                   speedPodiumResult.position === 2 ? "2nd fastest!" : "3rd fastest!"}
-                </p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Waiting for next question - after auto-transition */}
-        {answerResult && waitingForNext && !showReveal && !showScoreboard && (
-          <div className="mt-8 text-center">
-            <div className="text-5xl mb-4 animate-pulse">⏳</div>
-            <p className="text-2xl font-bold text-white mb-2">
-              {answerResult.isCorrect 
-                ? "Well done!" 
-                : answerResult.score > 0 
-                  ? scorePercentage !== null && scorePercentage >= 70 
-                    ? "Almost!" 
-                    : "Points earned!" 
-                  : "Better luck next time!"}
-            </p>
-            <p className="text-lg text-white/60">Waiting for next question...</p>
-            <p className="text-sm text-white/40 mt-2">Score: {currentScore} points</p>
-          </div>
-        )}
-
         {/* Correct Answer Reveal - different display per question type */}
         {showReveal && (
-          <div className="mt-8 w-full">
-            <p className="text-center text-white/60 text-sm mb-4 font-semibold uppercase tracking-wide">Correct Answer</p>
+          <div className="mt-4 md:mt-8 w-full">
+            <p className="text-center text-white/60 text-xs md:text-sm mb-3 md:mb-4 font-semibold uppercase tracking-wide">Correct Answer</p>
             
             {/* ORDER Question Reveal - show numbered list in correct order */}
             {correctOrder && correctOrder.length > 0 && (
@@ -834,17 +832,17 @@ export default function GamePage() {
                   return (
                     <div
                       key={item.id}
-                      className={`p-4 rounded-xl text-base font-bold transition-all flex items-center gap-3 ${
+                      className={`p-3 md:p-4 rounded-xl text-sm md:text-base font-bold transition-all flex items-center gap-3 ${
                         isCorrectPosition
                           ? "bg-green-500/80 text-white ring-2 ring-green-300"
                           : "bg-slate-700/60 text-white"
                       }`}
                     >
-                      <span className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-lg font-black">
+                      <span className="w-7 h-7 md:w-8 md:h-8 rounded-full bg-white/20 flex items-center justify-center text-base md:text-lg font-black flex-shrink-0">
                         {idx + 1}
                       </span>
-                      <span>{item.text}</span>
-                      {isCorrectPosition && <span className="ml-auto">✅</span>}
+                      <span className="min-w-0 break-words">{item.text}</span>
+                      {isCorrectPosition && <span className="ml-auto flex-shrink-0">✅</span>}
                     </div>
                   );
                 })}
@@ -853,22 +851,22 @@ export default function GamePage() {
             
             {/* Open Text Reveal - show correct text answer AND player's answer */}
             {correctText && (
-              <div className="space-y-4">
+              <div className="space-y-3 md:space-y-4">
                 {/* Player's submitted answer */}
                 {submittedAnswer && (
-                  <div className="p-4 rounded-xl bg-slate-700/60 text-white">
-                    <p className="text-sm text-white/60 mb-1">Your answer:</p>
-                    <p className="text-lg font-bold">{String(submittedAnswer)}</p>
+                  <div className="p-3 md:p-4 rounded-xl bg-slate-700/60 text-white">
+                    <p className="text-xs md:text-sm text-white/60 mb-1">Your answer:</p>
+                    <p className="text-base md:text-lg font-bold">{String(submittedAnswer)}</p>
                   </div>
                 )}
                 {/* Correct answer */}
-                <div className="p-6 rounded-xl bg-green-500/80 text-white text-center">
-                  <p className="text-sm text-white/80 mb-1">Correct answer:</p>
-                  <p className="text-xl font-bold">{correctText}</p>
+                <div className="p-4 md:p-6 rounded-xl bg-green-500/80 text-white text-center">
+                  <p className="text-xs md:text-sm text-white/80 mb-1">Correct answer:</p>
+                  <p className="text-lg md:text-xl font-bold">{correctText}</p>
                 </div>
                 {/* Acceptable alternatives if any */}
                 {acceptableAnswers && acceptableAnswers.length > 0 && (
-                  <div className="p-3 rounded-lg bg-slate-800/60 text-white/60 text-sm">
+                  <div className="p-3 rounded-lg bg-slate-800/60 text-white/60 text-xs md:text-sm">
                     <p className="mb-1">Also accepted: {acceptableAnswers.join(", ")}</p>
                   </div>
                 )}
@@ -877,23 +875,23 @@ export default function GamePage() {
             
             {/* NUMERIC/SLIDER/ESTIMATION Reveal - show correct number, player's answer, and difference */}
             {correctNumber !== null && (
-              <div className="space-y-4">
+              <div className="space-y-3 md:space-y-4">
                 {/* Player's submitted answer with comparison */}
                 {submittedAnswer !== null && submittedAnswer !== undefined && (
-                  <div className={`p-4 rounded-xl ${
+                  <div className={`p-3 md:p-4 rounded-xl ${
                     answerResult?.score && answerResult.score > 0 
                       ? "bg-green-600/40 border border-green-500/50" 
                       : "bg-red-600/40 border border-red-500/50"
                   }`}>
-                    <p className="text-sm text-white/60 mb-1">Your answer:</p>
-                    <p className="text-2xl font-bold text-white">
+                    <p className="text-xs md:text-sm text-white/60 mb-1">Your answer:</p>
+                    <p className="text-xl md:text-2xl font-bold text-white">
                       {typeof submittedAnswer === "number" 
                         ? submittedAnswer.toLocaleString("en-US") 
                         : String(submittedAnswer)}
                     </p>
                     {/* Show difference */}
                     {typeof submittedAnswer === "number" && (
-                      <p className="text-sm text-white/70 mt-1">
+                      <p className="text-xs md:text-sm text-white/70 mt-1">
                         {submittedAnswer === correctNumber 
                           ? "🎯 Exactly right!" 
                           : submittedAnswer > correctNumber 
@@ -905,11 +903,11 @@ export default function GamePage() {
                   </div>
                 )}
                 {/* Correct answer */}
-                <div className="p-6 rounded-xl bg-green-500/80 text-white text-center">
-                  <p className="text-sm text-white/80 mb-1">Correct answer:</p>
-                  <p className="text-3xl font-bold">{correctNumber.toLocaleString("en-US")}</p>
+                <div className="p-4 md:p-6 rounded-xl bg-green-500/80 text-white text-center">
+                  <p className="text-xs md:text-sm text-white/80 mb-1">Correct answer:</p>
+                  <p className="text-2xl md:text-3xl font-bold">{correctNumber.toLocaleString("en-US")}</p>
                   {estimationMargin && (
-                    <p className="text-sm text-white/70 mt-2">
+                    <p className="text-xs md:text-sm text-white/70 mt-2">
                       Margin for full points: ±{estimationMargin}%
                     </p>
                   )}
@@ -919,7 +917,7 @@ export default function GamePage() {
             
             {/* MC/TRUE_FALSE Reveal - show options with correct one highlighted */}
             {!correctOrder && !correctText && correctNumber === null && currentItem?.options && currentItem.options.length > 0 && (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 md:gap-3">
                 {currentItem.options.map((option, idx) => {
                   // Check if player selected this option
                   // For MC_MULTIPLE: myAnswer is array of IDs
@@ -934,7 +932,7 @@ export default function GamePage() {
                   
                   if (option.isCorrect && playerSelected) {
                     // Correct answer AND player selected it = GREEN with thick ring and scale
-                    styling = "bg-green-500 text-white ring-4 ring-green-300 scale-105 shadow-lg shadow-green-500/50";
+                    styling = "bg-green-500 text-white ring-4 ring-green-300 scale-[1.02] shadow-lg shadow-green-500/50";
                     icon = "✓";
                   } else if (option.isCorrect && !playerSelected) {
                     // Correct answer but player DIDN'T select it = GREEN dimmed
@@ -942,7 +940,7 @@ export default function GamePage() {
                     icon = "✓";
                   } else if (!option.isCorrect && playerSelected) {
                     // Wrong answer AND player selected it = RED with ring and scale
-                    styling = "bg-red-600 text-white ring-4 ring-red-300 scale-105";
+                    styling = "bg-red-600 text-white ring-4 ring-red-300 scale-[1.02]";
                     icon = "✗";
                   } else {
                     // Wrong answer and NOT selected = RED dimmed
@@ -953,18 +951,18 @@ export default function GamePage() {
                   return (
                     <div
                       key={option.id}
-                      className={`p-4 rounded-xl text-base font-bold transition-all ${styling}`}
+                      className={`p-3 md:p-4 rounded-xl text-sm md:text-base font-bold transition-all ${styling}`}
                     >
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="opacity-70 text-sm">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="opacity-70 text-xs md:text-sm flex-shrink-0">
                             {String.fromCharCode(65 + idx)}
                           </span>
-                          {icon && <span>{icon}</span>}
-                          <span>{option.text}</span>
+                          {icon && <span className="flex-shrink-0">{icon}</span>}
+                          <span className="min-w-0 break-words">{option.text}</span>
                         </div>
                         {playerSelected && (
-                          <span className="text-xs bg-white/20 px-2 py-1 rounded font-semibold">YOU</span>
+                          <span className="text-xs bg-white/20 px-2 py-1 rounded font-semibold flex-shrink-0 ml-2">YOU</span>
                         )}
                       </div>
                     </div>
@@ -977,12 +975,12 @@ export default function GamePage() {
 
         {/* Explanation - shown after reveal */}
         {showReveal && explanation && (
-          <div className="mt-6 p-4 bg-blue-900/60 border border-blue-500/40 rounded-xl mx-4">
-            <div className="flex items-start gap-3">
-              <span className="text-2xl">💡</span>
-              <div>
-                <p className="text-sm font-semibold text-blue-300 mb-1">Explanation</p>
-                <p className="text-white">{explanation}</p>
+          <div className="mt-4 md:mt-6 p-3 md:p-4 bg-blue-900/60 border border-blue-500/40 rounded-xl">
+            <div className="flex items-start gap-2 md:gap-3">
+              <span className="text-xl md:text-2xl flex-shrink-0">💡</span>
+              <div className="min-w-0">
+                <p className="text-xs md:text-sm font-semibold text-blue-300 mb-1">Explanation</p>
+                <p className="text-sm md:text-base text-white">{explanation}</p>
               </div>
             </div>
           </div>

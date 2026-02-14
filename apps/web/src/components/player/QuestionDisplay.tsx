@@ -30,28 +30,28 @@ export function QuestionDisplay({
 }: QuestionDisplayProps) {
   return (
     <div className="w-full">
-      {/* Question Type Badge */}
-      <div className="flex justify-center mb-4">
+      {/* Question Type Badge - hidden on mobile to save space */}
+      <div className="hidden md:flex justify-center mb-4">
         <QuestionTypeBadge type={questionType} size="md" />
       </div>
 
       {/* Photo Grid for PHOTO_ types */}
       {requiresPhotos(questionType) && media && media.length > 0 && (
-        <div className="mb-6">
+        <div className="mb-4 md:mb-6">
           <PhotoGrid photos={media} />
         </div>
       )}
 
       {/* Legacy single mediaUrl (for AUDIO_, VIDEO_, YOUTUBE_) */}
       {mediaUrl && !requiresPhotos(questionType) && (
-        <div className="mb-6">
+        <div className="mb-4 md:mb-6">
           {renderMedia(questionType, mediaUrl, settingsJson)}
         </div>
       )}
 
       {/* Prompt */}
-      <div className="bg-slate-800/10 backdrop-blur-sm rounded-3xl p-8 text-center">
-        <h2 className="text-3xl md:text-4xl font-black text-white leading-tight">
+      <div className="bg-slate-800/10 backdrop-blur-sm rounded-2xl md:rounded-3xl p-4 md:p-8 text-center">
+        <h2 className="text-xl md:text-3xl lg:text-4xl font-black text-white leading-tight">
           {prompt}
         </h2>
       </div>

@@ -156,11 +156,18 @@ function formatAnswerForDisplay(
   
   // TRUE_FALSE, PHOTO_TRUE_FALSE - Answer is boolean
   if (baseType === "TRUE_FALSE") {
-    if (typeof rawAnswer === "boolean") {
-      return { display: rawAnswer ? "True" : "False" };
-    }
-    // Sometimes sent as string "true"/"false"
-    return { display: rawAnswer === "true" || rawAnswer === true ? "True" : "False" };
+    const boolVal = rawAnswer === true || rawAnswer === "true";
+    const displayText = boolVal ? "True" : "False";
+    // Map boolean to the matching option ID so the host answer distribution bar works
+    const matchingOption = options.find(opt => {
+      const t = opt.text.toLowerCase().trim();
+      if (boolVal) return ["true", "yes", "waar", "ja", "correct", "juist"].includes(t);
+      return ["false", "no", "onwaar", "nee", "incorrect", "onjuist"].includes(t);
+    });
+    return {
+      display: displayText,
+      selectedOptionIds: matchingOption ? [matchingOption.id] : [],
+    };
   }
   
   // MC_ORDER, PHOTO_MC_ORDER - Answer is array of option IDs in submitted order

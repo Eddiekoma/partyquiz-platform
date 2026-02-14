@@ -42,14 +42,14 @@ export function AnswerInput({
 
     // MC_SINGLE: Select first, then submit
     return (
-      <div className="space-y-4">
-        <div className="space-y-3">
+      <div className="space-y-3 md:space-y-4">
+        <div className="space-y-2 md:space-y-3">
           {options?.map((option) => (
             <button
               key={option.id}
               onClick={() => setAnswer(option.id)}
               disabled={disabled}
-              className={`w-full p-4 text-lg font-bold text-white rounded-xl active:scale-95 transition-all disabled:opacity-50 ${
+              className={`w-full p-4 md:p-5 min-h-[52px] text-base md:text-lg font-bold text-white rounded-xl active:scale-95 transition-all disabled:opacity-50 ${
                 answer === option.id
                   ? "bg-purple-600 ring-4 ring-purple-400 scale-[1.02]"
                   : "bg-slate-800/20 backdrop-blur-sm hover:bg-slate-800/30"
@@ -62,7 +62,7 @@ export function AnswerInput({
         <button
           onClick={() => onSubmit(answer)}
           disabled={disabled || !answer}
-          className="w-full py-4 text-xl font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 active:scale-95 transition-all disabled:opacity-50 disabled:from-gray-500 disabled:to-gray-600"
+          className="w-full py-4 md:py-5 text-lg md:text-xl font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 active:scale-95 transition-all disabled:opacity-50 disabled:from-gray-500 disabled:to-gray-600"
         >
           Submit Answer
         </button>
@@ -73,12 +73,12 @@ export function AnswerInput({
   // True/False - Select first, then submit
   if (questionType === "TRUE_FALSE") {
     return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+      <div className="space-y-3 md:space-y-4">
+        <div className="grid grid-cols-2 gap-3 md:gap-4">
           <button
             onClick={() => setAnswer(true)}
             disabled={disabled}
-            className={`p-6 text-2xl font-black text-white rounded-2xl active:scale-95 transition-all disabled:opacity-50 ${
+            className={`p-5 md:p-6 text-xl md:text-2xl font-black text-white rounded-2xl active:scale-95 transition-all disabled:opacity-50 ${
               answer === true
                 ? "bg-green-600 ring-4 ring-green-400 scale-[1.02]"
                 : "bg-green-500/80 backdrop-blur-sm hover:bg-green-600/80"
@@ -89,7 +89,7 @@ export function AnswerInput({
           <button
             onClick={() => setAnswer(false)}
             disabled={disabled}
-            className={`p-6 text-2xl font-black text-white rounded-2xl active:scale-95 transition-all disabled:opacity-50 ${
+            className={`p-5 md:p-6 text-xl md:text-2xl font-black text-white rounded-2xl active:scale-95 transition-all disabled:opacity-50 ${
               answer === false
                 ? "bg-red-600 ring-4 ring-red-400 scale-[1.02]"
                 : "bg-red-500/80 backdrop-blur-sm hover:bg-red-600/80"
@@ -101,7 +101,7 @@ export function AnswerInput({
         <button
           onClick={() => onSubmit(answer)}
           disabled={disabled || answer === null}
-          className="w-full py-4 text-xl font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 active:scale-95 transition-all disabled:opacity-50 disabled:from-gray-500 disabled:to-gray-600"
+          className="w-full py-4 md:py-5 text-lg md:text-xl font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 active:scale-95 transition-all disabled:opacity-50 disabled:from-gray-500 disabled:to-gray-600"
         >
           Submit Answer
         </button>
@@ -112,20 +112,20 @@ export function AnswerInput({
   // Open Text Question - OPEN_TEXT
   if (questionType === "OPEN_TEXT") {
     return (
-      <div className="space-y-4">
+      <div className="space-y-3 md:space-y-4">
         <input
           type="text"
           value={answer || ""}
           onChange={(e) => setAnswer(e.target.value)}
           placeholder="Type your answer..."
           disabled={disabled}
-          className="w-full px-6 py-4 text-xl font-bold text-white bg-slate-800 rounded-xl focus:ring-4 focus:ring-purple-300 outline-none transition-all disabled:opacity-50"
+          className="w-full px-4 md:px-6 py-4 text-lg md:text-xl font-bold text-white bg-slate-800 rounded-xl focus:ring-4 focus:ring-purple-300 outline-none transition-all disabled:opacity-50"
           autoFocus
         />
         <button
           onClick={handleSubmit}
           disabled={disabled || !answer?.trim()}
-          className="w-full py-4 text-xl font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 active:scale-95 transition-all disabled:opacity-50"
+          className="w-full py-4 md:py-5 text-lg md:text-xl font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 active:scale-95 transition-all disabled:opacity-50"
         >
           Submit Answer
         </button>
@@ -150,20 +150,20 @@ export function AnswerInput({
     requiresPhotos(questionType as QuestionType) && baseType === "OPEN_TEXT"
   ) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-3 md:space-y-4">
         <input
           type="text"
           value={answer || ""}
           onChange={(e) => setAnswer(e.target.value)}
           placeholder="What do you see?"
           disabled={disabled}
-          className="w-full px-6 py-4 text-xl font-bold text-white bg-slate-800 rounded-xl focus:ring-4 focus:ring-purple-300 outline-none transition-all disabled:opacity-50"
+          className="w-full px-4 md:px-6 py-4 text-lg md:text-xl font-bold text-white bg-slate-800 rounded-xl focus:ring-4 focus:ring-purple-300 outline-none transition-all disabled:opacity-50"
           autoFocus
         />
         <button
           onClick={handleSubmit}
           disabled={disabled || !answer?.trim()}
-          className="w-full py-4 text-xl font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 active:scale-95 transition-all disabled:opacity-50"
+          className="w-full py-4 md:py-5 text-lg md:text-xl font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 active:scale-95 transition-all disabled:opacity-50"
         >
           Submit Answer
         </button>
@@ -177,20 +177,20 @@ export function AnswerInput({
     questionType === "AUDIO_OPEN"
   ) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-3 md:space-y-4">
         <input
           type="text"
           value={answer || ""}
           onChange={(e) => setAnswer(e.target.value)}
           placeholder="What do you hear?"
           disabled={disabled}
-          className="w-full px-6 py-4 text-xl font-bold text-white bg-slate-800 rounded-xl focus:ring-4 focus:ring-purple-300 outline-none transition-all disabled:opacity-50"
+          className="w-full px-4 md:px-6 py-4 text-lg md:text-xl font-bold text-white bg-slate-800 rounded-xl focus:ring-4 focus:ring-purple-300 outline-none transition-all disabled:opacity-50"
           autoFocus
         />
         <button
           onClick={handleSubmit}
           disabled={disabled || !answer?.trim()}
-          className="w-full py-4 text-xl font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 active:scale-95 transition-all disabled:opacity-50"
+          className="w-full py-4 md:py-5 text-lg md:text-xl font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 active:scale-95 transition-all disabled:opacity-50"
         >
           Submit Answer
         </button>
@@ -204,20 +204,20 @@ export function AnswerInput({
     questionType === "VIDEO_OPEN"
   ) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-3 md:space-y-4">
         <input
           type="text"
           value={answer || ""}
           onChange={(e) => setAnswer(e.target.value)}
           placeholder="What did you see?"
           disabled={disabled}
-          className="w-full px-6 py-4 text-xl font-bold text-white bg-slate-800 rounded-xl focus:ring-4 focus:ring-purple-300 outline-none transition-all disabled:opacity-50"
+          className="w-full px-4 md:px-6 py-4 text-lg md:text-xl font-bold text-white bg-slate-800 rounded-xl focus:ring-4 focus:ring-purple-300 outline-none transition-all disabled:opacity-50"
           autoFocus
         />
         <button
           onClick={handleSubmit}
           disabled={disabled || !answer?.trim()}
-          className="w-full py-4 text-xl font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 active:scale-95 transition-all disabled:opacity-50"
+          className="w-full py-4 md:py-5 text-lg md:text-xl font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 active:scale-95 transition-all disabled:opacity-50"
         >
           Submit Answer
         </button>
@@ -231,7 +231,7 @@ export function AnswerInput({
     questionType === "MUSIC_GUESS_ARTIST"
   ) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-3 md:space-y-4">
         <input
           type="text"
           value={answer || ""}
@@ -242,13 +242,13 @@ export function AnswerInput({
               : "Artist name..."
           }
           disabled={disabled}
-          className="w-full px-6 py-4 text-xl font-bold text-white bg-slate-800 rounded-xl focus:ring-4 focus:ring-purple-300 outline-none transition-all disabled:opacity-50"
+          className="w-full px-4 md:px-6 py-4 text-lg md:text-xl font-bold text-white bg-slate-800 rounded-xl focus:ring-4 focus:ring-purple-300 outline-none transition-all disabled:opacity-50"
           autoFocus
         />
         <button
           onClick={handleSubmit}
           disabled={disabled || !answer?.trim()}
-          className="w-full py-4 text-xl font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 active:scale-95 transition-all disabled:opacity-50"
+          className="w-full py-4 md:py-5 text-lg md:text-xl font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 active:scale-95 transition-all disabled:opacity-50"
         >
           Submit Answer
         </button>
@@ -266,7 +266,7 @@ export function AnswerInput({
     questionType === "MUSIC_GUESS_YEAR"
   ) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-3 md:space-y-4">
         <input
           type="number"
           value={answer || ""}
@@ -275,13 +275,13 @@ export function AnswerInput({
           disabled={disabled}
           min={1900}
           max={2100}
-          className="w-full px-6 py-4 text-xl font-bold text-white bg-slate-800 rounded-xl focus:ring-4 focus:ring-purple-300 outline-none transition-all disabled:opacity-50"
+          className="w-full px-4 md:px-6 py-4 text-lg md:text-xl font-bold text-white bg-slate-800 rounded-xl focus:ring-4 focus:ring-purple-300 outline-none transition-all disabled:opacity-50"
           autoFocus
         />
         <button
           onClick={handleSubmit}
           disabled={disabled || !answer}
-          className="w-full py-4 text-xl font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 active:scale-95 transition-all disabled:opacity-50"
+          className="w-full py-4 md:py-5 text-lg md:text-xl font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 active:scale-95 transition-all disabled:opacity-50"
         >
           Submit Answer
         </button>
@@ -296,20 +296,20 @@ export function AnswerInput({
     questionType === "YOUTUBE_WHO_SAID_IT"
   ) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-3 md:space-y-4">
         <input
           type="text"
           value={answer || ""}
           onChange={(e) => setAnswer(e.target.value)}
           placeholder="Type your answer..."
           disabled={disabled}
-          className="w-full px-6 py-4 text-xl font-bold text-white bg-slate-800 rounded-xl focus:ring-4 focus:ring-purple-300 outline-none transition-all disabled:opacity-50"
+          className="w-full px-4 md:px-6 py-4 text-lg md:text-xl font-bold text-white bg-slate-800 rounded-xl focus:ring-4 focus:ring-purple-300 outline-none transition-all disabled:opacity-50"
           autoFocus
         />
         <button
           onClick={handleSubmit}
           disabled={disabled || !answer?.trim()}
-          className="w-full py-4 text-xl font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 active:scale-95 transition-all disabled:opacity-50"
+          className="w-full py-4 md:py-5 text-lg md:text-xl font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 active:scale-95 transition-all disabled:opacity-50"
         >
           Submit Answer
         </button>
@@ -320,7 +320,7 @@ export function AnswerInput({
   // Poll - POLL (shows options like MC_SINGLE but without scoring)
   if (questionType === "POLL") {
     return (
-      <div className="space-y-3">
+      <div className="space-y-2 md:space-y-3">
         {options?.map((option) => (
           <button
             key={option.id}
@@ -329,7 +329,7 @@ export function AnswerInput({
               setTimeout(() => onSubmit(option.id), 100);
             }}
             disabled={disabled}
-            className="w-full p-4 text-lg font-bold text-white bg-slate-800/20 backdrop-blur-sm rounded-xl hover:bg-slate-800/30 active:scale-95 transition-all disabled:opacity-50"
+            className="w-full p-4 md:p-5 min-h-[52px] text-base md:text-lg font-bold text-white bg-slate-800/20 backdrop-blur-sm rounded-xl hover:bg-slate-800/30 active:scale-95 transition-all disabled:opacity-50"
           >
             {option.text}
           </button>
@@ -367,14 +367,14 @@ function MultipleChoiceMultiple({
   };
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-3">
+    <div className="space-y-3 md:space-y-4">
+      <div className="space-y-2 md:space-y-3">
         {options.map((option) => (
           <button
             key={option.id}
             onClick={() => toggleOption(option.id)}
             disabled={disabled}
-            className={`w-full p-4 text-lg font-bold text-white rounded-xl transition-all disabled:opacity-50 ${
+            className={`w-full p-4 md:p-5 min-h-[52px] text-base md:text-lg font-bold text-white rounded-xl transition-all disabled:opacity-50 ${
               selected.includes(option.id)
                 ? "bg-purple-600 ring-4 ring-purple-300"
                 : "bg-slate-800/20 backdrop-blur-sm hover:bg-slate-800/30"
@@ -388,7 +388,7 @@ function MultipleChoiceMultiple({
       <button
         onClick={() => onSubmit(selected)}
         disabled={disabled || selected.length === 0}
-        className="w-full py-4 text-xl font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 active:scale-95 transition-all disabled:opacity-50"
+        className="w-full py-4 md:py-5 text-lg md:text-xl font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 active:scale-95 transition-all disabled:opacity-50"
       >
         Submit ({selected.length} selected)
       </button>
@@ -524,8 +524,8 @@ function OrderingInput({
   };
 
   return (
-    <div className="space-y-4">
-      <p className="text-center text-white/80 font-bold mb-4">
+    <div className="space-y-3 md:space-y-4">
+      <p className="text-center text-white/80 font-bold text-sm md:text-base mb-3 md:mb-4">
         Sleep de items in de goede volgorde (of gebruik de ▲▼ knoppen):
       </p>
       <div className="space-y-2">
@@ -546,7 +546,7 @@ function OrderingInput({
               onTouchStart={(e) => handleTouchStart(e, index)}
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
-              className={`flex items-center gap-2 bg-slate-800/20 backdrop-blur-sm rounded-xl p-3 transition-all ${
+              className={`flex items-center gap-2 bg-slate-800/20 backdrop-blur-sm rounded-xl p-3 md:p-4 transition-all ${
                 isDragging 
                   ? "opacity-50 scale-95 rotate-2" 
                   : isDragOver 
@@ -555,16 +555,16 @@ function OrderingInput({
               } ${!disabled ? "cursor-move touch-none" : "cursor-not-allowed"}`}
             >
               {/* Drag handle icon */}
-              <div className="text-white/50 text-lg select-none">
+              <div className="text-white/50 text-lg select-none flex-shrink-0">
                 ⋮⋮
               </div>
               
               {/* Up/Down buttons (fallback) */}
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1 flex-shrink-0">
                 <button
                   onClick={() => moveUp(index)}
                   disabled={disabled || index === 0}
-                  className="p-1 text-white bg-slate-800/20 rounded hover:bg-slate-800/30 disabled:opacity-30 transition-all"
+                  className="p-1.5 md:p-2 text-white bg-slate-800/20 rounded hover:bg-slate-800/30 disabled:opacity-30 transition-all min-w-[32px] min-h-[28px]"
                   type="button"
                 >
                   ▲
@@ -572,7 +572,7 @@ function OrderingInput({
                 <button
                   onClick={() => moveDown(index)}
                   disabled={disabled || index === items.length - 1}
-                  className="p-1 text-white bg-slate-800/20 rounded hover:bg-slate-800/30 disabled:opacity-30 transition-all"
+                  className="p-1.5 md:p-2 text-white bg-slate-800/20 rounded hover:bg-slate-800/30 disabled:opacity-30 transition-all min-w-[32px] min-h-[28px]"
                   type="button"
                 >
                   ▼
@@ -580,7 +580,7 @@ function OrderingInput({
               </div>
               
               {/* Item text */}
-              <div className="flex-1 font-bold text-white select-none">
+              <div className="flex-1 font-bold text-white text-sm md:text-base select-none min-w-0 break-words">
                 {index + 1}. {item.text}
               </div>
             </div>
@@ -590,7 +590,7 @@ function OrderingInput({
       <button
         onClick={() => onSubmit(items.map((item) => item.id))}
         disabled={disabled}
-        className="w-full py-4 text-xl font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 active:scale-95 transition-all disabled:opacity-50"
+        className="w-full py-4 md:py-5 text-lg md:text-xl font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 active:scale-95 transition-all disabled:opacity-50"
         type="button"
       >
         Submit Order
