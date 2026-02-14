@@ -1,8 +1,28 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import type { QuestionType } from "@partyquiz/shared";
 import { requiresPhotos, getBaseQuestionType } from "@partyquiz/shared";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  DragOverlay,
+  type DragStartEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 interface AnswerInputProps {
   questionType: QuestionType | string; // Allow string for database types
@@ -513,7 +533,68 @@ function MultipleChoiceMultiple({
   );
 }
 
-// Ordering component with tap-to-select-and-place (mobile-friendly)
+// Sortable item component for drag-and-drop ordering
+function SortableOrderItem({
+  item,
+  index,
+  disabled,
+}: {
+  item: { id: string; text: string };
+  index: number;
+  disabled: boolean;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : undefined,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`w-full flex items-center gap-3 rounded-xl p-3 md:p-4 transition-colors touch-none ${
+        isDragging
+          ? "bg-purple-600/80 ring-4 ring-purple-400 shadow-2xl shadow-purple-500/40 scale-[1.03] opacity-90"
+          : "bg-slate-800/20 backdrop-blur-sm border-2 border-white/10"
+      } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-grab active:cursor-grabbing"}`}
+      {...attributes}
+      {...listeners}
+    >
+      {/* Position number */}
+      <span
+        className={`w-8 h-8 rounded-full flex items-center justify-center text-base font-black flex-shrink-0 ${
+          isDragging ? "bg-white/30 text-white" : "bg-white/10 text-white/70"
+        }`}
+      >
+        {index + 1}
+      </span>
+
+      {/* Item text */}
+      <span className="flex-1 font-bold text-white text-sm md:text-base text-left min-w-0 break-words">
+        {item.text}
+      </span>
+
+      {/* Drag handle icon */}
+      <span className="text-white/40 flex-shrink-0">
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 16h16" />
+        </svg>
+      </span>
+    </div>
+  );
+}
+
+// Ordering component with touch-friendly drag-and-drop (@dnd-kit)
 function OrderingInput({
   options,
   onSubmit,
@@ -523,97 +604,108 @@ function OrderingInput({
   onSubmit: (answer: any) => void;
   disabled: boolean;
 }) {
-  // Shuffle options on mount for random display order
+  // Shuffle options on mount so player doesn't see correct order
   const [items, setItems] = useState<Array<{ id: string; text: string }>>([]);
-  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
+  const [activeId, setActiveId] = useState<string | null>(null);
 
-  // Fisher-Yates shuffle on initial mount only
+  // Fisher-Yates shuffle on initial mount
+  // Uses options as dependency so it works even if options arrive after mount
   useEffect(() => {
+    if (options.length === 0) return;
     const shuffled = [...options];
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
     setItems(shuffled);
-  }, []); // Only on mount - options are stable per question
+  }, [options]);
 
-  const handleTapItem = useCallback((index: number) => {
-    if (disabled) return;
-    
-    if (selectedIndex === null) {
-      // First tap: select this item (highlight it)
-      setSelectedIndex(index);
-    } else if (selectedIndex === index) {
-      // Tap same item: deselect
-      setSelectedIndex(null);
-    } else {
-      // Second tap on different item: swap positions
-      const newItems = [...items];
-      [newItems[selectedIndex], newItems[index]] = [newItems[index], newItems[selectedIndex]];
-      setItems(newItems);
-      setSelectedIndex(null);
-    }
-  }, [disabled, selectedIndex, items]);
+  // Configure sensors for both pointer (mouse) and touch with delay
+  // The delay prevents accidental drags when scrolling
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // 8px movement before drag starts
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 150,      // 150ms hold before drag activates
+        tolerance: 5,    // 5px movement tolerance during delay
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setActiveId(event.active.id as string);
+  }, []);
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      setActiveId(null);
+      const { active, over } = event;
+
+      if (over && active.id !== over.id) {
+        setItems((prev) => {
+          const oldIndex = prev.findIndex((item) => item.id === active.id);
+          const newIndex = prev.findIndex((item) => item.id === over.id);
+          return arrayMove(prev, oldIndex, newIndex);
+        });
+      }
+    },
+    []
+  );
+
+  const activeItem = useMemo(
+    () => items.find((item) => item.id === activeId),
+    [activeId, items]
+  );
 
   if (items.length === 0) return null;
 
   return (
     <div className="space-y-3 md:space-y-4">
       <p className="text-center text-white/80 font-bold text-sm md:text-base mb-2">
-        Tik om te selecteren, tik op een andere positie om te verwisselen:
+        Sleep de items in de juiste volgorde:
       </p>
-      
-      {/* Selection hint */}
-      {selectedIndex !== null && (
-        <div className="text-center text-purple-300 text-xs animate-pulse mb-1">
-          Tik nu op de positie waar je &quot;{items[selectedIndex]?.text}&quot; wilt plaatsen
-        </div>
-      )}
-      
-      <div className="space-y-2">
-        {items.map((item, index) => {
-          const isSelected = selectedIndex === index;
-          const isSwapTarget = selectedIndex !== null && selectedIndex !== index;
-          
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => handleTapItem(index)}
-              disabled={disabled}
-              className={`w-full flex items-center gap-3 rounded-xl p-3 md:p-4 transition-all active:scale-[0.98] ${
-                isSelected
-                  ? "bg-purple-600 ring-4 ring-purple-400 scale-[1.02] shadow-lg shadow-purple-500/40"
-                  : isSwapTarget
-                    ? "bg-slate-700/60 border-2 border-dashed border-purple-400/50 hover:border-purple-400"
-                    : "bg-slate-800/20 backdrop-blur-sm border-2 border-transparent"
-              } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
-            >
-              {/* Position number */}
-              <span className={`w-8 h-8 rounded-full flex items-center justify-center text-base font-black flex-shrink-0 ${
-                isSelected 
-                  ? "bg-white/30 text-white" 
-                  : "bg-white/10 text-white/70"
-              }`}>
-                {index + 1}
+
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext items={items} strategy={verticalListSortingStrategy}>
+          <div className="space-y-2">
+            {items.map((item, index) => (
+              <SortableOrderItem
+                key={item.id}
+                item={item}
+                index={index}
+                disabled={disabled}
+              />
+            ))}
+          </div>
+        </SortableContext>
+
+        {/* Drag overlay - shows floating copy of dragged item */}
+        <DragOverlay>
+          {activeItem ? (
+            <div className="w-full flex items-center gap-3 rounded-xl p-3 md:p-4 bg-purple-600 ring-4 ring-purple-400 shadow-2xl shadow-purple-500/50 scale-[1.05] opacity-95">
+              <span className="w-8 h-8 rounded-full flex items-center justify-center text-base font-black flex-shrink-0 bg-white/30 text-white">
+                ⇅
               </span>
-              
-              {/* Item text */}
               <span className="flex-1 font-bold text-white text-sm md:text-base text-left min-w-0 break-words">
-                {item.text}
+                {activeItem.text}
               </span>
-              
-              {/* Swap indicator */}
-              {isSelected && (
-                <span className="text-white/70 text-lg flex-shrink-0">↕</span>
-              )}
-              {isSwapTarget && (
-                <span className="text-purple-300/70 text-sm flex-shrink-0">↔</span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+
       <button
         onClick={() => onSubmit(items.map((item) => item.id))}
         disabled={disabled}

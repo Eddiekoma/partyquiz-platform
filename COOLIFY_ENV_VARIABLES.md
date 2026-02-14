@@ -25,10 +25,9 @@ S3_BUCKET=partyquiz-media
 S3_ACCESS_KEY=
 S3_SECRET_KEY=
 
-# Spotify API (Optional)
-SPOTIFY_CLIENT_ID=
-SPOTIFY_CLIENT_SECRET=
-SPOTIFY_REDIRECT_URI=https://partyquiz.databridge360.com/api/auth/spotify/callback
+# Spotify API (Optional - PKCE flow, no secret needed)
+SPOTIFY_CLIENT_ID=93f6a4ee4c90456e8b18dbbc5e645969
+SPOTIFY_REDIRECT_URI=https://partyquiz.databridge360.com/api/spotify/callback
 
 # YouTube API (Optional)
 YOUTUBE_API_KEY=
