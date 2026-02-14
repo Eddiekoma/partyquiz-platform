@@ -11,6 +11,8 @@ import { ScoreDisplay } from "@/components/player/ScoreDisplay";
 import { SwanRace } from "@/components/SwanRace";
 import { BoatControls } from "@/components/player/BoatControls";
 import { SwanControls } from "@/components/player/SwanControls";
+import { KingOfLakeControls } from "@/components/player/KingOfLakeControls";
+import { SwarmControls } from "@/components/player/SwarmControls";
 import { Leaderboard } from "@/components/player/Leaderboard";
 
 interface LeaderboardEntry {
@@ -624,6 +626,54 @@ export default function GamePage() {
   // Show Swan Chase if active
   if (showSwanChase) {
     const myPlayer = swanChaseState?.players.find((p) => p.id === playerId);
+    const gameMode = swanChaseState?.mode;
+
+    // KING_OF_LAKE: Everyone gets both sprint and dash
+    if (gameMode === "KING_OF_LAKE") {
+      return (
+        <div className="flex-1 flex flex-col">
+          <Leaderboard
+            sessionCode={code.toUpperCase()}
+            visible={showScoreboard}
+            entries={scoreboardData}
+            currentPlayerId={playerId}
+          />
+          <KingOfLakeControls
+            sessionCode={code.toUpperCase()}
+            playerId={playerId}
+            gameState={swanChaseState}
+            onMove={handleSwanChaseMove}
+            onSprint={handleSwanChaseSprint}
+            onDash={handleSwanChaseDash}
+            socket={socket}
+          />
+        </div>
+      );
+    }
+
+    // SWAN_SWARM: Everyone is a boat, co-op vs AI
+    if (gameMode === "SWAN_SWARM") {
+      return (
+        <div className="flex-1 flex flex-col">
+          <Leaderboard
+            sessionCode={code.toUpperCase()}
+            visible={showScoreboard}
+            entries={scoreboardData}
+            currentPlayerId={playerId}
+          />
+          <SwarmControls
+            sessionCode={code.toUpperCase()}
+            playerId={playerId}
+            gameState={swanChaseState}
+            onMove={handleSwanChaseMove}
+            onSprint={handleSwanChaseSprint}
+            socket={socket}
+          />
+        </div>
+      );
+    }
+
+    // CLASSIC / ROUNDS: Team-based, boat vs swan
     const isBoat = myPlayer?.type === "BOAT";
 
     if (isBoat) {

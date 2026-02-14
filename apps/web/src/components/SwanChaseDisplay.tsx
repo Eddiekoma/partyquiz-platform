@@ -126,13 +126,20 @@ export function SwanChaseDisplay({ sessionCode }: SwanChaseDisplayProps) {
 
       // Draw players (boats and swans)
       gameState.players.forEach(player => {
-        if (player.team === SwanChaseTeam.BLUE) {
-          drawBoat(ctx, player);
-        } else {
+        if (player.team === SwanChaseTeam.WHITE) {
           drawSwan(ctx, player);
+        } else {
+          drawBoat(ctx, player);
         }
-        drawPlayerLabel(ctx, player);
+        drawPlayerLabel(ctx, player, gameState);
       });
+
+      // Draw AI swans (SWAN_SWARM mode)
+      if (gameState.aiSwans) {
+        gameState.aiSwans.forEach(ai => {
+          drawAISwan(ctx, ai);
+        });
+      }
 
       // Update and draw particles
       updateAndDrawParticles(ctx);
@@ -295,11 +302,13 @@ export function SwanChaseDisplay({ sessionCode }: SwanChaseDisplayProps) {
     ctx.rotate(player.rotation);
 
     // Status effects
-    if (player.status === SwanChasePlayerStatus.TAGGED) {
+    if (player.status === SwanChasePlayerStatus.TAGGED || player.status === ("ELIMINATED" as any)) {
       ctx.globalAlpha = 0.4;
       ctx.filter = "grayscale(1)";
     } else if (player.status === SwanChasePlayerStatus.SAFE) {
       ctx.filter = "drop-shadow(0 0 10px #22c55e)";
+    } else if (player.status === ("KING" as any)) {
+      ctx.filter = "drop-shadow(0 0 15px #fbbf24)";
     }
 
     // Sprint effect
@@ -307,8 +316,11 @@ export function SwanChaseDisplay({ sessionCode }: SwanChaseDisplayProps) {
       ctx.filter = "drop-shadow(0 0 15px #3b82f6)";
     }
 
-    // Boat body
-    ctx.fillStyle = "#3b82f6";
+    // Boat body - color based on mode
+    const boatColor = player.team === SwanChaseTeam.SOLO || player.team === SwanChaseTeam.COOP
+      ? "#6366f1" // Indigo for solo/coop modes
+      : "#3b82f6"; // Blue for classic
+    ctx.fillStyle = boatColor;
     ctx.beginPath();
     ctx.moveTo(20, 0);
     ctx.lineTo(-15, -10);
@@ -328,6 +340,12 @@ export function SwanChaseDisplay({ sessionCode }: SwanChaseDisplayProps) {
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("🚣", 0, 0);
+
+    // Crown for KING_OF_LAKE king
+    if (player.status === ("KING" as any)) {
+      ctx.font = "24px Arial";
+      ctx.fillText("👑", 0, -25);
+    }
 
     ctx.restore();
 
@@ -419,7 +437,7 @@ export function SwanChaseDisplay({ sessionCode }: SwanChaseDisplayProps) {
   };
 
   // Draw player name label
-  const drawPlayerLabel = (ctx: CanvasRenderingContext2D, player: SwanChasePlayer) => {
+  const drawPlayerLabel = (ctx: CanvasRenderingContext2D, player: SwanChasePlayer, state: SwanChaseGameState) => {
     ctx.save();
     ctx.font = "bold 12px Arial";
     ctx.textAlign = "center";
@@ -432,7 +450,16 @@ export function SwanChaseDisplay({ sessionCode }: SwanChaseDisplayProps) {
     const bgWidth = metrics.width + padding * 2;
     const bgHeight = 16;
 
-    ctx.fillStyle = player.team === SwanChaseTeam.BLUE ? "rgba(59, 130, 246, 0.9)" : "rgba(255, 255, 255, 0.9)";
+    // Label color based on mode/team
+    const isKing = state.currentKingId === player.id;
+    const bgColor = isKing
+      ? "rgba(251, 191, 36, 0.9)" // Gold for king
+      : player.team === SwanChaseTeam.BLUE ? "rgba(59, 130, 246, 0.9)" 
+      : player.team === ("SOLO" as any) ? "rgba(99, 102, 241, 0.9)"
+      : player.team === ("COOP" as any) ? "rgba(99, 102, 241, 0.9)"
+      : "rgba(255, 255, 255, 0.9)";
+    
+    ctx.fillStyle = bgColor;
     ctx.fillRect(
       player.position.x - bgWidth / 2,
       player.position.y - 40,
@@ -441,7 +468,7 @@ export function SwanChaseDisplay({ sessionCode }: SwanChaseDisplayProps) {
     );
 
     // Text
-    ctx.fillStyle = player.team === SwanChaseTeam.BLUE ? "white" : "black";
+    ctx.fillStyle = player.team === SwanChaseTeam.WHITE ? "black" : "white";
     ctx.fillText(text, player.position.x, player.position.y - 38);
 
     // Status badge
@@ -453,7 +480,63 @@ export function SwanChaseDisplay({ sessionCode }: SwanChaseDisplayProps) {
       ctx.fillStyle = "#22c55e";
       ctx.font = "10px Arial";
       ctx.fillText("SAFE!", player.position.x, player.position.y - 55);
+    } else if (player.status === ("ELIMINATED" as any)) {
+      ctx.fillStyle = "#ef4444";
+      ctx.font = "10px Arial";
+      ctx.fillText("💀 OUT", player.position.x, player.position.y - 55);
+    } else if (player.status === ("KING" as any)) {
+      ctx.fillStyle = "#fbbf24";
+      ctx.font = "bold 10px Arial";
+      ctx.fillText("👑 KING", player.position.x, player.position.y - 55);
     }
+
+    ctx.restore();
+  };
+
+  // Draw AI swan (SWAN_SWARM mode)
+  const drawAISwan = (ctx: CanvasRenderingContext2D, ai: { position: Vector2D; rotation: number }) => {
+    ctx.save();
+    ctx.translate(ai.position.x, ai.position.y);
+    ctx.rotate(ai.rotation);
+
+    // Menacing red glow
+    ctx.filter = "drop-shadow(0 0 10px #dc2626)";
+
+    // AI Swan body (red-tinted)
+    ctx.fillStyle = "#fca5a5";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 18, 13, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Neck
+    ctx.strokeStyle = "#fca5a5";
+    ctx.lineWidth = 6;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(12, -4);
+    ctx.quadraticCurveTo(20, -12, 22, -6);
+    ctx.stroke();
+
+    // Head
+    ctx.fillStyle = "#fca5a5";
+    ctx.beginPath();
+    ctx.arc(22, -6, 4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Red beak
+    ctx.fillStyle = "#dc2626";
+    ctx.beginPath();
+    ctx.moveTo(26, -6);
+    ctx.lineTo(22, -8);
+    ctx.lineTo(22, -4);
+    ctx.closePath();
+    ctx.fill();
+
+    // Angry red eye
+    ctx.fillStyle = "#dc2626";
+    ctx.beginPath();
+    ctx.arc(24, -7, 2, 0, Math.PI * 2);
+    ctx.fill();
 
     ctx.restore();
   };
@@ -507,42 +590,96 @@ export function SwanChaseDisplay({ sessionCode }: SwanChaseDisplayProps) {
       45
     );
 
-    // Team scores (top corners)
-    const boatsAlive = state.players.filter(
-      p => p.team === SwanChaseTeam.BLUE && p.status === SwanChasePlayerStatus.ACTIVE
-    ).length;
-    const boatsSafe = state.players.filter(
-      p => p.team === SwanChaseTeam.BLUE && p.status === SwanChasePlayerStatus.SAFE
-    ).length;
-    const boatsTagged = state.players.filter(
-      p => p.team === SwanChaseTeam.BLUE && p.status === SwanChasePlayerStatus.TAGGED
-    ).length;
+    if (state.mode === "KING_OF_LAKE") {
+      // KING_OF_LAKE HUD
+      const alive = state.players.filter(p => (p.status as string) !== "ELIMINATED").length;
+      const kingPlayer = state.players.find(p => p.id === (state as any).currentKingId);
 
-    const swanTags = state.players
-      .filter(p => p.team === SwanChaseTeam.WHITE)
-      .reduce((sum, p) => sum + (p.tagsCount || 0), 0);
+      // Left: King info
+      ctx.fillStyle = "rgba(251, 191, 36, 0.9)";
+      ctx.fillRect(10, 10, 220, 80);
+      ctx.fillStyle = "black";
+      ctx.font = "bold 18px Arial";
+      ctx.textAlign = "left";
+      ctx.fillText("👑 KING OF THE LAKE", 20, 35);
+      ctx.font = "14px Arial";
+      ctx.fillText(`King: ${kingPlayer?.name || "—"}`, 20, 55);
+      ctx.fillText(`Tags: ${kingPlayer?.tagsCount || 0}`, 20, 73);
 
-    // Boats team (left)
-    ctx.fillStyle = "rgba(59, 130, 246, 0.9)";
-    ctx.fillRect(10, 10, 200, 80);
-    ctx.fillStyle = "white";
-    ctx.font = "bold 18px Arial";
-    ctx.textAlign = "left";
-    ctx.fillText("🚣 BOATS TEAM", 20, 35);
-    ctx.font = "14px Arial";
-    ctx.fillText(`Active: ${boatsAlive}`, 20, 55);
-    ctx.fillText(`Safe: ${boatsSafe}`, 20, 73);
-    ctx.fillText(`Tagged: ${boatsTagged}`, 120, 73);
+      // Right: Alive count
+      ctx.fillStyle = "rgba(99, 102, 241, 0.9)";
+      ctx.fillRect(width - 180, 10, 170, 80);
+      ctx.fillStyle = "white";
+      ctx.font = "bold 18px Arial";
+      ctx.textAlign = "right";
+      ctx.fillText("PLAYERS", width - 20, 35);
+      ctx.font = "bold 36px Arial";
+      ctx.fillText(`${alive}`, width - 20, 73);
 
-    // Swans team (right)
-    ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-    ctx.fillRect(width - 210, 10, 200, 80);
-    ctx.fillStyle = "black";
-    ctx.textAlign = "right";
-    ctx.fillText("🦢 SWANS TEAM", width - 20, 35);
-    ctx.font = "14px Arial";
-    ctx.fillText(`Hunters: ${state.settings.swansCount}`, width - 20, 55);
-    ctx.fillText(`Tags: ${swanTags}`, width - 20, 73);
+    } else if (state.mode === "SWAN_SWARM") {
+      // SWAN_SWARM HUD
+      const alive = state.players.filter(p => p.status === SwanChasePlayerStatus.ACTIVE || (p.status as string) === "DASHING").length;
+      const aiCount = (state as any).aiSwans?.length || 0;
+      const wave = (state as any).currentWave || 1;
+
+      // Left: Team info
+      ctx.fillStyle = "rgba(99, 102, 241, 0.9)";
+      ctx.fillRect(10, 10, 200, 80);
+      ctx.fillStyle = "white";
+      ctx.font = "bold 18px Arial";
+      ctx.textAlign = "left";
+      ctx.fillText("🌊 SWAN SWARM", 20, 35);
+      ctx.font = "14px Arial";
+      ctx.fillText(`Crew Alive: ${alive} / ${state.players.length}`, 20, 55);
+      ctx.fillText(`Wave: ${wave}`, 20, 73);
+
+      // Right: AI swans count
+      ctx.fillStyle = "rgba(220, 38, 38, 0.9)";
+      ctx.fillRect(width - 180, 10, 170, 80);
+      ctx.fillStyle = "white";
+      ctx.font = "bold 18px Arial";
+      ctx.textAlign = "right";
+      ctx.fillText("🦢 AI SWANS", width - 20, 35);
+      ctx.font = "bold 36px Arial";
+      ctx.fillText(`${aiCount}`, width - 20, 73);
+
+    } else {
+      // CLASSIC / ROUNDS HUD
+      const boatsAlive = state.players.filter(
+        p => p.team === SwanChaseTeam.BLUE && p.status === SwanChasePlayerStatus.ACTIVE
+      ).length;
+      const boatsSafe = state.players.filter(
+        p => p.team === SwanChaseTeam.BLUE && p.status === SwanChasePlayerStatus.SAFE
+      ).length;
+      const boatsTagged = state.players.filter(
+        p => p.team === SwanChaseTeam.BLUE && p.status === SwanChasePlayerStatus.TAGGED
+      ).length;
+      const swanTags = state.players
+        .filter(p => p.team === SwanChaseTeam.WHITE)
+        .reduce((sum, p) => sum + (p.tagsCount || 0), 0);
+
+      // Boats team (left)
+      ctx.fillStyle = "rgba(59, 130, 246, 0.9)";
+      ctx.fillRect(10, 10, 200, 80);
+      ctx.fillStyle = "white";
+      ctx.font = "bold 18px Arial";
+      ctx.textAlign = "left";
+      ctx.fillText("🚣 BOATS TEAM", 20, 35);
+      ctx.font = "14px Arial";
+      ctx.fillText(`Active: ${boatsAlive}`, 20, 55);
+      ctx.fillText(`Safe: ${boatsSafe}`, 20, 73);
+      ctx.fillText(`Tagged: ${boatsTagged}`, 120, 73);
+
+      // Swans team (right)
+      ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+      ctx.fillRect(width - 210, 10, 200, 80);
+      ctx.fillStyle = "black";
+      ctx.textAlign = "right";
+      ctx.fillText("🦢 SWANS TEAM", width - 20, 35);
+      ctx.font = "14px Arial";
+      ctx.fillText(`Hunters: ${state.settings.swansCount}`, width - 20, 55);
+      ctx.fillText(`Tags: ${swanTags}`, width - 20, 73);
+    }
 
     ctx.restore();
   };
@@ -576,28 +713,65 @@ export function SwanChaseDisplay({ sessionCode }: SwanChaseDisplayProps) {
     ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
     ctx.fillRect(0, 0, width, height);
 
-    // Winner announcement
-    const winnerTeam = state.winner === SwanChaseTeam.BLUE ? "BOATS" : "SWANS";
-    const winnerEmoji = state.winner === SwanChaseTeam.BLUE ? "🚣" : "🦢";
-    const winnerColor = state.winner === SwanChaseTeam.BLUE ? "#3b82f6" : "#ffffff";
+    if (state.mode === "KING_OF_LAKE") {
+      // KING_OF_LAKE end
+      const winnerId = (state as any).winnerId;
+      const winner = winnerId ? state.players.find(p => p.id === winnerId) : null;
+      ctx.fillStyle = "#fbbf24";
+      ctx.font = "bold 80px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("👑", width / 2, height / 2 - 80);
+      ctx.fillText(winner?.name || "No one", width / 2, height / 2);
+      ctx.fillStyle = "white";
+      ctx.font = "bold 36px Arial";
+      ctx.fillText("KING OF THE LAKE!", width / 2, height / 2 + 60);
 
-    ctx.fillStyle = winnerColor;
-    ctx.font = "bold 80px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText(`${winnerEmoji} ${winnerTeam} WIN! ${winnerEmoji}`, width / 2, height / 2 - 50);
+      // Stats
+      ctx.font = "20px Arial";
+      const eliminated = state.players.filter(p => (p.status as string) === "ELIMINATED").length;
+      ctx.fillText(`Eliminated: ${eliminated} / ${state.players.length}`, width / 2, height / 2 + 110);
 
-    // Stats
-    ctx.fillStyle = "white";
-    ctx.font = "24px Arial";
-    const boatsSaved = state.players.filter(
-      p => p.team === SwanChaseTeam.BLUE && p.status === SwanChasePlayerStatus.SAFE
-    ).length;
-    const boatsTagged = state.players.filter(
-      p => p.team === SwanChaseTeam.BLUE && p.status === SwanChasePlayerStatus.TAGGED
-    ).length;
+    } else if (state.mode === "SWAN_SWARM") {
+      // SWAN_SWARM end
+      const survived = state.players.filter(p => p.status === SwanChasePlayerStatus.ACTIVE).length;
+      const allCaught = survived === 0;
 
-    ctx.fillText(`Boats Saved: ${boatsSaved}`, width / 2, height / 2 + 50);
-    ctx.fillText(`Boats Tagged: ${boatsTagged}`, width / 2, height / 2 + 85);
+      ctx.fillStyle = allCaught ? "#ef4444" : "#22c55e";
+      ctx.font = "bold 80px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(allCaught ? "💀" : "🎉", width / 2, height / 2 - 80);
+      ctx.fillText(allCaught ? "SWARM WINS!" : "CREW SURVIVES!", width / 2, height / 2);
+      ctx.fillStyle = "white";
+      ctx.font = "24px Arial";
+      ctx.fillText(
+        `Survived: ${survived} / ${state.players.length} | Waves: ${(state as any).currentWave || 1}`,
+        width / 2, height / 2 + 60
+      );
+
+    } else {
+      // CLASSIC / ROUNDS end
+      const winnerTeam = state.winner === SwanChaseTeam.BLUE ? "BOATS" : "SWANS";
+      const winnerEmoji = state.winner === SwanChaseTeam.BLUE ? "🚣" : "🦢";
+      const winnerColor = state.winner === SwanChaseTeam.BLUE ? "#3b82f6" : "#ffffff";
+
+      ctx.fillStyle = winnerColor;
+      ctx.font = "bold 80px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText(`${winnerEmoji} ${winnerTeam} WIN! ${winnerEmoji}`, width / 2, height / 2 - 50);
+
+      // Stats
+      ctx.fillStyle = "white";
+      ctx.font = "24px Arial";
+      const boatsSaved = state.players.filter(
+        p => p.team === SwanChaseTeam.BLUE && p.status === SwanChasePlayerStatus.SAFE
+      ).length;
+      const boatsTagged = state.players.filter(
+        p => p.team === SwanChaseTeam.BLUE && p.status === SwanChasePlayerStatus.TAGGED
+      ).length;
+
+      ctx.fillText(`Boats Saved: ${boatsSaved}`, width / 2, height / 2 + 50);
+      ctx.fillText(`Boats Tagged: ${boatsTagged}`, width / 2, height / 2 + 85);
+    }
 
     ctx.restore();
   };

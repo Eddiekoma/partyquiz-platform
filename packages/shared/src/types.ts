@@ -485,11 +485,10 @@ export interface GameState {
  * Swan Chase game modes
  */
 export enum SwanChaseMode {
-  CLASSIC = "CLASSIC",        // Single round: Boats vs Swans
-  ROUNDS = "ROUNDS",          // 2 rounds with team swap
-  TEAM_ESCAPE = "TEAM_ESCAPE", // Legacy: same as CLASSIC
-  KING_OF_LAKE = "KING_OF_LAKE",      // Free-for-all (future)
-  SWAN_SWARM = "SWAN_SWARM",          // Co-op survival (future)
+  CLASSIC = "CLASSIC",                  // Single round: Boats vs Swans
+  ROUNDS = "ROUNDS",                    // 2 rounds with team swap
+  KING_OF_LAKE = "KING_OF_LAKE",        // Free-for-all: everyone can tag & be tagged, last one standing wins
+  SWAN_SWARM = "SWAN_SWARM",            // Co-op survival: all players vs AI swans
 }
 
 /**
@@ -504,6 +503,10 @@ export enum SwanChasePlayerStatus {
   // Swan statuses
   HUNTING = "HUNTING",    // Normal chase mode
   DASHING = "DASHING",    // Speed boost active
+  
+  // King of Lake statuses
+  KING = "KING",          // Current king (invulnerable briefly after becoming king)
+  ELIMINATED = "ELIMINATED", // Eliminated in free-for-all
 }
 
 /**
@@ -512,6 +515,9 @@ export enum SwanChasePlayerStatus {
 export enum SwanChaseTeam {
   BLUE = "BLUE",    // Boats team
   WHITE = "WHITE",  // Swans team
+  SOLO = "SOLO",    // Free-for-all (KING_OF_LAKE)
+  COOP = "COOP",    // Cooperative team (SWAN_SWARM)
+  AI = "AI",        // AI-controlled swans (SWAN_SWARM)
 }
 
 /**
@@ -594,6 +600,12 @@ export interface SwanChaseSettings {
   };
   tagRange: number; // collision distance
   obstacles: Obstacle[];
+  // KING_OF_LAKE settings
+  kingInvulnerabilityMs?: number; // How long after becoming king you're invulnerable
+  // SWAN_SWARM settings
+  aiSwanCount?: number;   // Number of AI swans
+  aiSwanSpeed?: number;   // AI swan speed multiplier
+  waveInterval?: number;  // Seconds between AI wave spawns
 }
 
 /**
@@ -610,7 +622,24 @@ export interface SwanChaseGameState {
   
   players: SwanChasePlayer[];
   
+  // AI swans (SWAN_SWARM mode)
+  aiSwans?: Array<{
+    id: string;
+    position: Vector2D;
+    velocity: Vector2D;
+    rotation: number;
+    targetPlayerId?: string; // Which player this AI is chasing
+  }>;
+  
+  // KING_OF_LAKE: player who is "king" (last tagger)
+  currentKingId?: string | null;
+  
+  // SWAN_SWARM: wave tracking
+  currentWave?: number;
+  playersAlive?: number;
+  
   // Win tracking
   winner: SwanChaseTeam | 'DRAW' | null;
+  winnerId?: string | null; // For KING_OF_LAKE: winning player ID
   winConditionMet: boolean;
 }

@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { WSMessageType } from "@partyquiz/shared";
 import { SwanRace } from "@/components/SwanRace";
+import { SwanRaceDisplay } from "@/components/SwanRaceDisplay";
 import { SwanChaseDisplay } from "@/components/SwanChaseDisplay";
 import { QuestionTypeBadge } from "@/components/QuestionTypeBadge";
 import { PhotoGrid } from "@/components/PhotoGrid";
@@ -1053,11 +1054,7 @@ export default function DisplayPage() {
         {/* MINIGAME STATE - Swan Race */}
         {displayState === "minigame" && minigameType === "SWAN_RACE" && (
           <div className="w-full max-w-6xl mx-auto">
-            <h2 className="text-5xl font-bold text-center mb-8">🦢 Swan Race</h2>
-            {/* Swan Race display component would go here */}
-            <div className="bg-slate-800/80 backdrop-blur rounded-3xl p-8 min-h-[400px] flex items-center justify-center">
-              <p className="text-2xl text-slate-400">Swan Race in progress...</p>
-            </div>
+            <SwanRaceDisplay sessionCode={code} />
           </div>
         )}
 

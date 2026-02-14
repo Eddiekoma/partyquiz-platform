@@ -33,9 +33,11 @@ export function SwanChaseConfig({
 }: SwanChaseConfigProps) {
   const [teamAssignments, setTeamAssignments] = useState<TeamAssignment[]>([]);
   const [duration, setDuration] = useState(180); // 3 minutes default
-  const [mode, setMode] = useState<"CLASSIC" | "ROUNDS">("CLASSIC");
+  const [mode, setMode] = useState<"CLASSIC" | "ROUNDS" | "KING_OF_LAKE" | "SWAN_SWARM">("CLASSIC");
   const [isConfiguring, setIsConfiguring] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const needsTeamAssignment = mode === "CLASSIC" || mode === "ROUNDS";
 
   // Initialize team assignments
   useEffect(() => {
@@ -85,30 +87,39 @@ export function SwanChaseConfig({
   };
 
   const startGame = () => {
-    const blueTeam = teamAssignments.filter((a) => a.team === "BLUE");
-    const whiteTeam = teamAssignments.filter((a) => a.team === "WHITE");
-
-    if (blueTeam.length === 0) {
-      setError("Blue team needs at least 1 player!");
-      return;
-    }
-
-    if (whiteTeam.length === 0) {
-      setError("White team needs at least 1 player!");
-      return;
-    }
-
     if (!socket || !isConnected) {
       setError("Not connected to server!");
       return;
     }
 
-    socket.emit(WSMessageType.START_SWAN_CHASE, {
-      sessionCode,
-      mode,
-      duration,
-      teamAssignments: teamAssignments.filter((a) => a.team !== "UNASSIGNED"),
-    });
+    if (needsTeamAssignment) {
+      const blueTeam = teamAssignments.filter((a) => a.team === "BLUE");
+      const whiteTeam = teamAssignments.filter((a) => a.team === "WHITE");
+
+      if (blueTeam.length === 0) {
+        setError("Blue team needs at least 1 player!");
+        return;
+      }
+
+      if (whiteTeam.length === 0) {
+        setError("White team needs at least 1 player!");
+        return;
+      }
+
+      socket.emit(WSMessageType.START_SWAN_CHASE, {
+        sessionCode,
+        mode,
+        duration,
+        teamAssignments: teamAssignments.filter((a) => a.team !== "UNASSIGNED"),
+      });
+    } else {
+      // KING_OF_LAKE and SWAN_SWARM don't need team assignments
+      socket.emit(WSMessageType.START_SWAN_CHASE, {
+        sessionCode,
+        mode,
+        duration,
+      });
+    }
 
     setError(null);
   };
@@ -134,7 +145,11 @@ export function SwanChaseConfig({
             <h3 className="text-xl font-bold text-white flex items-center gap-2">
               🦢 Swan Chase - {gameState.status === "COUNTDOWN" ? "Starting..." : "Active"}
             </h3>
-            <p className="text-sm text-slate-400">Round {gameState.round} of 2</p>
+            <p className="text-sm text-slate-400">
+              {gameState.mode === "KING_OF_LAKE" ? "👑 King of the Lake" :
+               gameState.mode === "SWAN_SWARM" ? `🌊 Swan Swarm - Wave ${gameState.currentWave || 1}` :
+               `Round ${gameState.round} of 2`}
+            </p>
           </div>
           <button
             onClick={endGame}
@@ -152,40 +167,75 @@ export function SwanChaseConfig({
               {Math.ceil((gameState.timeRemaining || 0) / 1000)}s
             </div>
           </div>
-          <div className="bg-blue-900/30 rounded-lg p-4 border border-blue-500/30">
-            <div className="text-sm text-blue-300 mb-1">Blue Team (Boats)</div>
-            <div className="flex gap-4">
-              <div>
-                <div className="text-xs text-blue-200">Active</div>
-                <div className="text-2xl font-bold text-blue-400">
-                  {gameState.players.filter((p) => p.team === "BLUE" && p.status === "ACTIVE").length}
+
+          {gameState.mode === "KING_OF_LAKE" ? (
+            <>
+              <div className="bg-yellow-900/30 rounded-lg p-4 border border-yellow-500/30">
+                <div className="text-sm text-yellow-300 mb-1">👑 Current King</div>
+                <div className="text-xl font-bold text-yellow-400">
+                  {gameState.players.find(p => p.id === gameState.currentKingId)?.name || "—"}
                 </div>
               </div>
-              <div>
-                <div className="text-xs text-yellow-200">Safe</div>
-                <div className="text-2xl font-bold text-yellow-400">
-                  {gameState.players.filter((p) => p.team === "BLUE" && p.status === "SAFE").length}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-red-200">Tagged</div>
+              <div className="bg-red-900/30 rounded-lg p-4 border border-red-500/30">
+                <div className="text-sm text-red-300 mb-1">Eliminated</div>
                 <div className="text-2xl font-bold text-red-400">
-                  {gameState.players.filter((p) => p.team === "BLUE" && p.status === "TAGGED").length}
+                  {gameState.players.filter(p => p.status === "ELIMINATED").length} / {gameState.players.length}
                 </div>
               </div>
-            </div>
-          </div>
-          <div className="bg-slate-800/30 rounded-lg p-4 border border-slate-500/30">
-            <div className="text-sm text-slate-300 mb-1">White Team (Swans)</div>
-            <div>
-              <div className="text-xs text-orange-200">Total Tags</div>
-              <div className="text-2xl font-bold text-orange-400">
-                {gameState.players
-                  .filter((p) => p.team === "WHITE")
-                  .reduce((sum, p) => sum + (p.tagsCount || 0), 0)}
+            </>
+          ) : gameState.mode === "SWAN_SWARM" ? (
+            <>
+              <div className="bg-green-900/30 rounded-lg p-4 border border-green-500/30">
+                <div className="text-sm text-green-300 mb-1">🧑‍🤝‍🧑 Players Alive</div>
+                <div className="text-2xl font-bold text-green-400">
+                  {gameState.playersAlive ?? gameState.players.filter(p => p.status === "ACTIVE").length}
+                </div>
               </div>
-            </div>
-          </div>
+              <div className="bg-purple-900/30 rounded-lg p-4 border border-purple-500/30">
+                <div className="text-sm text-purple-300 mb-1">🦢 AI Swans</div>
+                <div className="text-2xl font-bold text-purple-400">
+                  {gameState.aiSwans?.length || 0}
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="bg-blue-900/30 rounded-lg p-4 border border-blue-500/30">
+                <div className="text-sm text-blue-300 mb-1">Blue Team (Boats)</div>
+                <div className="flex gap-4">
+                  <div>
+                    <div className="text-xs text-blue-200">Active</div>
+                    <div className="text-2xl font-bold text-blue-400">
+                      {gameState.players.filter((p) => p.team === "BLUE" && p.status === "ACTIVE").length}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-yellow-200">Safe</div>
+                    <div className="text-2xl font-bold text-yellow-400">
+                      {gameState.players.filter((p) => p.team === "BLUE" && p.status === "SAFE").length}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-red-200">Tagged</div>
+                    <div className="text-2xl font-bold text-red-400">
+                      {gameState.players.filter((p) => p.team === "BLUE" && p.status === "TAGGED").length}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-slate-800/30 rounded-lg p-4 border border-slate-500/30">
+                <div className="text-sm text-slate-300 mb-1">White Team (Swans)</div>
+                <div>
+                  <div className="text-xs text-orange-200">Total Tags</div>
+                  <div className="text-2xl font-bold text-orange-400">
+                    {gameState.players
+                      .filter((p) => p.team === "WHITE")
+                      .reduce((sum, p) => sum + (p.tagsCount || 0), 0)}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Live Player Status */}
@@ -202,7 +252,11 @@ export function SwanChaseConfig({
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl">{player.team === "BLUE" ? "🚤" : "🦢"}</span>
+                  <span className="text-2xl">
+                    {gameState.mode === "KING_OF_LAKE" 
+                      ? (player.id === gameState.currentKingId ? "👑" : player.status === "ELIMINATED" ? "💀" : "🚤")
+                      : player.team === "BLUE" || player.team === "COOP" || player.team === "SOLO" ? "🚤" : "🦢"}
+                  </span>
                   <div>
                     <div className="font-medium text-white">{player.name}</div>
                     <div className="text-xs text-slate-400">
@@ -240,13 +294,19 @@ export function SwanChaseConfig({
           <div className="mt-6 p-6 bg-gradient-to-r from-yellow-900/50 to-amber-900/50 border border-yellow-500/50 rounded-lg text-center">
             <div className="text-5xl mb-3">🏆</div>
             <div className="text-2xl font-bold text-yellow-400 mb-2">
-              {gameState.winner === "BLUE"
+              {gameState.winner === "SOLO" && gameState.winnerId
+                ? `${gameState.players.find(p => p.id === gameState.winnerId)?.name || "Unknown"} Wins!`
+                : gameState.winner === "COOP"
+                ? "Team Survived! 🎉"
+                : gameState.winner === "AI"
+                ? "Swans Win! 💀"
+                : gameState.winner === "BLUE"
                 ? "Blue Team Wins!"
                 : gameState.winner === "WHITE"
                 ? "White Team Wins!"
                 : "It's a Draw!"}
             </div>
-            {gameState.round === 1 && gameState.winner !== "DRAW" && (
+            {gameState.mode === "CLASSIC" && gameState.round === 1 && gameState.winner !== "DRAW" && (
               <p className="text-sm text-yellow-200">Round 2 will start with teams switched!</p>
             )}
           </div>
@@ -290,8 +350,8 @@ export function SwanChaseConfig({
                   : "bg-slate-800 border-slate-600 text-slate-300 hover:border-slate-500"
               }`}
             >
-              <div className="font-bold">Classic</div>
-              <div className="text-xs opacity-80">Single round</div>
+              <div className="font-bold">🚤 Classic</div>
+              <div className="text-xs opacity-80">Boats vs Swans</div>
             </button>
             <button
               onClick={() => setMode("ROUNDS")}
@@ -301,8 +361,30 @@ export function SwanChaseConfig({
                   : "bg-slate-800 border-slate-600 text-slate-300 hover:border-slate-500"
               }`}
             >
-              <div className="font-bold">2 Rounds</div>
+              <div className="font-bold">🔄 2 Rounds</div>
               <div className="text-xs opacity-80">Teams switch sides</div>
+            </button>
+            <button
+              onClick={() => setMode("KING_OF_LAKE")}
+              className={`p-3 rounded-lg border transition-all ${
+                mode === "KING_OF_LAKE"
+                  ? "bg-yellow-600 border-yellow-500 text-white"
+                  : "bg-slate-800 border-slate-600 text-slate-300 hover:border-slate-500"
+              }`}
+            >
+              <div className="font-bold">👑 King of the Lake</div>
+              <div className="text-xs opacity-80">Free-for-all, last one standing</div>
+            </button>
+            <button
+              onClick={() => setMode("SWAN_SWARM")}
+              className={`p-3 rounded-lg border transition-all ${
+                mode === "SWAN_SWARM"
+                  ? "bg-purple-600 border-purple-500 text-white"
+                  : "bg-slate-800 border-slate-600 text-slate-300 hover:border-slate-500"
+              }`}
+            >
+              <div className="font-bold">🌊 Swan Swarm</div>
+              <div className="text-xs opacity-80">Co-op survival vs AI swans</div>
             </button>
           </div>
         </div>
@@ -327,7 +409,8 @@ export function SwanChaseConfig({
         </div>
       </div>
 
-      {/* Team Assignment */}
+      {/* Team Assignment - only for CLASSIC and ROUNDS */}
+      {needsTeamAssignment ? (
       <div className="mb-6">
         <div className="flex items-center justify-between mb-3">
           <h4 className="text-sm font-semibold text-white">Team Assignment</h4>
@@ -402,11 +485,23 @@ export function SwanChaseConfig({
           })}
         </div>
       </div>
+      ) : (
+        <div className="mb-6 p-4 bg-slate-800/50 border border-slate-600 rounded-lg text-center">
+          <p className="text-slate-300">
+            {mode === "KING_OF_LAKE"
+              ? "👑 All players compete individually. No team assignment needed."
+              : "🌊 All players cooperate against AI swans. No team assignment needed."}
+          </p>
+          <p className="text-sm text-slate-400 mt-2">
+            {players.length} player{players.length !== 1 ? "s" : ""} will join the game
+          </p>
+        </div>
+      )}
 
       {/* Start Button */}
       <button
         onClick={gameState && !isConfiguring ? endGame : startGame}
-        disabled={isConfiguring && (!isConnected || blueCount === 0 || whiteCount === 0)}
+        disabled={isConfiguring && (!isConnected || (needsTeamAssignment && (blueCount === 0 || whiteCount === 0)) || players.length < 2)}
         className={`w-full py-4 font-bold rounded-lg transition-colors text-lg ${
           gameState && !isConfiguring
             ? "bg-red-600 hover:bg-red-700 text-white"
@@ -415,12 +510,14 @@ export function SwanChaseConfig({
       >
         {gameState && !isConfiguring ? (
           "🛑 Stop Swan Chase"
-        ) : blueCount === 0 || whiteCount === 0 ? (
+        ) : players.length < 2 ? (
+          "⚠️ Need at least 2 players"
+        ) : needsTeamAssignment && (blueCount === 0 || whiteCount === 0) ? (
           "⚠️ Assign players to both teams"
         ) : !isConnected ? (
           "❌ Not Connected"
         ) : (
-          "🚀 Start Swan Chase"
+          `🚀 Start ${mode === "KING_OF_LAKE" ? "King of the Lake" : mode === "SWAN_SWARM" ? "Swan Swarm" : "Swan Chase"}`
         )}
       </button>
     </div>

@@ -1703,13 +1703,30 @@ io.on("connection", (socket: Socket) => {
         socket.data.isHost = false;
         socket.data.isDisplay = true;
 
-        // Send basic session state to display
+        // Check for active minigames
+        let currentActivity: string | null = null;
+        let activeMinigame: string | null = null;
+
+        const activeSwanChase = swanChaseGames.get(sessionCode);
+        const activeSwanRace = swanRaceGames.get(sessionCode);
+
+        if (activeSwanChase) {
+          currentActivity = "SWAN_CHASE";
+          activeMinigame = "SWAN_CHASE";
+        } else if (activeSwanRace && activeSwanRace.isActive) {
+          currentActivity = "SWAN_RACE";
+          activeMinigame = "SWAN_RACE";
+        }
+
+        // Send session state to display (including active minigame info)
         socket.emit(WSMessageType.SESSION_STATE, {
           sessionId: session.id,
           sessionCode: session.code,
           status: session.status,
           isHost: false,
           isDisplay: true,
+          currentActivity,
+          activeMinigame,
           players: session.players.map((p) => ({
             id: p.id,
             name: p.name,
@@ -1719,7 +1736,35 @@ io.on("connection", (socket: Socket) => {
           })),
         });
 
-        logger.info({ sessionCode }, "Display joined session room successfully");
+        // If Swan Chase is active, also emit game started + current state
+        if (activeSwanChase) {
+          const gameState = activeSwanChase.getState();
+          socket.emit(WSMessageType.SWAN_CHASE_STARTED, {
+            mode: gameState.mode,
+            playerCount: gameState.players.length,
+            settings: gameState.settings,
+            players: gameState.players.map(p => ({
+              id: p.id,
+              name: p.name,
+              team: p.team,
+              type: p.type,
+            })),
+          });
+          // Send current game state immediately so canvas renders
+          socket.emit(WSMessageType.SWAN_CHASE_STATE, gameState);
+          logger.info({ sessionCode }, "Display joined - sent active Swan Chase state");
+        }
+
+        // If Swan Race is active, emit race started + current state
+        if (activeSwanRace && activeSwanRace.isActive) {
+          socket.emit(WSMessageType.SWAN_RACE_STARTED, {
+            sessionCode,
+            players: Array.from(activeSwanRace.players.values()),
+          });
+          logger.info({ sessionCode }, "Display joined - sent active Swan Race state");
+        }
+
+        logger.info({ sessionCode, activeMinigame }, "Display joined session room successfully");
       } catch (error) {
         logger.error({ error }, "Error joining session as display");
         socket.emit("error", { message: "Failed to join session as display" });
@@ -3579,8 +3624,10 @@ io.on("connection", (socket: Socket) => {
           // Emit end event
           io.to(sessionCode).emit(WSMessageType.SWAN_CHASE_ENDED, {
             winner: gameState.winner,
+            winnerId: (gameState as any).winnerId,
             players: gameState.players,
             duration: gameState.settings.duration - gameState.timeRemaining,
+            mode: gameState.mode,
           });
 
           // Award points to players based on performance
@@ -3606,7 +3653,7 @@ io.on("connection", (socket: Socket) => {
 
       // Notify all clients that game started
       io.to(sessionCode).emit(WSMessageType.SWAN_CHASE_STARTED, {
-        mode: mode || SwanChaseMode.TEAM_ESCAPE,
+        mode: mode || SwanChaseMode.CLASSIC,
         playerCount: playerIds.length,
         settings: gameEngine.getState().settings,
         players: gameEngine.getState().players.map(p => ({

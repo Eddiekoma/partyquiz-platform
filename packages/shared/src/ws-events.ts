@@ -444,12 +444,12 @@ export function clearInputRateLimit(playerId: string): void {
  */
 export const startSwanChaseCommandSchema = z.object({
   sessionCode: z.string(),
-  mode: z.enum(["CLASSIC", "ROUNDS"]).optional(),
+  mode: z.enum(["CLASSIC", "ROUNDS", "KING_OF_LAKE", "SWAN_SWARM"]).optional(),
   duration: z.number().int().min(60).max(300).optional(), // 1-5 minutes
   teamAssignments: z.array(z.object({
     playerId: z.string(),
     team: z.enum(["BLUE", "WHITE"]),
-  })).optional(), // Auto-assign if not provided
+  })).optional(), // Auto-assign if not provided, ignored for KING_OF_LAKE & SWAN_SWARM
 });
 
 export type StartSwanChaseCommand = z.infer<typeof startSwanChaseCommandSchema>;
