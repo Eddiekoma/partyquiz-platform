@@ -85,7 +85,7 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     });
 
     newSocket.on("connect_error", (err) => {
-      console.error("[WS] Connection error:", err.message);
+      console.warn("[WS] Connection issue (will retry):", err.message);
       const wsError = new Error("WebSocket connection failed: " + err.message);
       setError(wsError);
       onErrorRef.current?.(wsError);

@@ -112,6 +112,24 @@ interface SpotifyWebPlayerProps {
   onDeviceReady?: (deviceId: string) => void;
   /** Additional CSS classes */
   className?: string;
+  /**
+   * UI-only mode: render player visuals (album art, track info, progress)
+   * but do NOT load the Spotify SDK or connect to Spotify Connect.
+   * Use this when another component (SpotifyAudioTarget) handles playback.
+   * Default: true (full playback mode) for backwards compatibility.
+   */
+  enablePlayback?: boolean;
+  /**
+   * Called when user clicks the play button while enablePlayback=false.
+   * Routes play intent to sessionAudio API instead of local SDK.
+   */
+  onPlayClick?: () => void;
+  /**
+   * Called when user clicks the snippet button (⏱) while enablePlayback=false.
+   * Plays the configured fragment (startMs/durationMs) via sessionAudio.
+   * If not provided, only the full-track play button is shown.
+   */
+  onSnippetClick?: () => void;
 }
 
 // Track if SDK script is already loaded
@@ -152,6 +170,9 @@ export function SpotifyWebPlayer({
   onError,
   onDeviceReady,
   className = "",
+  enablePlayback = true,
+  onPlayClick,
+  onSnippetClick,
 }: SpotifyWebPlayerProps) {
   const playerRef = useRef<SpotifyPlayerInstance | null>(null);
   const deviceIdRef = useRef<string | null>(null);
@@ -159,6 +180,9 @@ export function SpotifyWebPlayer({
   const positionIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const wasPlayingRef = useRef(false);
   const playStartTimeRef = useRef<number | null>(null);
+  const fadeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isFadingRef = useRef(false);
+  const originalVolumeRef = useRef<number>(0.5);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -221,6 +245,13 @@ export function SpotifyWebPlayer({
 
   // Initialize SDK player
   useEffect(() => {
+    // UI-only mode: skip SDK entirely. Another component handles playback.
+    if (!enablePlayback) {
+      setIsLoading(false);
+      setSdkConnected(false);
+      return;
+    }
+
     let cancelled = false;
 
     async function init() {
@@ -364,6 +395,9 @@ export function SpotifyWebPlayer({
       if (positionIntervalRef.current) {
         clearInterval(positionIntervalRef.current);
       }
+      if (fadeIntervalRef.current) {
+        clearInterval(fadeIntervalRef.current);
+      }
       if (playerRef.current) {
         playerRef.current.pause().catch(() => {});
         playerRef.current.disconnect();
@@ -372,7 +406,7 @@ export function SpotifyWebPlayer({
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Position polling when playing + duration limit enforcement
+  // Position polling when playing + duration limit enforcement + fade-out
   useEffect(() => {
     if (sdkConnected && isPlaying) {
       positionIntervalRef.current = setInterval(async () => {
@@ -384,9 +418,39 @@ export function SpotifyWebPlayer({
           // Auto-pause after playDurationMs if configured (for quiz: play only X seconds)
           if (playDurationMs && playStartTimeRef.current) {
             const elapsed = Date.now() - playStartTimeRef.current;
+            const remaining = playDurationMs - elapsed;
+
+            // Start fade-out 3 seconds before the end
+            const FADE_DURATION = 3000;
+            if (remaining <= FADE_DURATION && remaining > 0 && !isFadingRef.current) {
+              isFadingRef.current = true;
+              originalVolumeRef.current = volume;
+              console.log("[SpotifyWebPlayer] Starting fade-out, volume:", volume);
+              
+              const fadeSteps = 15; // 15 steps over 3 seconds = every 200ms
+              const volumeStep = volume / fadeSteps;
+              let currentFadeVolume = volume;
+              
+              fadeIntervalRef.current = setInterval(() => {
+                currentFadeVolume = Math.max(0, currentFadeVolume - volumeStep);
+                playerRef.current?.setVolume(currentFadeVolume);
+                if (currentFadeVolume <= 0.01) {
+                  if (fadeIntervalRef.current) clearInterval(fadeIntervalRef.current);
+                }
+              }, FADE_DURATION / fadeSteps);
+            }
+
             if (elapsed >= playDurationMs) {
               console.log("[SpotifyWebPlayer] Play duration limit reached, pausing");
+              // Clear fade interval
+              if (fadeIntervalRef.current) {
+                clearInterval(fadeIntervalRef.current);
+                fadeIntervalRef.current = null;
+              }
+              isFadingRef.current = false;
               playerRef.current?.pause();
+              // Restore original volume for next play
+              playerRef.current?.setVolume(originalVolumeRef.current);
               playStartTimeRef.current = null;
               onEnd?.();
             }
@@ -401,11 +465,21 @@ export function SpotifyWebPlayer({
       if (positionIntervalRef.current) {
         clearInterval(positionIntervalRef.current);
       }
+      if (fadeIntervalRef.current) {
+        clearInterval(fadeIntervalRef.current);
+        fadeIntervalRef.current = null;
+      }
     };
   }, [sdkConnected, isPlaying]);
 
   // Toggle play/pause — also calls activateElement for mobile autoplay support
   const togglePlay = useCallback(async () => {
+    // When playback is disabled (UI-only mode), route to onPlayClick callback
+    if (!enablePlayback) {
+      onPlayClick?.();
+      return;
+    }
+
     const player = playerRef.current;
     const deviceId = deviceIdRef.current;
     if (!player || !deviceId) return;
@@ -418,6 +492,14 @@ export function SpotifyWebPlayer({
     if (isPlaying) {
       await player.pause();
     } else {
+      // Reset fade state when starting fresh play
+      if (fadeIntervalRef.current) {
+        clearInterval(fadeIntervalRef.current);
+        fadeIntervalRef.current = null;
+      }
+      isFadingRef.current = false;
+      await player.setVolume(volume); // Restore volume in case of previous fade
+
       const state = await player.getCurrentState();
       if (!state) {
         // No active playback — start fresh with the track
@@ -434,7 +516,7 @@ export function SpotifyWebPlayer({
         }
       }
     }
-  }, [isPlaying, trackId, playTrack]);
+  }, [isPlaying, trackId, playTrack, enablePlayback, onPlayClick]);
 
   // Volume change
   const handleVolumeChange = useCallback(async (newVolume: number) => {
@@ -551,8 +633,33 @@ export function SpotifyWebPlayer({
           )}
         </div>
 
-        {/* Play/Pause Button */}
-        {!(error && sdkConnected) && (
+        {/* Play/Pause Button(s) */}
+        {!(error && sdkConnected) && !enablePlayback && onSnippetClick ? (
+          /* When playback is routed through server: show FULL + SNIPPET buttons */
+          <div className="flex flex-col gap-1.5 shrink-0">
+            <button
+              onClick={togglePlay}
+              className="h-9 px-3 flex items-center justify-center gap-1.5 rounded-lg bg-green-600 hover:bg-green-500 text-white text-xs font-semibold transition-colors"
+              aria-label="Volledig afspelen"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z" />
+              </svg>
+              Full
+            </button>
+            <button
+              onClick={onSnippetClick}
+              className="h-9 px-3 flex items-center justify-center gap-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold transition-colors"
+              aria-label="Fragment afspelen"
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z" />
+              </svg>
+              Snippet
+            </button>
+          </div>
+        ) : !(error && sdkConnected) && (
+          /* Single play/pause button (normal mode or no snippet configured) */
           <button
             onClick={togglePlay}
             disabled={isLoading}

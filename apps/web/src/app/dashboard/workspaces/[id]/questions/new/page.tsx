@@ -243,6 +243,18 @@ export default function NewQuestionPage() {
   const [youtubeError, setYoutubeError] = useState<string | null>(null);
   const [youtubeMetadata, setYoutubeMetadata] = useState<any>(null);
 
+  // Auto-fill prompt for music question types (always the same question)
+  const isMusicType = selectedType === "MUSIC_GUESS_TITLE" || selectedType === "MUSIC_GUESS_ARTIST" || selectedType === "MUSIC_GUESS_YEAR";
+  useEffect(() => {
+    if (selectedType === "MUSIC_GUESS_TITLE") {
+      setPrompt("Raad de songtitel");
+    } else if (selectedType === "MUSIC_GUESS_ARTIST") {
+      setPrompt("Raad de artiest");
+    } else if (selectedType === "MUSIC_GUESS_YEAR") {
+      setPrompt("Raad het jaar");
+    }
+  }, [selectedType]);
+
   const handleAddTag = () => {
     if (tagInput.trim() && !tags.includes(tagInput.trim())) {
       setTags([...tags, tagInput.trim()]);
@@ -615,19 +627,24 @@ export default function NewQuestionPage() {
           <p className="text-xs text-slate-400 mt-1">Used to identify this question in the question bank</p>
         </Card>
 
-        {/* Question Text (was Prompt) */}
+        {/* Question Text (was Prompt) - auto-filled and read-only for music types */}
         <Card className="p-6">
           <label className="block text-sm font-semibold mb-2">
             Question Text <span className="text-red-500">*</span>
           </label>
           <textarea
             value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
+            onChange={(e) => !isMusicType && setPrompt(e.target.value)}
             placeholder="The actual question shown to players (e.g., 'Which painting is the most famous in the world?')"
-            className="w-full px-4 py-3 border border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-slate-800 text-white"
-            rows={3}
+            className={`w-full px-4 py-3 border border-slate-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent bg-slate-800 text-white ${isMusicType ? "opacity-60 cursor-not-allowed" : ""}`}
+            rows={isMusicType ? 1 : 3}
+            readOnly={isMusicType}
           />
-          <p className="text-xs text-slate-400 mt-1">This is what players will see during the quiz</p>
+          {isMusicType ? (
+            <p className="text-xs text-blue-400 mt-1">✨ Automatisch ingevuld voor dit muziek-vraagtype</p>
+          ) : (
+            <p className="text-xs text-slate-400 mt-1">This is what players will see during the quiz</p>
+          )}
         </Card>
 
         {/* Type-Specific Fields */}

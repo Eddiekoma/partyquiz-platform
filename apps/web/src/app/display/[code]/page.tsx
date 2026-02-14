@@ -9,6 +9,7 @@ import { SwanChaseDisplay } from "@/components/SwanChaseDisplay";
 import { QuestionTypeBadge } from "@/components/QuestionTypeBadge";
 import { PhotoGrid } from "@/components/PhotoGrid";
 import { SpotifyWebPlayer } from "@/components/SpotifyWebPlayer";
+import { SpotifyAudioTarget } from "@/components/SpotifyAudioTarget";
 import QRCode from "react-qr-code";
 
 interface Player {
@@ -92,6 +93,8 @@ export default function DisplayPage() {
     bonusPercentage: number;
     bonusPoints: number;
   }> | null>(null);
+  // Spotify audio activation overlay (mobile/TV browsers need a user click)
+  const [showAudioActivation, setShowAudioActivation] = useState(false);
 
   // Use WebSocket without onMessage - we'll set up direct listeners
   const { socket, isConnected } = useWebSocket({
@@ -108,8 +111,8 @@ export default function DisplayPage() {
     hasJoinedRoom.current = true;
     console.log("[Display] Socket connected, joining session room...");
     
-    // Display joins the session room (as host-like viewer)
-    socket.emit(WSMessageType.HOST_JOIN_SESSION, {
+    // Display joins as display viewer (NOT host — no host permissions)
+    socket.emit(WSMessageType.DISPLAY_JOIN_SESSION, {
       sessionCode: code,
     });
 
@@ -561,6 +564,32 @@ export default function DisplayPage() {
         background: `linear-gradient(135deg, ${themeColor}22 0%, #0f172a 50%, #0f172a 100%)` 
       }}
     >
+      {/* Headless Spotify Audio Target - registers SDK device with server */}
+      <SpotifyAudioTarget
+        sessionCode={code}
+        kind="DISPLAY"
+        socket={socket}
+        onNeedsActivation={setShowAudioActivation}
+      />
+
+      {/* Spotify activation overlay – mobile/TV browsers require a user gesture */}
+      {showAudioActivation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <button
+            onClick={() => {
+              // The click satisfies the browser autoplay policy.
+              // SpotifyAudioTarget will be (re)initialized via the SDK's activateElement().
+              setShowAudioActivation(false);
+            }}
+            className="flex flex-col items-center gap-4 rounded-2xl bg-green-600 px-12 py-8 text-white shadow-xl transition hover:bg-green-500 active:scale-95"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            <span className="text-2xl font-bold">Klik om audio te activeren</span>
+            <span className="text-sm text-green-200">Spotify audio wordt via dit scherm afgespeeld</span>
+          </button>
+        </div>
+      )}
+
       {/* Header - Always visible */}
       <header className="absolute top-0 left-0 right-0 p-6 flex items-center justify-between z-10">
         <div className="flex items-center gap-4">
@@ -742,16 +771,17 @@ export default function DisplayPage() {
               currentQuestion.type === "MUSIC_GUESS_ARTIST" ||
               currentQuestion.type === "MUSIC_GUESS_YEAR") && (
               <div className="py-6">
-                {/* Spotify Web Player - plays full tracks via SDK, falls back gracefully */}
+                {/* Spotify Web Player - UI ONLY (playback via SpotifyAudioTarget + server) */}
                 <div className="max-w-2xl mx-auto">
                   <SpotifyWebPlayer
                     trackId={currentQuestion.spotify?.trackId || ""}
                     albumArt={displayState === "reveal" ? (currentQuestion.spotify?.albumArt || undefined) : undefined}
                     title={displayState === "reveal" ? (currentQuestion.spotify?.trackName || undefined) : undefined}
                     artist={displayState === "reveal" ? (currentQuestion.spotify?.artistName || undefined) : undefined}
-                    autoplay={displayState === "question" || displayState === "locked"}
+                    autoplay={false}
                     startPositionMs={currentQuestion.spotify?.startMs || 0}
                     playDurationMs={currentQuestion.spotify?.durationMs}
+                    enablePlayback={false}
                   />
                 </div>
                 

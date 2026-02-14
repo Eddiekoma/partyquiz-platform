@@ -3,12 +3,13 @@
 import { useState, useMemo } from "react";
 import { QuestionType } from "@partyquiz/shared";
 
-// Helper to check if a question type is an open text type (allows score adjustment)
+// Helper to check if a question type needs manual host scoring (fuzzy text match)
 const isOpenTextType = (questionType: string | undefined): boolean => {
   if (!questionType) return false;
   const type = questionType.toUpperCase();
   return type === "OPEN_TEXT" || type === "PHOTO_OPEN_TEXT" || 
-         type === "AUDIO_OPEN" || type === "VIDEO_OPEN";
+         type === "AUDIO_OPEN" || type === "VIDEO_OPEN" ||
+         type === "MUSIC_GUESS_TITLE" || type === "MUSIC_GUESS_ARTIST";
 };
 
 /**

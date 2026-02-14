@@ -830,7 +830,8 @@ export default function GamePage() {
         />
 
         {/* Answer Input - show if not locked (allow changing answer before lock) */}
-        {!isLocked && (
+        {/* For MUSIC_GUESS_TITLE/ARTIST: lock after first submit (no re-editing allowed) */}
+        {!isLocked && !(myAnswer !== null && (currentItem.questionType === "MUSIC_GUESS_TITLE" || currentItem.questionType === "MUSIC_GUESS_ARTIST" || currentItem.questionType === "MUSIC_GUESS_YEAR")) && (
           <div className="mt-4 md:mt-8 w-full">
             <AnswerInput
               questionType={currentItem.questionType}
@@ -868,6 +869,29 @@ export default function GamePage() {
                 </p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Music guess: show locked confirmation after submit */}
+        {!isLocked && myAnswer !== null && (currentItem.questionType === "MUSIC_GUESS_TITLE" || currentItem.questionType === "MUSIC_GUESS_ARTIST" || currentItem.questionType === "MUSIC_GUESS_YEAR") && (
+          <div className="mt-4 md:mt-8 w-full">
+            <div className="p-4 md:p-5 rounded-xl bg-green-600/30 border border-green-500/50 text-center animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <p className="text-base md:text-lg font-bold text-green-300">
+                ✅ Antwoord verzonden!
+              </p>
+              <p className="text-sm text-green-200/70 mt-1">
+                🔒 Je antwoord is vergrendeld: <span className="font-semibold text-white">{typeof myAnswer === "object" ? JSON.stringify(myAnswer) : String(myAnswer)}</span>
+              </p>
+              {answerResult && (
+                <p className="text-sm text-white/80 mt-2 font-semibold">
+                  {answerResult.scorePercentage === 100 
+                    ? "🎯 Perfect!" 
+                    : answerResult.score > 0 
+                      ? `⭐ ${answerResult.score} punten (host kan dit aanpassen)`
+                      : "⏳ De host beoordeelt je antwoord"}
+                </p>
+              )}
+            </div>
           </div>
         )}
 

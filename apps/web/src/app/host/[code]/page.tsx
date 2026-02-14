@@ -1,14 +1,17 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import { WSMessageType, type Player as SharedPlayer, type ConnectionStatus, QuestionType, type SwanChaseGameState, requiresPhotos } from "@partyquiz/shared";
+import { WSMessageType, type Player as SharedPlayer, type ConnectionStatus, QuestionType, type SwanChaseGameState, requiresPhotos, AudioWSEvent } from "@partyquiz/shared";
 import Link from "next/link";
 import { QuestionTypeBadge, getQuestionTypeIcon } from "@/components/QuestionTypeBadge";
 import { AnswerPanel, type PlayerAnswer } from "@/components/host/AnswerPanel";
 import { PhotoGrid } from "@/components/PhotoGrid";
 import { SpotifyWebPlayer } from "@/components/SpotifyWebPlayer";
+import { SpotifyAudioTarget } from "@/components/SpotifyAudioTarget";
+import { AudioBar } from "@/components/host/AudioBar";
+import { createSessionAudio } from "@/lib/sessionAudio";
 import QRCode from "react-qr-code";
 import { SwanChaseConfig } from "@/components/host/SwanChaseConfig";
 
@@ -155,6 +158,9 @@ export default function HostControlPage() {
   // Swan Chase state
   const [showSwanChaseConfig, setShowSwanChaseConfig] = useState(false);
   const [swanChaseState, setSwanChaseState] = useState<SwanChaseGameState | null>(null);
+  // Audio error toast
+  const [audioError, setAudioError] = useState<string | null>(null);
+  const audioErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Refs to access current values in event handlers
   const currentItemAnswersRef = useRef(currentItemAnswers);
@@ -174,6 +180,31 @@ export default function HostControlPage() {
   const { socket, isConnected, send } = useWebSocket({
     sessionCode: code,
   });
+
+  // Central audio API — all play/pause/volume commands go through this
+  const sessionAudio = useMemo(
+    () => createSessionAudio(socket, code),
+    [socket, code]
+  );
+
+  // Listen for AUDIO_ERROR events and show a toast
+  useEffect(() => {
+    if (!socket) return;
+    const handleAudioError = (data: { code: string; message: string; needsActivation?: boolean }) => {
+      // Ignore NO_AUDIO_TARGET during initial setup — not a user-visible error
+      if (data.code === "NO_AUDIO_TARGET") return;
+      console.warn("[Host] Audio error:", data.code, data.message);
+      setAudioError(data.message);
+      // Auto-dismiss after 6 seconds
+      if (audioErrorTimerRef.current) clearTimeout(audioErrorTimerRef.current);
+      audioErrorTimerRef.current = setTimeout(() => setAudioError(null), 6000);
+    };
+    socket.on(AudioWSEvent.AUDIO_ERROR, handleAudioError);
+    return () => {
+      socket.off(AudioWSEvent.AUDIO_ERROR, handleAudioError);
+      if (audioErrorTimerRef.current) clearTimeout(audioErrorTimerRef.current);
+    };
+  }, [socket]);
 
   // Join session room when socket connects (ONE TIME ONLY)
   useEffect(() => {
@@ -1021,6 +1052,32 @@ export default function HostControlPage() {
 
   return (
     <div className="min-h-screen bg-slate-900 text-white">
+      {/* Headless Spotify Audio Target - registers SDK device with server */}
+      <SpotifyAudioTarget
+        sessionCode={code}
+        kind="HOST"
+        socket={socket}
+      />
+
+      {/* Audio error toast */}
+      {audioError && (
+        <div className="fixed top-4 right-4 z-[100] max-w-sm animate-in slide-in-from-right">
+          <div className="bg-red-900/90 border border-red-600/50 rounded-lg px-4 py-3 shadow-xl flex items-start gap-3">
+            <span className="text-red-400 text-lg flex-shrink-0">🔇</span>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-red-300">Audio fout</p>
+              <p className="text-xs text-red-200/80 mt-0.5">{audioError}</p>
+            </div>
+            <button
+              onClick={() => setAudioError(null)}
+              className="text-red-400 hover:text-white text-lg leading-none flex-shrink-0"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-slate-800 border-b border-slate-700 px-6 py-4">
         <div className="flex items-center justify-between">
@@ -1490,13 +1547,35 @@ export default function HostControlPage() {
                     const meta = spotifyMedia?.metadata as any;
                     return (
                       <div className="space-y-3">
-                        {/* Spotify Web Player - plays full tracks via SDK, falls back gracefully */}
+                        {/* Spotify Web Player - UI only (playback via AudioController) */}
                         <SpotifyWebPlayer
                           trackId={ref?.trackId || ""}
                           albumArt={ref?.albumArt || undefined}
                           title={ref?.trackName || undefined}
                           artist={ref?.artistName || undefined}
                           autoplay={false}
+                          enablePlayback={false}
+                          onPlayClick={() => {
+                            sessionAudio.playTrack({
+                              trackId: ref?.trackId,
+                              trackName: ref?.trackName,
+                              artistName: ref?.artistName,
+                              albumArt: ref?.albumArt,
+                              positionMs: 0,
+                              reason: "HOST_PREVIEW",
+                            });
+                          }}
+                          onSnippetClick={() => {
+                            sessionAudio.playTrack({
+                              trackId: ref?.trackId,
+                              trackName: ref?.trackName,
+                              artistName: ref?.artistName,
+                              albumArt: ref?.albumArt,
+                              positionMs: meta?.startMs ?? 0,
+                              durationMs: meta?.durationMs ?? 30000,
+                              reason: "QUESTION_SNIPPET",
+                            });
+                          }}
                         />
                         
                         {/* Track info for host reference */}
@@ -1531,13 +1610,13 @@ export default function HostControlPage() {
                           currentItem.question?.type === "MUSIC_GUESS_ARTIST") && (
                           <div className="bg-amber-900/30 border border-amber-600/50 rounded-lg p-4">
                             <div className="flex items-start gap-3">
-                              <span className="text-2xl">🎵</span>
+                              <span className="text-2xl">✏️</span>
                               <div>
                                 <p className="font-semibold text-amber-300 mb-1">
-                                  Fuzzy Matching Active
+                                  Handmatige beoordeling
                                 </p>
                                 <p className="text-sm text-amber-200/80">
-                                  Answers are auto-scored using fuzzy text matching. Review answers below and adjust if needed.
+                                  Antwoorden worden automatisch gescoord met fuzzy matching. Controleer de antwoorden hieronder en pas de score aan met de knoppen (0%, 25%, 50%, 75%, 100%).
                                 </p>
                               </div>
                             </div>
@@ -1979,6 +2058,13 @@ export default function HostControlPage() {
           </div>
         </aside>
       </div>
+
+      {/* Audio Control Bar - sticky at bottom */}
+      <AudioBar
+        sessionCode={code}
+        socket={socket}
+        className="fixed bottom-4 right-4 z-50"
+      />
     </div>
   );
 }

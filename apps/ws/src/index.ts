@@ -61,6 +61,26 @@ import {
   getPollResults,
 } from "@partyquiz/shared/server";
 import { prisma } from "./lib/prisma";
+import {
+  registerAudioPlayer,
+  unregisterAudioPlayer,
+  updateAudioHeartbeat,
+  setAudioTargetKind,
+  executeAudioCommand,
+  getAudioTarget,
+  cleanupSessionAudio,
+  handleAudioAck,
+} from "./lib/audioController";
+import { setSessionHostUser } from "./lib/spotifyToken";
+import {
+  AudioWSEvent,
+  AudioTargetKind,
+  registerAudioPlayerSchema,
+  audioHeartbeatSchema,
+  setAudioTargetSchema,
+  audioCommandSchema,
+  audioAckSchema,
+} from "@partyquiz/shared";
 
 // =============================================================================
 // UTILITY FUNCTIONS
@@ -1457,6 +1477,13 @@ io.on("connection", (socket: Socket) => {
         socket.data.sessionId = session.id;
         socket.data.isHost = true;
 
+        // Link session to host's Spotify credentials (for audio target system)
+        if (session.hostUserId) {
+          await setSessionHostUser(sessionCode, session.hostUserId).catch((err) => {
+            logger.warn({ err, sessionCode }, "Failed to set session host user for Spotify");
+          });
+        }
+
         // Get player scores from database (sum of all their answers)
         const playerScores = await prisma.liveAnswer.groupBy({
           by: ['playerId'],
@@ -1637,6 +1664,65 @@ io.on("connection", (socket: Socket) => {
           errorName: err?.name,
         }, "Error joining session as host");
         socket.emit("error", { message: "Failed to join session as host" });
+      }
+    }
+  );
+
+  // Display joins session room (viewer, NOT host — no host permissions)
+  socket.on(
+    WSMessageType.DISPLAY_JOIN_SESSION,
+    async (data: { sessionCode: string }) => {
+      try {
+        const { sessionCode } = data;
+        logger.info({ sessionCode, socketId: socket.id }, "Display joining session room");
+
+        const session = await prisma.liveSession.findUnique({
+          where: { code: sessionCode },
+          include: {
+            players: {
+              where: { leftAt: null },
+              orderBy: { joinedAt: "asc" },
+            },
+          },
+        });
+
+        if (!session) {
+          socket.emit(WSMessageType.ERROR, {
+            message: "Session not found",
+            code: "SESSION_NOT_FOUND",
+          });
+          return;
+        }
+
+        // Join socket room
+        socket.join(sessionCode);
+
+        // Store session info — isHost stays false/undefined!
+        socket.data.sessionCode = sessionCode;
+        socket.data.sessionId = session.id;
+        socket.data.isHost = false;
+        socket.data.isDisplay = true;
+
+        // Send basic session state to display
+        socket.emit(WSMessageType.SESSION_STATE, {
+          sessionId: session.id,
+          sessionCode: session.code,
+          status: session.status,
+          isHost: false,
+          isDisplay: true,
+          players: session.players.map((p) => ({
+            id: p.id,
+            name: p.name,
+            avatar: p.avatar,
+            score: 0,
+            isOnline: true,
+          })),
+        });
+
+        logger.info({ sessionCode }, "Display joined session room successfully");
+      } catch (error) {
+        logger.error({ error }, "Error joining session as display");
+        socket.emit("error", { message: "Failed to join session as display" });
       }
     }
   );
@@ -2228,6 +2314,25 @@ io.on("connection", (socket: Socket) => {
 
         // Broadcast to all players in the session
         io.to(sessionCode).emit(WSMessageType.ITEM_STARTED, eventPayload);
+
+        // AUTO-PLAY: If item has Spotify audio, trigger playback via AudioController
+        if (eventPayload.spotify?.trackId) {
+          const spotifyData = eventPayload.spotify;
+          executeAudioCommand(sessionCode, {
+            sessionCode,
+            action: "play",
+            trackId: spotifyData.trackId,
+            positionMs: spotifyData.startMs ?? 0,
+            durationMs: spotifyData.durationMs ?? 30000,
+            trackName: spotifyData.trackName ?? undefined,
+            artistName: spotifyData.artistName ?? undefined,
+            albumArt: spotifyData.albumArt ?? undefined,
+            reason: "QUESTION_SNIPPET",
+          }, io).catch((err) => {
+            logger.warn({ err, sessionCode, trackId: spotifyData.trackId }, 
+              "Auto-play failed for Spotify track - display will fall back to local SDK");
+          });
+        }
 
         logger.info(
           { 
@@ -3767,6 +3872,11 @@ io.on("connection", (socket: Socket) => {
         leaderboard, // Include leaderboard in correct format
       });
 
+      // Cleanup audio target state for this session
+      await cleanupSessionAudio(sessionCode).catch((err) => {
+        logger.warn({ err, sessionCode }, "Failed to cleanup audio on session end");
+      });
+
       logger.info({ sessionCode, playerCount: players.length }, "Session ended");
     } catch (error) {
       logger.error({ error }, "Error ending session");
@@ -3879,6 +3989,11 @@ io.on("connection", (socket: Socket) => {
       await redis.del(`session:${sessionCode}:shuffledOptions`);
       await redis.del(`session:${sessionCode}:paused`);
       await redis.del(`session:${sessionCode}:pausedAt`);
+
+      // Cleanup audio target state for this session
+      await cleanupSessionAudio(sessionCode).catch((err) => {
+        logger.warn({ err, sessionCode }, "Failed to cleanup audio on session reset");
+      });
 
       // Get updated player list
       const players = await prisma.livePlayer.findMany({
@@ -4161,6 +4276,169 @@ io.on("connection", (socket: Socket) => {
     }
   });
 
+  // ===========================================================================
+  // AUDIO TARGET SYSTEM - Spotify playback coordination
+  // ===========================================================================
+
+  /**
+   * Client registers its Spotify SDK player device
+   * Sent after SDK 'ready' event fires with device_id
+   */
+  socket.on(AudioWSEvent.REGISTER_AUDIO_PLAYER, async (data: unknown) => {
+    try {
+      const parsed = registerAudioPlayerSchema.parse(data);
+      const { sessionCode, deviceId, deviceName, kind } = parsed;
+
+      logger.info({ sessionCode, deviceId, kind, socketId: socket.id }, "REGISTER_AUDIO_PLAYER received");
+
+      const result = await registerAudioPlayer(
+        sessionCode,
+        socket.id,
+        deviceId,
+        deviceName,
+        kind,
+        io
+      );
+
+      if (!result.success) {
+        socket.emit(AudioWSEvent.AUDIO_ERROR, {
+          code: "REGISTRATION_REJECTED",
+          message: result.message,
+          needsActivation: false,
+        });
+      }
+    } catch (error) {
+      logger.error({ error }, "Error in REGISTER_AUDIO_PLAYER");
+      socket.emit(WSMessageType.ERROR, { message: "Failed to register audio player" });
+    }
+  });
+
+  /**
+   * Client unregisters its SDK player (tab closing, SDK disconnect)
+   */
+  socket.on(AudioWSEvent.UNREGISTER_AUDIO_PLAYER, async (data: { sessionCode: string }) => {
+    try {
+      const { sessionCode } = data;
+      await unregisterAudioPlayer(sessionCode, socket.id, io);
+      logger.info({ sessionCode, socketId: socket.id }, "Audio player unregistered");
+    } catch (error) {
+      logger.error({ error }, "Error in UNREGISTER_AUDIO_PLAYER");
+    }
+  });
+
+  /**
+   * Audio heartbeat - client confirms SDK device is still alive
+   */
+  socket.on(AudioWSEvent.AUDIO_HEARTBEAT, async (data: unknown) => {
+    try {
+      const parsed = audioHeartbeatSchema.parse(data);
+      await updateAudioHeartbeat(parsed.sessionCode, socket.id);
+    } catch (error) {
+      // Silently fail heartbeats - they're high frequency
+    }
+  });
+
+  /**
+   * Host sets audio target (switch between HOST/DISPLAY/CONNECT_DEVICE)
+   */
+  socket.on(AudioWSEvent.SET_AUDIO_TARGET, async (data: unknown) => {
+    try {
+      if (!socket.data.isHost) {
+        socket.emit(WSMessageType.ERROR, { message: "Only host can set audio target" });
+        return;
+      }
+
+      const parsed = setAudioTargetSchema.parse(data);
+      const { sessionCode, kind, deviceId, force } = parsed;
+
+      logger.info({ sessionCode, kind, deviceId, force }, "SET_AUDIO_TARGET received");
+
+      const result = await setAudioTargetKind(sessionCode, kind, deviceId, force, io);
+
+      if (!result.success) {
+        socket.emit(AudioWSEvent.AUDIO_ERROR, {
+          code: "TARGET_SET_FAILED",
+          message: result.message,
+          needsActivation: false,
+        });
+      }
+    } catch (error) {
+      logger.error({ error }, "Error in SET_AUDIO_TARGET");
+      socket.emit(WSMessageType.ERROR, { message: "Failed to set audio target" });
+    }
+  });
+
+  /**
+   * Host sends audio command (play/pause/seek/volume/stop/restartLast)
+   * All commands are routed through AudioController with command queue
+   */
+  socket.on(AudioWSEvent.AUDIO_COMMAND, async (data: unknown) => {
+    try {
+      if (!socket.data.isHost) {
+        socket.emit(AudioWSEvent.AUDIO_ERROR, { code: "NOT_HOST", message: "Only host can send audio commands", needsActivation: false });
+        return;
+      }
+
+      const parsed = audioCommandSchema.parse(data);
+      logger.info({ sessionCode: parsed.sessionCode, action: parsed.action, reason: parsed.reason }, "AUDIO_COMMAND received");
+
+      await executeAudioCommand(parsed.sessionCode, parsed, io);
+    } catch (error: any) {
+      logger.error({ error }, "Error in AUDIO_COMMAND");
+      // If Zod validation error, send detailed error back
+      if (error?.name === "ZodError") {
+        socket.emit(AudioWSEvent.AUDIO_ERROR, {
+          code: "INVALID_COMMAND",
+          message: `Ongeldig audio commando: ${error.issues?.map((i: any) => i.message).join(", ")}`,
+          needsActivation: false,
+          details: error.issues,
+        });
+      } else {
+        socket.emit(AudioWSEvent.AUDIO_ERROR, {
+          code: "COMMAND_FAILED",
+          message: `Audio commando mislukt: ${error?.message || "onbekende fout"}`,
+          needsActivation: false,
+        });
+      }
+    }
+  });
+
+  /**
+   * SDK client sends ACK after executing a command locally.
+   * Resolves the pending promise in audioController so the server knows the result.
+   */
+  socket.on(AudioWSEvent.AUDIO_ACK, (data: unknown) => {
+    try {
+      const parsed = audioAckSchema.parse(data);
+      logger.info(
+        { commandId: parsed.commandId, status: parsed.status, sdkState: parsed.sdkState },
+        "AUDIO_ACK received from SDK client"
+      );
+      handleAudioAck(parsed);
+    } catch (error: any) {
+      logger.error({ error }, "Error in AUDIO_ACK");
+    }
+  });
+
+  /**
+   * Request current audio target state (for UI sync on connect/rejoin)
+   */
+  socket.on(AudioWSEvent.GET_AUDIO_TARGET, async (data: { sessionCode: string }) => {
+    try {
+      const { sessionCode } = data;
+      const target = await getAudioTarget(sessionCode);
+      socket.emit(AudioWSEvent.AUDIO_TARGET_CHANGED, {
+        kind: target.kind,
+        deviceId: target.deviceId,
+        deviceName: target.deviceName,
+        version: target.version,
+        status: target.status,
+      });
+    } catch (error) {
+      logger.error({ error }, "Error in GET_AUDIO_TARGET");
+    }
+  });
+
   // Handle disconnect
   socket.on("disconnect", async () => {
     try {
@@ -4180,6 +4458,11 @@ io.on("connection", (socket: Socket) => {
       const connections = getSessionConnections(sessionCode);
       io.to(sessionCode).emit("CONNECTION_STATUS_UPDATE", {
         connections,
+      });
+
+      // Unregister audio player if this socket had one
+      await unregisterAudioPlayer(sessionCode, socket.id, io).catch((err) => {
+        logger.error({ err }, "Error unregistering audio player on disconnect");
       });
 
       // Schedule player removal after grace period
