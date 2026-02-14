@@ -9,7 +9,8 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 
 const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID!;
-const SPOTIFY_REDIRECT_URI = process.env.NEXT_PUBLIC_APP_URL + "/api/spotify/callback";
+const SPOTIFY_REDIRECT_URI = process.env.SPOTIFY_REDIRECT_URI || 
+  (process.env.APP_BASE_URL || "http://127.0.0.1:3000") + "/api/spotify/callback";
 
 export async function GET(request: NextRequest) {
   try {

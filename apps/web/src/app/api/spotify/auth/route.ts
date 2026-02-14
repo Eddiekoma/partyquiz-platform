@@ -12,7 +12,8 @@ import {
 import crypto from "crypto";
 
 const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID!;
-const SPOTIFY_REDIRECT_URI = process.env.NEXT_PUBLIC_APP_URL + "/api/spotify/callback";
+const SPOTIFY_REDIRECT_URI = process.env.SPOTIFY_REDIRECT_URI || 
+  (process.env.APP_BASE_URL || "http://127.0.0.1:3000") + "/api/spotify/callback";
 
 // Required Spotify scopes for our features
 const SPOTIFY_SCOPES = [

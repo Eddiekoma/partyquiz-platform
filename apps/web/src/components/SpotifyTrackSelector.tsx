@@ -41,7 +41,8 @@ export function SpotifyTrackSelector({ onSelect, selectedTrack }: SpotifyTrackSe
       }
 
       const data = await response.json();
-      setResults(data.tracks?.items || []);
+      // API returns { tracks: [...] } directly (already unwrapped from Spotify's tracks.items)
+      setResults(data.tracks || []);
     } catch (err: any) {
       setError(err.message || "Failed to search Spotify");
       setResults([]);

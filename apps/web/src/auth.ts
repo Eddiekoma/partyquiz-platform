@@ -173,6 +173,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // Add user id from token to session
       if (session.user && token.id) {
         session.user.id = token.id as string
+
+        // Check if user has Spotify connected (don't expose tokens!)
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.id as string },
+            select: { spotifyAccessToken: true, spotifyTokenExpiry: true },
+          });
+          (session.user as any).spotifyConnected = !!dbUser?.spotifyAccessToken;
+        } catch {
+          (session.user as any).spotifyConnected = false;
+        }
       }
       return session
     },

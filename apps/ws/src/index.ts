@@ -2196,6 +2196,16 @@ io.on("connection", (socket: Socket) => {
             mediaUrl: mediaItems[0]?.url || null,
             mediaType: mediaItems[0]?.mediaType || null,
             mediaProvider: mediaItems[0]?.provider || null,
+            // Spotify-specific data for MUSIC question types
+            ...(mediaItems[0]?.provider === "SPOTIFY" ? {
+              spotify: {
+                trackId: (question.media[0]?.reference as any)?.trackId || "",
+                previewUrl: mediaItems[0]?.url || null,
+                albumArt: mediaItems[0]?.previewUrl || null,
+                startMs: (question.media[0]?.metadata as any)?.startMs ?? 0,
+                durationMs: (question.media[0]?.metadata as any)?.durationMs ?? 30000,
+              },
+            } : {}),
           };
         } else if (quizItem.itemType === "MINIGAME") {
           eventPayload = {
@@ -2366,6 +2376,7 @@ io.on("connection", (socket: Socket) => {
           question: {
             include: {
               options: true,
+              media: true,
             },
           },
         },
@@ -2472,7 +2483,8 @@ io.on("connection", (socket: Socket) => {
             estimationMargin = 10; // Default 10%
           }
         } else if (baseType === "OPEN_TEXT" ||
-                   questionType === "AUDIO_OPEN" || questionType === "VIDEO_OPEN") {
+                   questionType === "AUDIO_OPEN" || questionType === "VIDEO_OPEN" ||
+                   questionType === "MUSIC_GUESS_TITLE" || questionType === "MUSIC_GUESS_ARTIST") {
           // Open text types: Send correct text answer and acceptable alternatives
           const correctOptions = options.filter(opt => opt.isCorrect);
           if (correctOptions.length > 0) {
@@ -2536,6 +2548,17 @@ io.on("connection", (socket: Socket) => {
         // Margin for estimation scoring (percentage)
         estimationMargin,
         explanation: showExplanation ? quizItem?.question?.explanation : null,
+        // Spotify track info for MUSIC question reveal
+        ...(quizItem?.question?.media?.[0]?.provider === "SPOTIFY" ? {
+          spotify: {
+            trackId: (quizItem.question.media[0].reference as any)?.trackId || "",
+            trackName: (quizItem.question.media[0].reference as any)?.name || "",
+            artistName: ((quizItem.question.media[0].reference as any)?.artists || []).join(", "),
+            albumName: (quizItem.question.media[0].reference as any)?.albumName || "",
+            albumArt: (quizItem.question.media[0].reference as any)?.albumArt || null,
+            releaseYear: (quizItem.question.media[0].reference as any)?.releaseYear || null,
+          },
+        } : {}),
         // Answered players with their scores (deduplicated - last answer per player)
         answers: deduplicatedAnswers.map((a) => {
           const formatted = formatAnswerForDisplay(questionType, a.payloadJson, optionsForFormatting);
@@ -2924,7 +2947,8 @@ io.on("connection", (socket: Socket) => {
         let validationAcceptableAnswers = settingsJson?.acceptableAnswers as string[] | undefined;
         if (
           (baseType === "OPEN_TEXT" ||
-           questionType === "AUDIO_OPEN" || questionType === "VIDEO_OPEN") &&
+           questionType === "AUDIO_OPEN" || questionType === "VIDEO_OPEN" ||
+           questionType === "MUSIC_GUESS_TITLE" || questionType === "MUSIC_GUESS_ARTIST") &&
           question.options.length > 1
         ) {
           const correctOptions = question.options.filter(opt => opt.isCorrect);
@@ -2977,7 +3001,8 @@ io.on("connection", (socket: Socket) => {
         // For OPEN_TEXT, store auto score separately for host review
         const baseTypeForValidation = getBaseQuestionType(questionType as QuestionType).toString().toUpperCase();
         const isOpenTextType = baseTypeForValidation === "OPEN_TEXT" ||
-                               questionType === "AUDIO_OPEN" || questionType === "VIDEO_OPEN";
+                               questionType === "AUDIO_OPEN" || questionType === "VIDEO_OPEN" ||
+                               questionType === "MUSIC_GUESS_TITLE" || questionType === "MUSIC_GUESS_ARTIST";
         
         let liveAnswer;
         if (existingAnswer) {

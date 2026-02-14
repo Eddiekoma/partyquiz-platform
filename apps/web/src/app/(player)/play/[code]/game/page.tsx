@@ -70,6 +70,14 @@ export default function GamePage() {
   const [scorePercentage, setScorePercentage] = useState<number | null>(null);
   // Acceptable answers for TEXT questions
   const [acceptableAnswers, setAcceptableAnswers] = useState<string[] | null>(null);
+  // Spotify track reveal data for MUSIC questions
+  const [spotifyReveal, setSpotifyReveal] = useState<{
+    trackName: string;
+    artistName: string;
+    albumName: string;
+    albumArt: string | null;
+    releaseYear: number | null;
+  } | null>(null);
   // Auto-transition state after answer feedback
   const [waitingForNext, setWaitingForNext] = useState(false);
   // Speed podium results
@@ -188,6 +196,7 @@ export default function GamePage() {
       setSubmittedAnswer(null); // Reset submitted answer
       setScorePercentage(null); // Reset score percentage
       setAcceptableAnswers(null); // Reset acceptable answers
+      setSpotifyReveal(null); // Reset spotify reveal data
       setWaitingForNext(false); // Reset waiting state
       setSpeedPodiumResult(null); // Reset speed podium result
       setScoreAdjustment(null); // Reset score adjustment notification
@@ -317,6 +326,17 @@ export default function GamePage() {
       // Store acceptable answers for TEXT questions
       if (data.acceptableAnswers) {
         setAcceptableAnswers(data.acceptableAnswers);
+      }
+
+      // Store Spotify track info for MUSIC question reveal
+      if (data.spotify) {
+        setSpotifyReveal({
+          trackName: data.spotify.trackName || "",
+          artistName: data.spotify.artistName || "",
+          albumName: data.spotify.albumName || "",
+          albumArt: data.spotify.albumArt || null,
+          releaseYear: data.spotify.releaseYear || null,
+        });
       }
       
       // Show correct answer feedback and explanation if provided
@@ -830,6 +850,31 @@ export default function GamePage() {
         {/* Correct Answer Reveal - different display per question type */}
         {showReveal && (
           <div className="mt-4 md:mt-8 w-full">
+
+            {/* 🎵 Spotify Track Reveal for MUSIC questions */}
+            {spotifyReveal && (
+              <div className="mb-4 md:mb-6 p-4 md:p-5 rounded-2xl bg-gradient-to-br from-green-900/60 to-slate-900/80 border border-green-500/30 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <div className="flex items-center gap-4">
+                  {spotifyReveal.albumArt && (
+                    <img
+                      src={spotifyReveal.albumArt}
+                      alt={spotifyReveal.albumName}
+                      className="w-20 h-20 md:w-24 md:h-24 rounded-xl shadow-lg shadow-green-500/20 flex-shrink-0"
+                    />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs text-green-400 font-semibold uppercase tracking-wider mb-1">🎵 Now Playing</p>
+                    <p className="text-lg md:text-xl font-bold text-white truncate">{spotifyReveal.trackName}</p>
+                    <p className="text-sm md:text-base text-white/70 truncate">{spotifyReveal.artistName}</p>
+                    <p className="text-xs text-white/50 mt-1 truncate">
+                      {spotifyReveal.albumName}
+                      {spotifyReveal.releaseYear && ` • ${spotifyReveal.releaseYear}`}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <p className="text-center text-white/60 text-xs md:text-sm mb-3 md:mb-4 font-semibold uppercase tracking-wide">Correct Answer</p>
             
             {/* ORDER Question Reveal - show numbered list in correct order */}

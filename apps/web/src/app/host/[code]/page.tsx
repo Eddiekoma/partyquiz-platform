@@ -8,6 +8,7 @@ import Link from "next/link";
 import { QuestionTypeBadge, getQuestionTypeIcon } from "@/components/QuestionTypeBadge";
 import { AnswerPanel, type PlayerAnswer } from "@/components/host/AnswerPanel";
 import { PhotoGrid } from "@/components/PhotoGrid";
+import { SpotifyPlayer } from "@/components/SpotifyPlayer";
 import QRCode from "react-qr-code";
 import { SwanChaseConfig } from "@/components/host/SwanChaseConfig";
 
@@ -1398,7 +1399,10 @@ export default function HostControlPage() {
                        currentItem.question.type !== "OPEN_TEXT" &&
                        currentItem.question.type !== "PHOTO_OPEN_TEXT" &&
                        currentItem.question.type !== "AUDIO_OPEN" &&
-                       currentItem.question.type !== "VIDEO_OPEN" && (
+                       currentItem.question.type !== "VIDEO_OPEN" &&
+                       currentItem.question.type !== "MUSIC_GUESS_TITLE" &&
+                       currentItem.question.type !== "MUSIC_GUESS_ARTIST" &&
+                       currentItem.question.type !== "MUSIC_GUESS_YEAR" && (
                     /* MC/TRUE_FALSE/POLL: Show A, B, C, D grid */
                     <div className="grid grid-cols-2 gap-3">
                       {currentItem.question.options.map((option, idx) => (
@@ -1475,6 +1479,73 @@ export default function HostControlPage() {
                       </div>
                     </div>
                   )}
+
+                  {/* MUSIC GUESS types: Show Spotify player + track info + correct answer */}
+                  {(currentItem.question.type === "MUSIC_GUESS_TITLE" ||
+                    currentItem.question.type === "MUSIC_GUESS_ARTIST" ||
+                    currentItem.question.type === "MUSIC_GUESS_YEAR") && (() => {
+                    const spotifyMedia = currentItem.question?.media?.find(m => m.provider === "SPOTIFY");
+                    const ref = spotifyMedia?.reference as any;
+                    return (
+                      <div className="space-y-3">
+                        {/* Spotify Player */}
+                        {ref?.previewUrl && (
+                          <SpotifyPlayer
+                            trackId={ref.trackId || ""}
+                            previewUrl={ref.previewUrl}
+                            albumArt={ref.albumArt || undefined}
+                            title={ref.trackName || undefined}
+                            artist={ref.artistName || undefined}
+                          />
+                        )}
+                        
+                        {/* Track info for host reference */}
+                        <div className="bg-slate-700/50 border-2 border-slate-600 rounded-lg p-4">
+                          <p className="text-sm text-slate-400 mb-2">🎵 Track Info (host only):</p>
+                          {ref?.trackName && <p className="text-lg font-bold text-white">{ref.trackName}</p>}
+                          {ref?.artistName && <p className="text-sm text-slate-300">{ref.artistName}</p>}
+                          {ref?.releaseYear && <p className="text-sm text-slate-400">Released: {ref.releaseYear}</p>}
+                        </div>
+
+                        {/* Correct answer display */}
+                        <div className="bg-slate-700/50 border-2 border-green-600/50 rounded-lg p-4">
+                          <p className="text-sm text-slate-400 mb-2">Correct answer:</p>
+                          {currentItem.question?.type === "MUSIC_GUESS_YEAR" ? (
+                            <p className="text-2xl font-bold text-green-400">
+                              {currentItem.question?.options?.[0]?.text || ref?.releaseYear || "Not set"}
+                            </p>
+                          ) : (
+                            <p className="text-xl font-bold text-green-400">
+                              {currentItem.question?.options?.[0]?.text || "Not set"}
+                            </p>
+                          )}
+                          {currentItem.question?.options && currentItem.question.options.length > 1 && (
+                            <p className="text-sm text-slate-400 mt-1">
+                              Also accepted: {currentItem.question.options.slice(1).map(o => o.text).join(", ")}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Manual review hint for MUSIC_GUESS_TITLE/ARTIST */}
+                        {(currentItem.question?.type === "MUSIC_GUESS_TITLE" ||
+                          currentItem.question?.type === "MUSIC_GUESS_ARTIST") && (
+                          <div className="bg-amber-900/30 border border-amber-600/50 rounded-lg p-4">
+                            <div className="flex items-start gap-3">
+                              <span className="text-2xl">🎵</span>
+                              <div>
+                                <p className="font-semibold text-amber-300 mb-1">
+                                  Fuzzy Matching Active
+                                </p>
+                                <p className="text-sm text-amber-200/80">
+                                  Answers are auto-scored using fuzzy text matching. Review answers below and adjust if needed.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {/* Answer Count */}
                   <div className="mt-4 flex items-center gap-4">

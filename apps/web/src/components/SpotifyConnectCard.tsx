@@ -20,8 +20,8 @@ export function SpotifyConnectCard() {
       const response = await fetch("/api/auth/session");
       const session = await response.json();
       
-      // User is considered connected if they have spotifyAccessToken
-      setConnected(!!session?.user?.spotifyAccessToken);
+      // User is considered connected if they have spotifyConnected flag
+      setConnected(!!session?.user?.spotifyConnected);
     } catch (error) {
       console.error("Failed to check Spotify connection:", error);
       setConnected(false);

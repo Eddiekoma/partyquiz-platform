@@ -8,6 +8,7 @@ import { SwanRace } from "@/components/SwanRace";
 import { SwanChaseDisplay } from "@/components/SwanChaseDisplay";
 import { QuestionTypeBadge } from "@/components/QuestionTypeBadge";
 import { PhotoGrid } from "@/components/PhotoGrid";
+import { SpotifyPlayer } from "@/components/SpotifyPlayer";
 import QRCode from "react-qr-code";
 
 interface Player {
@@ -33,6 +34,13 @@ interface CurrentQuestion {
   options?: { id: string; text: string; isCorrect: boolean; order?: number }[];
   mediaUrl?: string;
   media?: QuestionMedia[];
+  spotify?: {
+    trackId: string;
+    previewUrl: string | null;
+    albumArt: string | null;
+    trackName?: string | null;
+    artistName?: string | null;
+  };
 }
 
 interface SessionData {
@@ -179,6 +187,27 @@ export default function DisplayPage() {
     // Listen for item started
     const handleItemStarted = (data: any) => {
       console.log("[Display] ITEM_STARTED received:", data);
+      
+      // Extract Spotify data from media entries
+      const spotifyMedia = data.media?.find((m: any) => m.provider === "SPOTIFY");
+      const spotifyData = spotifyMedia ? {
+        trackId: spotifyMedia.metadata?.trackId || "",
+        previewUrl: spotifyMedia.url || null,
+        albumArt: spotifyMedia.previewUrl || null, // previewUrl in media = albumArt for SPOTIFY
+        trackName: spotifyMedia.metadata?.trackName || null,
+        artistName: spotifyMedia.metadata?.artistName || null,
+        startMs: spotifyMedia.metadata?.startMs ?? data.spotify?.startMs ?? 0,
+        durationMs: spotifyMedia.metadata?.durationMs ?? data.spotify?.durationMs ?? 30000,
+      } : data.spotify ? {
+        trackId: data.spotify.trackId || "",
+        previewUrl: data.spotify.previewUrl || null,
+        albumArt: data.spotify.albumArt || null,
+        trackName: data.spotify.trackName || null,
+        artistName: data.spotify.artistName || null,
+        startMs: data.spotify.startMs ?? 0,
+        durationMs: data.spotify.durationMs ?? 30000,
+      } : undefined;
+      
       setCurrentQuestion({
         id: data.itemId,
         prompt: data.prompt,
@@ -196,6 +225,7 @@ export default function DisplayPage() {
           height: m.metadata?.height || null,
           displayOrder: m.displayOrder ?? index,
         })),
+        spotify: spotifyData,
       });
       setTimeRemaining(data.timerDuration);
       setAnsweredCount(0);
@@ -705,6 +735,127 @@ export default function DisplayPage() {
                 <p className="text-lg text-white/60">Enter your answer on your phone</p>
               </div>
             )}
+
+            {/* MUSIC Questions - Spotify player + listening visual */}
+            {(currentQuestion.type === "MUSIC_GUESS_TITLE" ||
+              currentQuestion.type === "MUSIC_GUESS_ARTIST" ||
+              currentQuestion.type === "MUSIC_GUESS_YEAR") && (
+              <div className="py-6">
+                {/* Spotify Player */}
+                {currentQuestion.spotify?.previewUrl || currentQuestion.mediaUrl ? (
+                  <div className="max-w-2xl mx-auto">
+                    <SpotifyPlayer
+                      trackId={currentQuestion.spotify?.trackId || ""}
+                      previewUrl={currentQuestion.spotify?.previewUrl || currentQuestion.mediaUrl || ""}
+                      albumArt={displayState === "reveal" ? (currentQuestion.spotify?.albumArt || undefined) : undefined}
+                      title={displayState === "reveal" ? (currentQuestion.spotify?.trackName || undefined) : undefined}
+                      artist={displayState === "reveal" ? (currentQuestion.spotify?.artistName || undefined) : undefined}
+                      startMs={currentQuestion.spotify?.startMs}
+                      durationMs={currentQuestion.spotify?.durationMs}
+                      autoplay={displayState === "question"}
+                    />
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <div className="text-6xl mb-4">🎵</div>
+                    <p className="text-xl text-white/60">Audio loading...</p>
+                  </div>
+                )}
+                
+                {/* Listening visual - during question phase */}
+                {displayState === "question" && (
+                  <div className="text-center mt-8">
+                    {/* Blurred album art teaser */}
+                    {currentQuestion.spotify?.albumArt && (
+                      <div className="flex justify-center mb-6">
+                        <div className="relative w-48 h-48">
+                          <img
+                            src={currentQuestion.spotify.albumArt}
+                            alt="Mystery"
+                            className="w-full h-full rounded-2xl shadow-2xl"
+                            style={{ filter: "blur(30px) brightness(0.7)", transform: "scale(1.1)" }}
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <span className="text-6xl">❓</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Animated equalizer bars */}
+                    <div className="flex items-end justify-center gap-1.5 mb-4 h-16">
+                      {[...Array(12)].map((_, i) => (
+                        <div
+                          key={i}
+                          className="w-2 bg-gradient-to-t from-green-500 to-green-300 rounded-full"
+                          style={{
+                            animation: `equalizer 0.8s ease-in-out infinite alternate`,
+                            animationDelay: `${i * 0.07}s`,
+                            height: "16px",
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <style jsx>{`
+                      @keyframes equalizer {
+                        0% { height: 8px; }
+                        100% { height: ${40 + Math.random() * 24}px; }
+                      }
+                    `}</style>
+                    
+                    <p className="text-2xl font-bold text-white mb-2">
+                      🎧 {currentQuestion.type === "MUSIC_GUESS_TITLE" ? "Guess the Song!" :
+                          currentQuestion.type === "MUSIC_GUESS_ARTIST" ? "Guess the Artist!" :
+                          "Guess the Year!"}
+                    </p>
+                    <p className="text-lg text-white/60">Listen carefully and answer on your phone</p>
+                  </div>
+                )}
+                
+                {/* Album art reveal with track info - animated unblur */}
+                {displayState === "reveal" && currentQuestion.spotify?.albumArt && (
+                  <div className="mt-6 flex flex-col items-center animate-in fade-in duration-700">
+                    <div className="relative mb-4">
+                      <img
+                        src={currentQuestion.spotify.albumArt}
+                        alt="Album Art"
+                        className="w-56 h-56 rounded-2xl shadow-2xl transition-all duration-1000"
+                        style={{ animation: "albumReveal 1s ease-out forwards" }}
+                      />
+                      <div className="absolute -inset-1 bg-gradient-to-r from-green-400 via-blue-500 to-purple-600 rounded-2xl opacity-30 blur-xl -z-10" />
+                    </div>
+                    <style jsx>{`
+                      @keyframes albumReveal {
+                        0% { filter: blur(20px) brightness(0.5); transform: scale(0.9); }
+                        100% { filter: blur(0px) brightness(1); transform: scale(1); }
+                      }
+                    `}</style>
+                    {currentQuestion.spotify.trackName && (
+                      <p className="text-3xl font-black text-white mt-2">{currentQuestion.spotify.trackName}</p>
+                    )}
+                    {currentQuestion.spotify.artistName && (
+                      <p className="text-xl text-white/70 mt-1">{currentQuestion.spotify.artistName}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* MUSIC GUESS YEAR Reveal - show correct year */}
+            {displayState === "reveal" && correctNumber !== null && 
+             currentQuestion.type === "MUSIC_GUESS_YEAR" && (
+              <div className="text-center py-4">
+                <div className="p-8 rounded-2xl bg-green-500/80 text-white inline-block">
+                  <p className="text-2xl font-bold mb-2">Released in:</p>
+                  <p className="text-6xl font-black">{correctNumber}</p>
+                  {estimationMargin !== null && estimationMargin > 0 && (
+                    <p className="text-xl text-white/80 mt-2">
+                      ±{estimationMargin}% margin for full points
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
             
             {/* Open Text Reveal - show correct text answer */}
             {displayState === "reveal" && correctText && (
@@ -746,6 +897,9 @@ export default function DisplayPage() {
              currentQuestion.type !== "PHOTO_OPEN_TEXT" &&
              currentQuestion.type !== "AUDIO_OPEN" &&
              currentQuestion.type !== "VIDEO_OPEN" &&
+             currentQuestion.type !== "MUSIC_GUESS_TITLE" &&
+             currentQuestion.type !== "MUSIC_GUESS_ARTIST" &&
+             currentQuestion.type !== "MUSIC_GUESS_YEAR" &&
              !correctOrder && !correctText && (
               <div className="grid grid-cols-2 gap-6">
                 {currentQuestion.options.map((option, idx) => {

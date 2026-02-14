@@ -3,6 +3,7 @@ import { requiresPhotos } from "@partyquiz/shared";
 import { YouTubePlayer } from "../YouTubePlayer";
 import { QuestionTypeBadge } from "../QuestionTypeBadge";
 import { PhotoGrid } from "../PhotoGrid";
+import { SpotifyPlayer } from "../SpotifyPlayer";
 
 interface QuestionMedia {
   id: string;
@@ -64,13 +65,29 @@ function renderMedia(
   mediaUrl: string,
   settingsJson?: any
 ) {
-  // Audio question types (AUDIO_QUESTION, AUDIO_OPEN) and Spotify music types
+  // Spotify music question types - use SpotifyPlayer
   if (
-    questionType === "AUDIO_QUESTION" ||
-    questionType === "AUDIO_OPEN" ||
     questionType === "MUSIC_GUESS_TITLE" ||
     questionType === "MUSIC_GUESS_ARTIST" ||
     questionType === "MUSIC_GUESS_YEAR"
+  ) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <SpotifyPlayer
+          trackId=""
+          previewUrl={mediaUrl}
+          albumArt={null}
+          title={undefined}
+          artist={undefined}
+        />
+      </div>
+    );
+  }
+
+  // Audio question types (AUDIO_QUESTION, AUDIO_OPEN)
+  if (
+    questionType === "AUDIO_QUESTION" ||
+    questionType === "AUDIO_OPEN"
   ) {
     return (
       <div className="max-w-2xl mx-auto">

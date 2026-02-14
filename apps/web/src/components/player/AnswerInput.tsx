@@ -259,14 +259,23 @@ export function AnswerInput({
     );
   }
 
-  // Numeric input questions - NUMERIC, SLIDER, ESTIMATION, PHOTO_NUMERIC, PHOTO_SLIDER, MUSIC_GUESS_YEAR
+  // MUSIC_GUESS_YEAR - Dedicated year picker with decade buttons + slider
+  if (questionType === "MUSIC_GUESS_YEAR") {
+    return (
+      <YearPicker
+        onSubmit={onSubmit}
+        disabled={disabled}
+      />
+    );
+  }
+
+  // Numeric input questions - NUMERIC, SLIDER, ESTIMATION, PHOTO_NUMERIC, PHOTO_SLIDER
   if (
     questionType === "NUMERIC" ||
     questionType === "SLIDER" ||
     questionType === "ESTIMATION" ||
     questionType === "PHOTO_NUMERIC" ||
-    questionType === "PHOTO_SLIDER" ||
-    questionType === "MUSIC_GUESS_YEAR"
+    questionType === "PHOTO_SLIDER"
   ) {
     return (
       <div className="space-y-3 md:space-y-4">
@@ -274,10 +283,8 @@ export function AnswerInput({
           type="number"
           value={answer || ""}
           onChange={(e) => setAnswer(parseInt(e.target.value) || "")}
-          placeholder="Year (e.g., 1985)"
+          placeholder="Enter a number..."
           disabled={disabled}
-          min={1900}
-          max={2100}
           className="w-full px-4 md:px-6 py-4 text-lg md:text-xl font-bold text-white bg-slate-800 rounded-xl focus:ring-4 focus:ring-purple-300 outline-none transition-all disabled:opacity-50"
           autoFocus
         />
@@ -347,6 +354,113 @@ export function AnswerInput({
     <div className="text-center text-white/60 py-8">
       <p>Question type not supported yet</p>
       <p className="text-xs opacity-50 mt-2">Type: {questionType}</p>
+    </div>
+  );
+}
+
+// Year Picker component for MUSIC_GUESS_YEAR
+function YearPicker({
+  onSubmit,
+  disabled,
+}: {
+  onSubmit: (answer: any) => void;
+  disabled: boolean;
+}) {
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState<number>(2000);
+  const [selectedDecade, setSelectedDecade] = useState<number | null>(null);
+
+  const decades = [1950, 1960, 1970, 1980, 1990, 2000, 2010, 2020];
+
+  const handleDecadeSelect = (decade: number) => {
+    setSelectedDecade(decade);
+    setSelectedYear(decade + 5); // Start in middle of decade
+  };
+
+  const yearsInDecade = selectedDecade !== null
+    ? Array.from({ length: 10 }, (_, i) => selectedDecade + i).filter(y => y <= currentYear)
+    : [];
+
+  return (
+    <div className="space-y-4">
+      {/* Decade selector */}
+      <div>
+        <p className="text-center text-white/70 text-sm font-medium mb-2">Choose a decade</p>
+        <div className="grid grid-cols-4 gap-2">
+          {decades.map((decade) => (
+            <button
+              key={decade}
+              onClick={() => handleDecadeSelect(decade)}
+              disabled={disabled}
+              className={`py-3 px-2 rounded-xl text-sm font-bold transition-all active:scale-95 ${
+                selectedDecade === decade
+                  ? "bg-green-500 text-white ring-2 ring-green-300 shadow-lg shadow-green-500/30"
+                  : "bg-slate-800/40 text-white/80 hover:bg-slate-700/60"
+              }`}
+            >
+              {decade}s
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Year grid within selected decade */}
+      {selectedDecade !== null && (
+        <div>
+          <p className="text-center text-white/70 text-sm font-medium mb-2">Pick the year</p>
+          <div className="grid grid-cols-5 gap-2">
+            {yearsInDecade.map((year) => (
+              <button
+                key={year}
+                onClick={() => setSelectedYear(year)}
+                disabled={disabled}
+                className={`py-3 rounded-xl text-base font-bold transition-all active:scale-95 ${
+                  selectedYear === year
+                    ? "bg-purple-600 text-white ring-2 ring-purple-300 shadow-lg shadow-purple-500/30 scale-105"
+                    : "bg-slate-800/40 text-white/80 hover:bg-slate-700/60"
+                }`}
+              >
+                {year}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Selected year display */}
+      <div className="text-center py-2">
+        <p className="text-5xl font-black text-white tabular-nums">{selectedYear}</p>
+      </div>
+
+      {/* Fine-tune slider */}
+      <div className="px-2">
+        <input
+          type="range"
+          min={1950}
+          max={currentYear}
+          value={selectedYear}
+          onChange={(e) => {
+            const year = parseInt(e.target.value);
+            setSelectedYear(year);
+            setSelectedDecade(Math.floor(year / 10) * 10);
+          }}
+          disabled={disabled}
+          className="w-full h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
+        />
+        <div className="flex justify-between text-xs text-white/40 mt-1">
+          <span>1950</span>
+          <span>{currentYear}</span>
+        </div>
+      </div>
+
+      {/* Submit */}
+      <button
+        onClick={() => onSubmit(selectedYear)}
+        disabled={disabled}
+        className="w-full py-4 md:py-5 text-lg md:text-xl font-black text-white bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl hover:from-green-600 hover:to-emerald-700 active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-green-500/20"
+      >
+        🎵 Submit {selectedYear}
+      </button>
     </div>
   );
 }

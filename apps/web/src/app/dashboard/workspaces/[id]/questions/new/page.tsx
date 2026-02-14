@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { SpotifyTrackSelector } from "@/components/SpotifyTrackSelector";
+import { SpotifyPlayer } from "@/components/SpotifyPlayer";
 import { FileUploader } from "@/components/media/FileUploader";
 import { ScoringInfoCard } from "@/components/ScoringInfoCard";
+import { requiresPhotos, getMaxPhotos, QuestionType } from "@partyquiz/shared";
 
 interface QuestionSet {
   id: string;
@@ -213,7 +215,7 @@ export default function NewQuestionPage() {
   const [acceptableAnswers, setAcceptableAnswers] = useState<string[]>([]);
   const [acceptableAnswerInput, setAcceptableAnswerInput] = useState("");
 
-  // Media upload
+  // Media upload - single asset for audio/video
   const [uploadedAsset, setUploadedAsset] = useState<{
     id: string;
     filename: string;
@@ -222,9 +224,20 @@ export default function NewQuestionPage() {
     type: string;
   } | null>(null);
 
+  // Multi-photo upload for PHOTO types
+  const [uploadedPhotos, setUploadedPhotos] = useState<Array<{
+    id: string;
+    filename: string;
+    storageKey: string;
+    url: string;
+    type: string;
+  }>>([]);
+
   // Spotify/YouTube
   const [spotifyTrackId, setSpotifyTrackId] = useState<string>("");
   const [spotifyTrack, setSpotifyTrack] = useState<any>(null);
+  const [audioStartMs, setAudioStartMs] = useState<number>(0);
+  const [audioDurationMs, setAudioDurationMs] = useState<number>(30000);
   const [youtubeUrl, setYoutubeUrl] = useState<string>("");
   const [youtubeVideoId, setYoutubeVideoId] = useState<string>("");
   const [youtubeValidating, setYoutubeValidating] = useState(false);
@@ -326,6 +339,17 @@ export default function NewQuestionPage() {
       }
     }
 
+    // Validate Spotify track selection for MUSIC types
+    if (
+      (selectedType === "MUSIC_GUESS_TITLE" ||
+        selectedType === "MUSIC_GUESS_ARTIST" ||
+        selectedType === "MUSIC_GUESS_YEAR") &&
+      !spotifyTrack
+    ) {
+      alert("Please select a Spotify track for music questions");
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -392,6 +416,32 @@ export default function NewQuestionPage() {
             });
           }
           break;
+        case "MUSIC_GUESS_TITLE":
+          if (spotifyTrack) {
+            // Store track title as correct answer (fuzzy matched)
+            questionOptions = [{ text: spotifyTrack.name, isCorrect: true, order: 0 }];
+          }
+          break;
+        case "MUSIC_GUESS_ARTIST":
+          if (spotifyTrack) {
+            // Store artist name as correct answer (fuzzy matched)
+            const artistName = spotifyTrack.artists.map((a: any) => a.name).join(", ");
+            questionOptions = [{ text: artistName, isCorrect: true, order: 0 }];
+            // Also add individual artist names as acceptable alternatives
+            if (spotifyTrack.artists.length > 1) {
+              spotifyTrack.artists.forEach((artist: any, index: number) => {
+                questionOptions!.push({ text: artist.name, isCorrect: true, order: index + 1 });
+              });
+            }
+          }
+          break;
+        case "MUSIC_GUESS_YEAR":
+          if (spotifyTrack) {
+            // Store release year as correct number (distance-based scoring)
+            const releaseYear = new Date(spotifyTrack.album.release_date).getFullYear();
+            questionOptions = [{ text: String(releaseYear), isCorrect: true, order: 2 }]; // order=2 means ±2 year margin
+          }
+          break;
       }
 
       const response = await fetch(`/api/workspaces/${workspaceId}/questions`, {
@@ -408,9 +458,23 @@ export default function NewQuestionPage() {
           questionSetId: selectedSetId || undefined,
           options: questionOptions,
           spotifyTrackId: spotifyTrackId || undefined,
+          spotifyTrackData: spotifyTrack ? {
+            name: spotifyTrack.name,
+            artists: spotifyTrack.artists.map((a: any) => a.name),
+            albumName: spotifyTrack.album.name,
+            albumArt: spotifyTrack.album.images?.[0]?.url || null,
+            previewUrl: spotifyTrack.preview_url || null,
+            releaseDate: spotifyTrack.album.release_date,
+            releaseYear: new Date(spotifyTrack.album.release_date).getFullYear(),
+            startMs: audioStartMs > 0 ? audioStartMs : undefined,
+            durationMs: audioDurationMs !== 30000 ? audioDurationMs : undefined,
+          } : undefined,
           youtubeVideoId: youtubeVideoId || undefined,
           mediaUrl: uploadedAsset?.storageKey || undefined,
           mediaAssetId: uploadedAsset?.id || undefined,
+          mediaAssets: uploadedPhotos.length > 0
+            ? uploadedPhotos.map(p => ({ id: p.id, storageKey: p.storageKey }))
+            : undefined,
         }),
       });
 
@@ -801,17 +865,74 @@ export default function NewQuestionPage() {
           </Card>
         )}
 
-        {/* Media upload for PHOTO/AUDIO/VIDEO types */}
-        {(selectedType === "PHOTO_MC_SINGLE" ||
-          selectedType === "PHOTO_MC_MULTIPLE" ||
-          selectedType === "PHOTO_MC_ORDER" ||
-          selectedType === "PHOTO_OPEN_TEXT" ||
-          selectedType === "PHOTO_NUMERIC" ||
-          selectedType === "PHOTO_SLIDER" ||
-          selectedType === "PHOTO_TRUE_FALSE" ||
-          selectedType === "AUDIO_QUESTION" ||
-          selectedType === "VIDEO_QUESTION" ||
+        {/* Multi-photo upload for PHOTO types */}
+        {selectedType && requiresPhotos(selectedType as QuestionType) && (
+          <Card className="p-6">
+            <label className="block text-sm font-semibold mb-4">
+              📸 Photos ({uploadedPhotos.length} / {getMaxPhotos(selectedType as QuestionType)})
+            </label>
+
+            {/* Show uploaded photo thumbnails */}
+            {uploadedPhotos.length > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+                {uploadedPhotos.map((photo, index) => (
+                  <div key={photo.id} className="relative group aspect-video bg-slate-800 rounded-lg overflow-hidden">
+                    {photo.url && (
+                      <img
+                        src={photo.url}
+                        alt={photo.filename}
+                        className="absolute inset-0 w-full h-full object-cover"
+                      />
+                    )}
+                    {/* Order Badge */}
+                    <div className="absolute top-2 left-2 w-7 h-7 bg-black/60 backdrop-blur rounded-full flex items-center justify-center text-white font-bold text-xs">
+                      {index + 1}
+                    </div>
+                    {/* Delete Button */}
+                    <button
+                      type="button"
+                      onClick={() => setUploadedPhotos(uploadedPhotos.filter(p => p.id !== photo.id))}
+                      className="absolute top-2 right-2 w-7 h-7 bg-red-600 hover:bg-red-700 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Upload more photos (if under max) */}
+            {uploadedPhotos.length < getMaxPhotos(selectedType as QuestionType) && (
+              <FileUploader
+                workspaceId={workspaceId}
+                category="images"
+                accept="image/*"
+                maxSize={15}
+                onUploadComplete={(asset) => {
+                  setUploadedPhotos(prev => [...prev, asset]);
+                }}
+                onError={(error) => alert(`Upload failed: ${error}`)}
+              />
+            )}
+
+            {uploadedPhotos.length >= getMaxPhotos(selectedType as QuestionType) && (
+              <p className="text-sm text-slate-400">
+                Maximum number of photos reached. Remove a photo to upload a different one.
+              </p>
+            )}
+
+            <div className="text-xs text-slate-500 mt-3 space-y-1">
+              <p>• Supported formats: JPG, PNG, WebP, GIF, SVG</p>
+              <p>• Max size: 15MB per photo</p>
+              <p>• Hover over a photo to delete it</p>
+            </div>
+          </Card>
+        )}
+
+        {/* Media upload for AUDIO/VIDEO types - single file */}
+        {(selectedType === "AUDIO_QUESTION" ||
           selectedType === "AUDIO_OPEN" ||
+          selectedType === "VIDEO_QUESTION" ||
           selectedType === "VIDEO_OPEN") && (
           <Card className="p-6">
             <label className="block text-sm font-semibold mb-4">
@@ -821,14 +942,8 @@ export default function NewQuestionPage() {
             {!uploadedAsset ? (
               <FileUploader
                 workspaceId={workspaceId}
-                category={
-                  selectedType.startsWith("PHOTO") ? "images" :
-                  selectedType.startsWith("AUDIO") ? "audio" : "video"
-                }
-                accept={
-                  selectedType.startsWith("PHOTO") ? "image/*" :
-                  selectedType.startsWith("AUDIO") ? "audio/*" : "video/*"
-                }
+                category={selectedType.startsWith("AUDIO") ? "audio" : "video"}
+                accept={selectedType.startsWith("AUDIO") ? "audio/*" : "video/*"}
                 maxSize={selectedType.startsWith("VIDEO") ? 50 : 10}
                 onUploadComplete={(asset) => {
                   setUploadedAsset(asset);
@@ -840,18 +955,10 @@ export default function NewQuestionPage() {
             ) : (
               <div className="border border-slate-700 rounded-lg p-4">
                 <div className="flex items-start gap-4">
-                  {selectedType.startsWith("PHOTO") && uploadedAsset.url && (
-                    <img 
-                      src={uploadedAsset.url} 
-                      alt={uploadedAsset.filename}
-                      className="w-32 h-32 object-contain rounded bg-slate-800"
-                    />
-                  )}
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-slate-200 truncate">{uploadedAsset.filename}</p>
                     <p className="text-sm text-emerald-400 mt-1">
-                      {selectedType.startsWith("PHOTO") ? "Image" :
-                       selectedType.startsWith("AUDIO") ? "Audio" : "Video"} uploaded successfully
+                      {selectedType.startsWith("AUDIO") ? "Audio" : "Video"} uploaded successfully
                     </p>
                     <button
                       onClick={() => setUploadedAsset(null)}
@@ -877,8 +984,137 @@ export default function NewQuestionPage() {
               onSelect={(track) => {
                 setSpotifyTrack(track);
                 setSpotifyTrackId(track.id);
+                // Reset fragment when selecting new track
+                setAudioStartMs(0);
+                setAudioDurationMs(30000);
               }}
             />
+
+            {/* Fragment Selector - only show when track is selected */}
+            {spotifyTrack && (
+              <div className="mt-6 border-t border-slate-200 pt-6">
+                <label className="block text-sm font-semibold mb-3">✂️ Audio Fragment</label>
+                <p className="text-sm text-slate-400 mb-4">
+                  Choose which part of the track to play. Default is first 30 seconds.
+                </p>
+
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Start time</label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={Math.max(0, (spotifyTrack.duration_ms || 30000) - audioDurationMs)}
+                        step={1000}
+                        value={audioStartMs}
+                        onChange={(e) => setAudioStartMs(Math.max(0, Number(e.target.value)))}
+                        className="w-24"
+                      />
+                      <span className="text-sm text-slate-400">ms</span>
+                      <span className="text-xs text-slate-500 ml-2">
+                        ({Math.floor(audioStartMs / 1000)}s)
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Duration</label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={5000}
+                        max={Math.min(30000, (spotifyTrack.duration_ms || 30000) - audioStartMs)}
+                        step={1000}
+                        value={audioDurationMs}
+                        onChange={(e) => setAudioDurationMs(Math.max(5000, Math.min(30000, Number(e.target.value))))}
+                        className="w-24"
+                      />
+                      <span className="text-sm text-slate-400">ms</span>
+                      <span className="text-xs text-slate-500 ml-2">
+                        ({Math.floor(audioDurationMs / 1000)}s)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Visual timeline slider */}
+                <div className="mb-4">
+                  <div className="flex justify-between text-xs text-slate-400 mb-1">
+                    <span>0:00</span>
+                    <span className="font-medium text-green-600">
+                      Playing: {Math.floor(audioStartMs / 1000)}s – {Math.floor((audioStartMs + audioDurationMs) / 1000)}s
+                    </span>
+                    <span>
+                      {spotifyTrack.duration_ms 
+                        ? `${Math.floor(spotifyTrack.duration_ms / 60000)}:${String(Math.floor((spotifyTrack.duration_ms % 60000) / 1000)).padStart(2, '0')}`
+                        : '0:30'}
+                    </span>
+                  </div>
+                  <div className="relative h-3 bg-slate-200 rounded-full overflow-hidden">
+                    <div 
+                      className="absolute h-full bg-green-500 rounded-full"
+                      style={{
+                        left: `${(audioStartMs / (spotifyTrack.duration_ms || 30000)) * 100}%`,
+                        width: `${(audioDurationMs / (spotifyTrack.duration_ms || 30000)) * 100}%`,
+                      }}
+                    />
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={Math.max(0, (spotifyTrack.duration_ms || 30000) - audioDurationMs)}
+                    step={1000}
+                    value={audioStartMs}
+                    onChange={(e) => setAudioStartMs(Number(e.target.value))}
+                    className="w-full mt-1 accent-green-500"
+                  />
+                </div>
+
+                {/* Quick presets */}
+                <div className="flex gap-2 flex-wrap">
+                  <span className="text-xs text-slate-500 self-center mr-1">Presets:</span>
+                  {[
+                    { label: "First 10s", start: 0, dur: 10000 },
+                    { label: "First 15s", start: 0, dur: 15000 },
+                    { label: "First 30s", start: 0, dur: 30000 },
+                    { label: "Middle 15s", start: Math.floor((spotifyTrack.duration_ms || 30000) / 2) - 7500, dur: 15000 },
+                    { label: "Chorus (~30s in)", start: 30000, dur: 15000 },
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => {
+                        setAudioStartMs(Math.max(0, preset.start));
+                        setAudioDurationMs(preset.dur);
+                      }}
+                      className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                        audioStartMs === Math.max(0, preset.start) && audioDurationMs === preset.dur
+                          ? 'bg-green-100 border-green-400 text-green-700'
+                          : 'bg-white border-slate-300 text-slate-600 hover:bg-green-50 hover:border-green-300'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Preview player */}
+                {spotifyTrack.preview_url && (
+                  <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                    <p className="text-xs text-slate-500 mb-2">🔊 Preview with selected fragment:</p>
+                    <SpotifyPlayer
+                      trackId={spotifyTrackId}
+                      previewUrl={spotifyTrack.preview_url}
+                      title={spotifyTrack.name}
+                      artist={spotifyTrack.artists.map((a: any) => a.name).join(", ")}
+                      albumArt={spotifyTrack.album.images?.[0]?.url}
+                      startMs={audioStartMs}
+                      durationMs={audioDurationMs}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
           </Card>
         )}
 

@@ -22,9 +22,25 @@ const createQuestionSchema = z.object({
   })).optional(),
   // Media fields
   spotifyTrackId: z.string().optional(),
+  spotifyTrackData: z.object({
+    name: z.string(),
+    artists: z.array(z.string()),
+    albumName: z.string(),
+    albumArt: z.string().nullable(),
+    previewUrl: z.string().nullable(),
+    releaseDate: z.string(),
+    releaseYear: z.number(),
+    startMs: z.number().optional(),
+    durationMs: z.number().optional(),
+  }).optional(),
   youtubeVideoId: z.string().optional(),
   mediaUrl: z.string().optional(),
   mediaAssetId: z.string().optional(),
+  // Multi-photo support: array of uploaded assets
+  mediaAssets: z.array(z.object({
+    id: z.string(),
+    storageKey: z.string(),
+  })).optional(),
 });
 
 export async function GET(
@@ -172,8 +188,22 @@ export async function POST(
       mediaEntries.push({
         provider: "SPOTIFY",
         mediaType: "AUDIO",
-        reference: { trackId: data.spotifyTrackId },
+        reference: {
+          trackId: data.spotifyTrackId,
+          previewUrl: data.spotifyTrackData?.previewUrl || null,
+          albumArt: data.spotifyTrackData?.albumArt || null,
+          trackName: data.spotifyTrackData?.name || null,
+          artistName: data.spotifyTrackData?.artists?.join(", ") || null,
+          releaseYear: data.spotifyTrackData?.releaseYear || null,
+        },
         order: mediaEntries.length,
+        metadata: data.spotifyTrackData ? {
+          albumName: data.spotifyTrackData.albumName,
+          releaseDate: data.spotifyTrackData.releaseDate,
+          artists: data.spotifyTrackData.artists,
+          ...(data.spotifyTrackData.startMs !== undefined ? { startMs: data.spotifyTrackData.startMs } : {}),
+          ...(data.spotifyTrackData.durationMs !== undefined ? { durationMs: data.spotifyTrackData.durationMs } : {}),
+        } : undefined,
       });
     }
 
@@ -198,6 +228,22 @@ export async function POST(
         reference: { storageKey: data.mediaUrl, assetId: data.mediaAssetId || null },
         order: mediaEntries.length,
       });
+    }
+
+    // Multi-photo support: multiple uploaded assets
+    if (data.mediaAssets && data.mediaAssets.length > 0) {
+      for (const asset of data.mediaAssets) {
+        let mediaType = "IMAGE";
+        if (data.type.includes("AUDIO")) mediaType = "AUDIO";
+        if (data.type.includes("VIDEO")) mediaType = "VIDEO";
+
+        mediaEntries.push({
+          provider: "UPLOAD",
+          mediaType,
+          reference: { storageKey: asset.storageKey, assetId: asset.id },
+          order: mediaEntries.length,
+        });
+      }
     }
 
     // Create question with options and media
