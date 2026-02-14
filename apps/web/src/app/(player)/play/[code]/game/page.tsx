@@ -520,17 +520,11 @@ export default function GamePage() {
   }, [answerResult, showReveal, showScoreboard]);
 
   const handleSubmitAnswer = (answer: any) => {
-    if (!socket || !currentItem || isLocked) return;
+    if (!socket || !currentItem || isLocked || myAnswer !== null) return;
 
-    console.log("[Player] Submitting answer:", answer, myAnswer !== null ? "(overwrite)" : "(new)");
-    
-    // If overwriting, subtract old score first (server handles DB, we handle local display)
-    if (myAnswer !== null && answerResult?.score) {
-      setCurrentScore((prev) => Math.max(0, prev - answerResult.score));
-    }
+    console.log("[Player] Submitting answer:", answer);
     
     setMyAnswer(answer);
-    setAnswerResult(null); // Reset result for new answer
     setWaitingForNext(false);
 
     socket.emit("SUBMIT_ANSWER", {
@@ -788,84 +782,68 @@ export default function GamePage() {
         </div>
       )}
 
-      {/* Feedback - answer submitted, waiting for result */}
-      {myAnswer && !answerResult && (
-        <div className="text-center mb-4 flex-shrink-0">
-          <div className="text-4xl md:text-5xl mb-2 animate-pulse">📤</div>
-          <p className="text-lg md:text-xl font-bold text-white">Answer submitted!</p>
-          <p className="text-base md:text-lg text-white/80">Waiting for results...</p>
-        </div>
-      )}
-
-      {/* Answer Result feedback */}
-      {answerResult && !waitingForNext && (
-        <div className="text-center mb-4 flex-shrink-0">
-          {/* Icon based on score percentage */}
-          <div className="text-5xl md:text-7xl mb-2 md:mb-4 animate-bounce">
-            {answerResult.scorePercentage === 100 
-              ? "✅" 
-              : answerResult.scorePercentage !== undefined && answerResult.scorePercentage !== null && answerResult.scorePercentage >= 90
-                ? "🌟"
-                : answerResult.score > 0 
-                  ? "⭐" 
-                  : "❌"}
-          </div>
-          <p className="text-2xl md:text-3xl font-black text-white mb-1 md:mb-2">
-            {/* Graduated feedback based on percentage */}
-            {answerResult.scorePercentage === 100 
-              ? "Perfect!" 
-              : answerResult.scorePercentage !== undefined && answerResult.scorePercentage !== null && answerResult.scorePercentage >= 90
-                ? "Almost perfect!"
-                : answerResult.scorePercentage !== undefined && answerResult.scorePercentage !== null && answerResult.scorePercentage >= 70
-                  ? "Close enough!"
-                  : answerResult.scorePercentage !== undefined && answerResult.scorePercentage !== null && answerResult.scorePercentage >= 50
-                    ? "Partially correct!"
-                    : answerResult.score > 0
-                      ? "Points earned!"
-                      : "Too bad!"}
-          </p>
-          {/* Show percentage for non-perfect scores */}
-          {answerResult.score > 0 && answerResult.scorePercentage !== undefined && answerResult.scorePercentage !== null && answerResult.scorePercentage < 100 && (
-            <p className="text-base md:text-lg text-white/70 mb-1">{answerResult.scorePercentage}% correct</p>
-          )}
-          {answerResult.score > 0 && (
-            <p className="text-xl md:text-2xl font-bold text-yellow-300">
-              +{answerResult.score} points
-            </p>
-          )}
-          {/* Speed Podium bonus */}
-          {speedPodiumResult && (
-            <div className="mt-3 animate-pulse">
-              <div className="text-4xl md:text-5xl mb-1">
-                {speedPodiumResult.position === 1 ? "🥇" : speedPodiumResult.position === 2 ? "🥈" : "🥉"}
-              </div>
-              <p className="text-lg md:text-xl font-bold text-purple-300">
-                Speed Bonus: +{speedPodiumResult.bonusPoints}!
-              </p>
-              <p className="text-xs md:text-sm text-white/60">
-                {speedPodiumResult.position === 1 ? "Fastest correct answer!" : 
-                 speedPodiumResult.position === 2 ? "2nd fastest!" : "3rd fastest!"}
-              </p>
+      {/* Floating score feedback toast - appears as compact overlay */}
+      {answerResult && !showReveal && (
+        <div className="fixed inset-x-0 top-[72px] flex justify-center z-40 pointer-events-none animate-in slide-in-from-top duration-300 px-4">
+          <div className={`px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border-2 pointer-events-auto max-w-sm w-full ${
+            answerResult.scorePercentage === 100
+              ? "bg-gradient-to-r from-green-600 to-emerald-600 border-green-400/40"
+              : answerResult.score > 0
+                ? "bg-gradient-to-r from-yellow-600 to-amber-600 border-yellow-400/40"
+                : "bg-gradient-to-r from-red-600 to-rose-600 border-red-400/40"
+          }`}>
+            <div className="text-3xl flex-shrink-0">
+              {answerResult.scorePercentage === 100 
+                ? "🎯" 
+                : answerResult.scorePercentage !== undefined && answerResult.scorePercentage !== null && answerResult.scorePercentage >= 90
+                  ? "🌟"
+                  : answerResult.score > 0 
+                    ? "⭐" 
+                    : "❌"}
             </div>
-          )}
+            <div className="flex-1 min-w-0">
+              <p className="text-base font-black text-white leading-tight">
+                {answerResult.scorePercentage === 100 
+                  ? "Perfect!" 
+                  : answerResult.scorePercentage !== undefined && answerResult.scorePercentage !== null && answerResult.scorePercentage >= 90
+                    ? "Bijna perfect!"
+                    : answerResult.scorePercentage !== undefined && answerResult.scorePercentage !== null && answerResult.scorePercentage >= 70
+                      ? "Goed genoeg!"
+                      : answerResult.scorePercentage !== undefined && answerResult.scorePercentage !== null && answerResult.scorePercentage >= 50
+                        ? "Deels goed!"
+                        : answerResult.score > 0
+                          ? "Punten!"
+                          : "Helaas!"}
+              </p>
+              {answerResult.score > 0 ? (
+                <p className="text-sm font-bold text-white/90">
+                  +{answerResult.score} punten
+                  {answerResult.scorePercentage !== undefined && answerResult.scorePercentage !== null && answerResult.scorePercentage < 100 && (
+                    <span className="text-white/60 ml-1">({answerResult.scorePercentage}%)</span>
+                  )}
+                </p>
+              ) : (
+                <p className="text-sm text-white/70">0 punten</p>
+              )}
+            </div>
+            {/* Speed Podium badge */}
+            {speedPodiumResult && (
+              <div className="flex flex-col items-center flex-shrink-0">
+                <span className="text-2xl">
+                  {speedPodiumResult.position === 1 ? "🥇" : speedPodiumResult.position === 2 ? "🥈" : "🥉"}
+                </span>
+                <span className="text-xs font-bold text-white/80">+{speedPodiumResult.bonusPoints}</span>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {/* Waiting for next question - after auto-transition */}
+      {/* Waiting for next question - after auto-transition (compact) */}
       {answerResult && waitingForNext && !showReveal && !showScoreboard && (
-        <div className="text-center mb-4 flex-shrink-0">
-          <div className="text-4xl md:text-5xl mb-2 md:mb-4 animate-pulse">⏳</div>
-          <p className="text-xl md:text-2xl font-bold text-white mb-1 md:mb-2">
-            {answerResult.isCorrect 
-              ? "Well done!" 
-              : answerResult.score > 0 
-                ? scorePercentage !== null && scorePercentage >= 70 
-                  ? "Almost!" 
-                  : "Points earned!" 
-                : "Better luck next time!"}
-          </p>
-          <p className="text-base md:text-lg text-white/60">Waiting for next question...</p>
-          <p className="text-xs md:text-sm text-white/40 mt-1">Score: {currentScore} points</p>
+        <div className="text-center mb-3 flex-shrink-0">
+          <div className="text-3xl md:text-4xl mb-1 animate-pulse">⏳</div>
+          <p className="text-base md:text-lg font-bold text-white/70">Wachten op volgende vraag...</p>
         </div>
       )}
 
@@ -879,9 +857,9 @@ export default function GamePage() {
           settingsJson={currentItem.settingsJson}
         />
 
-        {/* Answer Input - show if not locked (allow changing answer before lock) */}
-        {/* For MUSIC_GUESS_TITLE/ARTIST: lock after first submit (no re-editing allowed) */}
-        {!isLocked && !(myAnswer !== null && (currentItem.questionType === "MUSIC_GUESS_TITLE" || currentItem.questionType === "MUSIC_GUESS_ARTIST" || currentItem.questionType === "MUSIC_GUESS_YEAR")) && (
+        {/* Answer Input - show only if not locked AND no answer submitted yet */}
+        {/* ALL question types: lock after first submit, no re-editing allowed */}
+        {!isLocked && myAnswer === null && (
           <div className="mt-4 md:mt-8 w-full">
             <AnswerInput
               questionType={currentItem.questionType}
@@ -890,57 +868,19 @@ export default function GamePage() {
               onSubmit={handleSubmitAnswer}
               disabled={isLocked}
             />
-            {/* Show inline submit confirmation right below input */}
-            {myAnswer !== null && !answerResult && (
-              <div className="mt-3 p-3 md:p-4 rounded-xl bg-green-600/30 border border-green-500/50 text-center animate-in fade-in slide-in-from-bottom-2 duration-300">
-                <p className="text-base md:text-lg font-bold text-green-300">
-                  ✅ Antwoord verzonden!
-                </p>
-                <p className="text-sm text-green-200/70 mt-1">
-                  ✏️ Je kunt je antwoord wijzigen tot de tijd om is
-                </p>
-              </div>
-            )}
-            {myAnswer !== null && answerResult && (
-              <div className={`mt-3 p-3 md:p-4 rounded-xl text-center animate-in fade-in duration-300 ${
-                answerResult.score > 0 
-                  ? "bg-green-600/30 border border-green-500/50" 
-                  : "bg-red-600/30 border border-red-500/50"
-              }`}>
-                <p className="text-lg md:text-xl font-bold text-white">
-                  {answerResult.scorePercentage === 100 
-                    ? "🎯 Perfect!" 
-                    : answerResult.score > 0 
-                      ? `⭐ ${answerResult.score} punten!` 
-                      : "❌ Helaas, geen punten"}
-                </p>
-                <p className="text-sm text-white/60 mt-1">
-                  ✏️ Je kunt je antwoord nog wijzigen
-                </p>
-              </div>
-            )}
           </div>
         )}
 
-        {/* Music guess: show locked confirmation after submit */}
-        {!isLocked && myAnswer !== null && (currentItem.questionType === "MUSIC_GUESS_TITLE" || currentItem.questionType === "MUSIC_GUESS_ARTIST" || currentItem.questionType === "MUSIC_GUESS_YEAR") && (
+        {/* Locked confirmation after submit - shown for ALL question types */}
+        {myAnswer !== null && !showReveal && (
           <div className="mt-4 md:mt-8 w-full">
             <div className="p-4 md:p-5 rounded-xl bg-green-600/30 border border-green-500/50 text-center animate-in fade-in slide-in-from-bottom-2 duration-300">
               <p className="text-base md:text-lg font-bold text-green-300">
                 ✅ Antwoord verzonden!
               </p>
               <p className="text-sm text-green-200/70 mt-1">
-                🔒 Je antwoord is vergrendeld: <span className="font-semibold text-white">{typeof myAnswer === "object" ? JSON.stringify(myAnswer) : String(myAnswer)}</span>
+                🔒 Je antwoord is vergrendeld
               </p>
-              {answerResult && (
-                <p className="text-sm text-white/80 mt-2 font-semibold">
-                  {answerResult.scorePercentage === 100 
-                    ? "🎯 Perfect!" 
-                    : answerResult.score > 0 
-                      ? `⭐ ${answerResult.score} punten (host kan dit aanpassen)`
-                      : "⏳ De host beoordeelt je antwoord"}
-                </p>
-              )}
             </div>
           </div>
         )}

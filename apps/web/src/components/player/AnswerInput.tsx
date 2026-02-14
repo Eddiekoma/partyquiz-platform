@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { QuestionType } from "@partyquiz/shared";
 import { requiresPhotos, getBaseQuestionType } from "@partyquiz/shared";
 
@@ -513,7 +513,7 @@ function MultipleChoiceMultiple({
   );
 }
 
-// Ordering component with drag-and-drop
+// Ordering component with tap-to-select-and-place (mobile-friendly)
 function OrderingInput({
   options,
   onSubmit,
@@ -523,184 +523,94 @@ function OrderingInput({
   onSubmit: (answer: any) => void;
   disabled: boolean;
 }) {
-  const [items, setItems] = useState(options);
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  // Shuffle options on mount for random display order
+  const [items, setItems] = useState<Array<{ id: string; text: string }>>([]);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
 
-  const moveUp = (index: number) => {
-    if (index === 0) return;
-    const newItems = [...items];
-    [newItems[index - 1], newItems[index]] = [newItems[index], newItems[index - 1]];
-    setItems(newItems);
-  };
+  // Fisher-Yates shuffle on initial mount only
+  useEffect(() => {
+    const shuffled = [...options];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    setItems(shuffled);
+  }, []); // Only on mount - options are stable per question
 
-  const moveDown = (index: number) => {
-    if (index === items.length - 1) return;
-    const newItems = [...items];
-    [newItems[index], newItems[index + 1]] = [newItems[index + 1], newItems[index]];
-    setItems(newItems);
-  };
-
-  // Drag & Drop handlers
-  const handleDragStart = (e: React.DragEvent<HTMLDivElement>, index: number) => {
+  const handleTapItem = useCallback((index: number) => {
     if (disabled) return;
-    setDraggedIndex(index);
-    e.dataTransfer.effectAllowed = "move";
-    // Set drag image to be more visible
-    if (e.currentTarget) {
-      e.dataTransfer.setData("text/html", e.currentTarget.innerHTML);
+    
+    if (selectedIndex === null) {
+      // First tap: select this item (highlight it)
+      setSelectedIndex(index);
+    } else if (selectedIndex === index) {
+      // Tap same item: deselect
+      setSelectedIndex(null);
+    } else {
+      // Second tap on different item: swap positions
+      const newItems = [...items];
+      [newItems[selectedIndex], newItems[index]] = [newItems[index], newItems[selectedIndex]];
+      setItems(newItems);
+      setSelectedIndex(null);
     }
-  };
+  }, [disabled, selectedIndex, items]);
 
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>, index: number) => {
-    e.preventDefault();
-    if (disabled || draggedIndex === null) return;
-    e.dataTransfer.dropEffect = "move";
-    setDragOverIndex(index);
-  };
-
-  const handleDragLeave = () => {
-    setDragOverIndex(null);
-  };
-
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>, dropIndex: number) => {
-    e.preventDefault();
-    if (disabled || draggedIndex === null || draggedIndex === dropIndex) {
-      setDraggedIndex(null);
-      setDragOverIndex(null);
-      return;
-    }
-
-    const newItems = [...items];
-    const draggedItem = newItems[draggedIndex];
-    
-    // Remove from old position
-    newItems.splice(draggedIndex, 1);
-    // Insert at new position
-    newItems.splice(dropIndex, 0, draggedItem);
-    
-    setItems(newItems);
-    setDraggedIndex(null);
-    setDragOverIndex(null);
-  };
-
-  const handleDragEnd = () => {
-    setDraggedIndex(null);
-    setDragOverIndex(null);
-  };
-
-  // Touch handlers for mobile (fallback for older browsers)
-  const [touchStartY, setTouchStartY] = useState<number | null>(null);
-  const [touchCurrentY, setTouchCurrentY] = useState<number | null>(null);
-
-  const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>, index: number) => {
-    if (disabled) return;
-    setDraggedIndex(index);
-    setTouchStartY(e.touches[0].clientY);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
-    if (disabled || draggedIndex === null || touchStartY === null) return;
-    setTouchCurrentY(e.touches[0].clientY);
-    
-    // Prevent scrolling while dragging
-    e.preventDefault();
-    
-    // Calculate which item we're over
-    const touch = e.touches[0];
-    const elements = document.elementsFromPoint(touch.clientX, touch.clientY);
-    const orderItem = elements.find(el => el.hasAttribute('data-order-index'));
-    if (orderItem) {
-      const overIndex = parseInt(orderItem.getAttribute('data-order-index') || '0');
-      setDragOverIndex(overIndex);
-    }
-  };
-
-  const handleTouchEnd = () => {
-    if (disabled || draggedIndex === null || dragOverIndex === null || draggedIndex === dragOverIndex) {
-      setDraggedIndex(null);
-      setDragOverIndex(null);
-      setTouchStartY(null);
-      setTouchCurrentY(null);
-      return;
-    }
-
-    const newItems = [...items];
-    const draggedItem = newItems[draggedIndex];
-    
-    // Remove from old position
-    newItems.splice(draggedIndex, 1);
-    // Insert at new position
-    newItems.splice(dragOverIndex, 0, draggedItem);
-    
-    setItems(newItems);
-    setDraggedIndex(null);
-    setDragOverIndex(null);
-    setTouchStartY(null);
-    setTouchCurrentY(null);
-  };
+  if (items.length === 0) return null;
 
   return (
     <div className="space-y-3 md:space-y-4">
-      <p className="text-center text-white/80 font-bold text-sm md:text-base mb-3 md:mb-4">
-        Sleep de items in de goede volgorde (of gebruik de ▲▼ knoppen):
+      <p className="text-center text-white/80 font-bold text-sm md:text-base mb-2">
+        Tik om te selecteren, tik op een andere positie om te verwisselen:
       </p>
+      
+      {/* Selection hint */}
+      {selectedIndex !== null && (
+        <div className="text-center text-purple-300 text-xs animate-pulse mb-1">
+          Tik nu op de positie waar je &quot;{items[selectedIndex]?.text}&quot; wilt plaatsen
+        </div>
+      )}
+      
       <div className="space-y-2">
         {items.map((item, index) => {
-          const isDragging = draggedIndex === index;
-          const isDragOver = dragOverIndex === index && draggedIndex !== index;
+          const isSelected = selectedIndex === index;
+          const isSwapTarget = selectedIndex !== null && selectedIndex !== index;
           
           return (
-            <div
+            <button
               key={item.id}
-              data-order-index={index}
-              draggable={!disabled}
-              onDragStart={(e) => handleDragStart(e, index)}
-              onDragOver={(e) => handleDragOver(e, index)}
-              onDragLeave={handleDragLeave}
-              onDrop={(e) => handleDrop(e, index)}
-              onDragEnd={handleDragEnd}
-              onTouchStart={(e) => handleTouchStart(e, index)}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
-              className={`flex items-center gap-2 bg-slate-800/20 backdrop-blur-sm rounded-xl p-3 md:p-4 transition-all ${
-                isDragging 
-                  ? "opacity-50 scale-95 rotate-2" 
-                  : isDragOver 
-                  ? "border-2 border-purple-500 scale-105 shadow-lg shadow-purple-500/50" 
-                  : "border-2 border-transparent"
-              } ${!disabled ? "cursor-move touch-none" : "cursor-not-allowed"}`}
+              type="button"
+              onClick={() => handleTapItem(index)}
+              disabled={disabled}
+              className={`w-full flex items-center gap-3 rounded-xl p-3 md:p-4 transition-all active:scale-[0.98] ${
+                isSelected
+                  ? "bg-purple-600 ring-4 ring-purple-400 scale-[1.02] shadow-lg shadow-purple-500/40"
+                  : isSwapTarget
+                    ? "bg-slate-700/60 border-2 border-dashed border-purple-400/50 hover:border-purple-400"
+                    : "bg-slate-800/20 backdrop-blur-sm border-2 border-transparent"
+              } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
             >
-              {/* Drag handle icon */}
-              <div className="text-white/50 text-lg select-none flex-shrink-0">
-                ⋮⋮
-              </div>
-              
-              {/* Up/Down buttons (fallback) */}
-              <div className="flex flex-col gap-1 flex-shrink-0">
-                <button
-                  onClick={() => moveUp(index)}
-                  disabled={disabled || index === 0}
-                  className="p-1.5 md:p-2 text-white bg-slate-800/20 rounded hover:bg-slate-800/30 disabled:opacity-30 transition-all min-w-[32px] min-h-[28px]"
-                  type="button"
-                >
-                  ▲
-                </button>
-                <button
-                  onClick={() => moveDown(index)}
-                  disabled={disabled || index === items.length - 1}
-                  className="p-1.5 md:p-2 text-white bg-slate-800/20 rounded hover:bg-slate-800/30 disabled:opacity-30 transition-all min-w-[32px] min-h-[28px]"
-                  type="button"
-                >
-                  ▼
-                </button>
-              </div>
+              {/* Position number */}
+              <span className={`w-8 h-8 rounded-full flex items-center justify-center text-base font-black flex-shrink-0 ${
+                isSelected 
+                  ? "bg-white/30 text-white" 
+                  : "bg-white/10 text-white/70"
+              }`}>
+                {index + 1}
+              </span>
               
               {/* Item text */}
-              <div className="flex-1 font-bold text-white text-sm md:text-base select-none min-w-0 break-words">
-                {index + 1}. {item.text}
-              </div>
-            </div>
+              <span className="flex-1 font-bold text-white text-sm md:text-base text-left min-w-0 break-words">
+                {item.text}
+              </span>
+              
+              {/* Swap indicator */}
+              {isSelected && (
+                <span className="text-white/70 text-lg flex-shrink-0">↕</span>
+              )}
+              {isSwapTarget && (
+                <span className="text-purple-300/70 text-sm flex-shrink-0">↔</span>
+              )}
+            </button>
           );
         })}
       </div>
@@ -710,7 +620,7 @@ function OrderingInput({
         className="w-full py-4 md:py-5 text-lg md:text-xl font-black text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 active:scale-95 transition-all disabled:opacity-50"
         type="button"
       >
-        Submit Order
+        Volgorde indienen
       </button>
     </div>
   );
