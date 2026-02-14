@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-
-const AVATARS = ["🎉", "🎮", "🎵", "🌟", "🔥", "💎", "🚀", "🎪", "🎯", "🎲", "👑", "⚡"];
+import { PlayerAvatar, AvatarPicker, generateRandomAvatar } from "@/components/PlayerAvatar";
 
 interface AvailablePlayer {
   id: string;
@@ -36,9 +35,10 @@ export default function PlayerNamePage() {
   const playerToken = searchParams.get("player"); // Permanent player link
 
   const [name, setName] = useState("");
-  const [selectedAvatar, setSelectedAvatar] = useState(AVATARS[0]);
+  const [selectedAvatar, setSelectedAvatar] = useState(() => generateRandomAvatar());
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [takenAvatars, setTakenAvatars] = useState<string[]>([]);
   
   // Join flow state
   const [mode, setMode] = useState<JoinMode>("loading");
@@ -94,6 +94,14 @@ export default function PlayerNamePage() {
 
       const data: SessionInfo = await res.json();
       setSessionInfo(data);
+
+      // Collect taken avatars so new player gets a unique one
+      const taken = data.players
+        .map(p => p.avatar)
+        .filter((a): a is string => !!a);
+      setTakenAvatars(taken);
+      // Regenerate avatar to avoid conflicts with existing players
+      setSelectedAvatar(generateRandomAvatar(taken));
 
       // 3. Check if this device is already a player (active or left)
       if (data.currentPlayer) {
@@ -260,7 +268,7 @@ export default function PlayerNamePage() {
       <div className="flex-1 flex items-center justify-center p-4">
         <div className="w-full max-w-md">
           <div className="text-center mb-6">
-            <div className="text-5xl mb-2">👤</div>
+            <div className="flex justify-center mb-2"><PlayerAvatar avatar={null} size={56} /></div>
             <h1 className="text-3xl font-black text-white mb-1">Who are you?</h1>
             <p className="text-lg text-white/80">Select your name to continue playing</p>
           </div>
@@ -281,7 +289,7 @@ export default function PlayerNamePage() {
                           : "bg-orange-50 hover:bg-orange-100 border-orange-200"
                       }`}
                     >
-                      <span className="text-3xl">{player.avatar || "👤"}</span>
+                      <PlayerAvatar avatar={player.avatar} size={40} />
                       <div className="flex flex-col items-start">
                         <span className="text-lg font-bold text-gray-900">{player.name}</span>
                         <span className="text-xs text-orange-600">Tap to rejoin</span>
@@ -310,7 +318,7 @@ export default function PlayerNamePage() {
                           : "bg-gray-50 hover:bg-gray-100"
                       }`}
                     >
-                      <span className="text-3xl">{player.avatar || "👤"}</span>
+                      <PlayerAvatar avatar={player.avatar} size={40} />
                       <span className="text-lg font-bold text-gray-900">{player.name}</span>
                       {selectedPlayerId === player.id && (
                         <span className="ml-auto text-purple-600">✓</span>
@@ -353,7 +361,7 @@ export default function PlayerNamePage() {
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-6">
-          <div className="text-5xl mb-2">{selectedAvatar}</div>
+          <div className="flex justify-center mb-2"><PlayerAvatar avatar={selectedAvatar} size={64} /></div>
           <h1 className="text-4xl font-black text-white mb-1">Join Game</h1>
           <p className="text-lg text-white/80">Code: {code.toUpperCase()}</p>
         </div>
@@ -388,24 +396,13 @@ export default function PlayerNamePage() {
             {/* Avatar Selection */}
             <div>
               <label className="block text-sm font-bold text-gray-700 mb-3">
-                Choose your avatar
+                Your avatar
               </label>
-              <div className="grid grid-cols-6 gap-2">
-                {AVATARS.map((avatar) => (
-                  <button
-                    key={avatar}
-                    type="button"
-                    onClick={() => setSelectedAvatar(avatar)}
-                    className={`text-3xl p-2 rounded-xl transition-all ${
-                      selectedAvatar === avatar
-                        ? "bg-purple-100 ring-4 ring-purple-500 scale-110"
-                        : "hover:bg-gray-100"
-                    }`}
-                  >
-                    {avatar}
-                  </button>
-                ))}
-              </div>
+              <AvatarPicker 
+                value={selectedAvatar} 
+                onChange={setSelectedAvatar}
+                takenAvatars={takenAvatars}
+              />
             </div>
 
             {/* Submit Button */}

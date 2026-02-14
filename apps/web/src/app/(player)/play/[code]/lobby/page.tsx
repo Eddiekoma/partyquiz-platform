@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { WSMessageType } from "@partyquiz/shared";
+import { PlayerAvatar } from "@/components/PlayerAvatar";
 
 interface Player {
   id: string;
@@ -251,7 +252,7 @@ export default function LobbyPage() {
           </p>
           
           <div className="bg-white/20 rounded-xl p-4 mb-6">
-            <span className="text-4xl">{recognizedPlayer.avatar || "👤"}</span>
+            <div className="flex justify-center"><PlayerAvatar avatar={recognizedPlayer.avatar} size={56} /></div>
             <div className="text-xl font-bold text-white mt-2">
               {recognizedPlayer.name}
             </div>
@@ -342,7 +343,7 @@ export default function LobbyPage() {
       {myPlayer && (
         <div className="absolute top-4 left-4 z-10">
           <div className="flex items-center gap-3 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full shadow-lg">
-            <span className="text-2xl">{myPlayer.avatar}</span>
+            <PlayerAvatar avatar={myPlayer.avatar} size={32} />
             <span className="font-bold text-white text-lg">{myPlayer.name}</span>
           </div>
         </div>
@@ -408,7 +409,7 @@ export default function LobbyPage() {
                     animation: `slideIn 0.3s ease-out ${index * 0.1}s both`,
                   }}
                 >
-                  <div className="text-3xl">{player.avatar}</div>
+                  <PlayerAvatar avatar={player.avatar} size={40} />
                   <div className="flex-1">
                     <p className="font-bold text-white text-lg">{player.name}</p>
                   </div>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { WSMessageType, SwanChaseGameState } from "@partyquiz/shared";
+import { PlayerAvatar } from "@/components/PlayerAvatar";
 
 interface Player {
   id: string;
@@ -366,7 +367,7 @@ export function SwanChaseConfig({
                 className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg"
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl">{player.avatar || "👤"}</span>
+                  <PlayerAvatar avatar={player.avatar} size={32} />
                   <div>
                     <div className="font-medium text-white">{player.name}</div>
                     <div className="text-xs text-slate-400">

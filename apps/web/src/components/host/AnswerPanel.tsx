@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { QuestionType } from "@partyquiz/shared";
+import { PlayerAvatar } from "@/components/PlayerAvatar";
 
 // Helper to check if a question type needs manual host scoring (fuzzy text match)
 const isOpenTextType = (questionType: string | undefined): boolean => {
@@ -454,7 +455,7 @@ export function AnswerPanel({
                       <tr key={answer.playerId} className="hover:bg-slate-700">
                         <td className="px-4 py-2">
                           <div className="flex items-center gap-2">
-                            <span className="text-lg">{answer.playerAvatar || "👤"}</span>
+                            <PlayerAvatar avatar={answer.playerAvatar} size={24} />
                             <div>
                               <div className="font-medium text-white">{answer.playerName || "(unknown)"}</div>
                               <div className="text-xs text-slate-400 flex items-center gap-2">

@@ -14,6 +14,7 @@ import { AudioBar } from "@/components/host/AudioBar";
 import { createSessionAudio } from "@/lib/sessionAudio";
 import QRCode from "react-qr-code";
 import { SwanChaseConfig } from "@/components/host/SwanChaseConfig";
+import { PlayerAvatar } from "@/components/PlayerAvatar";
 
 interface Player {
   id: string;
@@ -1255,7 +1256,7 @@ export default function HostControlPage() {
                         <span className="text-lg font-bold text-slate-500 w-6">
                           {index + 1}
                         </span>
-                        <span className="text-xl">{player.avatar || "👤"}</span>
+                        <PlayerAvatar avatar={player.avatar} size={28} />
                         <div className="flex-1 min-w-0 overflow-hidden">
                           <p className="font-medium text-sm" title={player.name}>{player.name}</p>
                         </div>
@@ -1310,7 +1311,7 @@ export default function HostControlPage() {
                       key={player.id}
                       className="flex items-center gap-3 bg-slate-800/50 rounded-lg px-3 py-2 group opacity-60 hover:opacity-100 transition-opacity"
                     >
-                      <span className="text-xl grayscale">{player.avatar || "👤"}</span>
+                      <PlayerAvatar avatar={player.avatar} size={28} grayscale />
                       <div className="flex-1 min-w-0 overflow-hidden">
                         <p className="font-medium text-sm text-slate-400" title={player.name}>{player.name}</p>
                       </div>

@@ -11,6 +11,7 @@ import { PhotoGrid } from "@/components/PhotoGrid";
 import { SpotifyWebPlayer } from "@/components/SpotifyWebPlayer";
 import { SpotifyAudioTarget } from "@/components/SpotifyAudioTarget";
 import QRCode from "react-qr-code";
+import { PlayerAvatar } from "@/components/PlayerAvatar";
 
 interface Player {
   id: string;
@@ -655,7 +656,7 @@ export default function DisplayPage() {
                     key={player.id}
                     className="bg-slate-800/50 backdrop-blur rounded-xl p-4 text-center animate-fadeIn"
                   >
-                    <div className="text-3xl mb-2">{player.avatar || "👤"}</div>
+                    <div className="flex justify-center mb-2"><PlayerAvatar avatar={player.avatar} size={40} /></div>
                     <p className="font-medium text-sm truncate">{player.name}</p>
                   </div>
                 ))}
@@ -1028,7 +1029,7 @@ export default function DisplayPage() {
                         <span className="text-4xl font-bold w-16 text-center">
                           {index < 3 ? medals[index] : index + 1}
                         </span>
-                        <span className="text-4xl">{player.avatar || "👤"}</span>
+                        <PlayerAvatar avatar={player.avatar} size={48} />
                         <span className="flex-1 text-2xl font-bold">{player.name}</span>
                         <span 
                           className="text-4xl font-mono font-bold"
@@ -1096,7 +1097,7 @@ export default function DisplayPage() {
                     
                     return (
                       <div key={actualPlayer.id} className="text-center">
-                        <div className="text-6xl mb-4">{actualPlayer.avatar || "👤"}</div>
+                        <div className="flex justify-center mb-4"><PlayerAvatar avatar={actualPlayer.avatar} size={72} /></div>
                         <p className="text-2xl font-bold mb-2">{actualPlayer.name}</p>
                         <p className="text-xl text-slate-400 mb-4">{actualPlayer.score} pts</p>
                         <div 
