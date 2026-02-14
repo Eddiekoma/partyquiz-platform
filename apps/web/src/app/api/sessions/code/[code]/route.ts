@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { generatePresignedDownloadUrl, getPublicUrl } from "@/lib/storage";
 
 // GET /api/sessions/code/[code] - Get session by join code
 export async function GET(
@@ -103,6 +104,48 @@ export async function GET(
       })
     );
 
+    // Resolve media URLs for all questions
+    const quizWithResolvedMedia = {
+      ...session.quiz,
+      rounds: await Promise.all(session.quiz.rounds.map(async (round) => ({
+        ...round,
+        items: await Promise.all(round.items.map(async (item) => ({
+          ...item,
+          question: item.question
+            ? {
+                ...item.question,
+                media: await Promise.all(item.question.media.map(async (m) => {
+                  const ref = m.reference as any;
+                  let resolvedUrl: string | null = null;
+                  if (m.provider === "UPLOAD" && ref?.storageKey) {
+                    try {
+                      resolvedUrl = await generatePresignedDownloadUrl(ref.storageKey, 7200);
+                    } catch {
+                      try {
+                        resolvedUrl = getPublicUrl(ref.storageKey);
+                      } catch {
+                        resolvedUrl = null;
+                      }
+                    }
+                  } else if (m.provider === "YOUTUBE" && ref?.videoId) {
+                    resolvedUrl = `https://www.youtube.com/watch?v=${ref.videoId}`;
+                  } else if (m.provider === "SPOTIFY" && ref?.previewUrl) {
+                    resolvedUrl = ref.previewUrl;
+                  }
+                  return {
+                    ...m,
+                    reference: {
+                      ...ref,
+                      url: ref?.url || resolvedUrl,
+                    },
+                  };
+                })),
+              }
+            : null,
+        }))),
+      }))),
+    };
+
     return NextResponse.json({
       session: {
         id: session.id,
@@ -110,7 +153,7 @@ export async function GET(
         status: session.status,
         workspaceId: session.workspaceId,
         workspace: session.workspace,
-        quiz: session.quiz,
+        quiz: quizWithResolvedMedia,
         host: session.host,
         players: playersWithScores,
         startedAt: session.startedAt,

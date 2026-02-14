@@ -25,6 +25,7 @@ interface CurrentItem {
   questionType: QuestionType;
   prompt: string;
   mediaUrl?: string;
+  media?: Array<{ id: string; url: string; type: string; width?: number | null; height?: number | null; displayOrder: number }>;
   options?: Array<{ id: string; text: string; isCorrect?: boolean }>;
   timerDuration: number;  // in milliseconds
   timerEndsAt?: number;   // absolute timestamp for sync
@@ -161,6 +162,14 @@ export default function GamePage() {
         questionType: data.questionType,
         prompt: data.prompt,
         mediaUrl: data.mediaUrl,
+        media: data.media?.map((m: any, index: number) => ({
+          id: m.id,
+          url: m.url,
+          type: m.mediaType,
+          width: m.metadata?.width || null,
+          height: m.metadata?.height || null,
+          displayOrder: m.displayOrder ?? index,
+        })),
         options: data.options,
         timerDuration: timerMs, // Store in milliseconds
         timerEndsAt: serverTimerEndsAt,
@@ -252,6 +261,7 @@ export default function GamePage() {
           settingsJson: data.questionContext.settingsJson || prev?.settingsJson || {},
           // Preserve timer/media fields from previous state (not relevant for reveal)
           mediaUrl: prev?.mediaUrl,
+          media: prev?.media,
           timerDuration: prev?.timerDuration || 0,
           timerEndsAt: prev?.timerEndsAt,
         }));
@@ -795,6 +805,7 @@ export default function GamePage() {
           questionType={currentItem.questionType}
           prompt={currentItem.prompt}
           mediaUrl={currentItem.mediaUrl}
+          media={currentItem.media}
           settingsJson={currentItem.settingsJson}
         />
 

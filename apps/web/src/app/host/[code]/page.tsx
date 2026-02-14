@@ -3,10 +3,11 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useWebSocket } from "@/hooks/useWebSocket";
-import { WSMessageType, type Player as SharedPlayer, type ConnectionStatus, QuestionType, type SwanChaseGameState } from "@partyquiz/shared";
+import { WSMessageType, type Player as SharedPlayer, type ConnectionStatus, QuestionType, type SwanChaseGameState, requiresPhotos } from "@partyquiz/shared";
 import Link from "next/link";
 import { QuestionTypeBadge, getQuestionTypeIcon } from "@/components/QuestionTypeBadge";
 import { AnswerPanel, type PlayerAnswer } from "@/components/host/AnswerPanel";
+import { PhotoGrid } from "@/components/PhotoGrid";
 import QRCode from "react-qr-code";
 import { SwanChaseConfig } from "@/components/host/SwanChaseConfig";
 
@@ -29,6 +30,14 @@ interface QuizItem {
     prompt: string;
     type: string;
     options?: { id: string; text: string; isCorrect: boolean; order?: number }[];
+    media?: Array<{
+      id: string;
+      provider: string;
+      mediaType: string;
+      reference: any;
+      displayOrder: number;
+      order: number;
+    }>;
   };
   minigameType?: string;
   settingsJson?: any;
@@ -1333,6 +1342,25 @@ export default function HostControlPage() {
                       size="md"
                     />
                   </div>
+                  
+                  {/* Photo Grid for PHOTO_ question types */}
+                  {requiresPhotos(currentItem.question.type as QuestionType) && currentItem.question.media && currentItem.question.media.length > 0 && (
+                    <div className="mb-4">
+                      <PhotoGrid 
+                        photos={currentItem.question.media.map((m, index) => {
+                          const ref = m.reference as any;
+                          return {
+                            id: m.id,
+                            url: ref?.url || ref?.assetUrl || '',
+                            width: ref?.width || null,
+                            height: ref?.height || null,
+                            displayOrder: m.displayOrder ?? index,
+                          };
+                        })}
+                      />
+                    </div>
+                  )}
+
                   <h2 className="text-2xl font-bold mb-4">{currentItem.question.prompt}</h2>
                   
                   {currentItem.question.options && (

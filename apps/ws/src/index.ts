@@ -1,6 +1,8 @@
 // Load environment variables FIRST before any other imports that use them
 import "dotenv/config";
 
+import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Server, Socket } from "socket.io";
 import { createServer } from "http";
 import { pino } from "pino";
@@ -960,6 +962,51 @@ const logger = pino({
 
 const PORT = process.env.WS_PORT || 8080;
 
+// S3 storage config for resolving media URLs (presigned URLs for private buckets)
+const S3_ENDPOINT = process.env.S3_ENDPOINT || "";
+const S3_BUCKET = process.env.S3_BUCKET || "";
+const S3_ACCESS_KEY = process.env.S3_ACCESS_KEY || "";
+const S3_SECRET_KEY = process.env.S3_SECRET_KEY || "";
+const S3_REGION = process.env.S3_REGION || "auto";
+
+// S3 client - only initialize if credentials are available
+const s3Client = S3_ENDPOINT && S3_ACCESS_KEY && S3_SECRET_KEY && S3_BUCKET
+  ? new S3Client({
+      endpoint: S3_ENDPOINT,
+      region: S3_REGION,
+      credentials: {
+        accessKeyId: S3_ACCESS_KEY,
+        secretAccessKey: S3_SECRET_KEY,
+      },
+      forcePathStyle: true, // Required for Hetzner Object Storage & R2
+    })
+  : null;
+
+/**
+ * Generate a presigned download URL for a private S3/R2 object.
+ * URLs expire after 2 hours — safe because:
+ * - Bucket stays private (no public access)
+ * - URLs are cryptographically signed (can't be guessed/forged)
+ * - Time-limited (dead after expiry)
+ * - Only sent to players in the active session via WebSocket
+ */
+async function generatePresignedMediaUrl(storageKey: string, expiresIn: number = 7200): Promise<string | null> {
+  if (!s3Client || !S3_BUCKET || !storageKey) {
+    logger.warn({ storageKey, hasClient: !!s3Client, hasBucket: !!S3_BUCKET }, "Cannot generate presigned URL - S3 not configured");
+    return null;
+  }
+  try {
+    const command = new GetObjectCommand({
+      Bucket: S3_BUCKET,
+      Key: storageKey,
+    });
+    return await getSignedUrl(s3Client, command, { expiresIn });
+  } catch (error) {
+    logger.error({ error, storageKey }, "Failed to generate presigned URL");
+    return null;
+  }
+}
+
 // Create HTTP server - Socket.io will attach its handlers
 const httpServer = createServer();
 
@@ -1864,6 +1911,43 @@ io.on("connection", (socket: Socket) => {
               logger.warn({ playerId }, "No shuffled options in Redis, using DB order");
             }
 
+            // Resolve media URLs (same logic as ITEM_STARTED handler)
+            const mediaItems = await Promise.all(item.question.media.map(async (m) => {
+              const reference = m.reference as any;
+              let url: string | null = null;
+              let previewUrl: string | null = null;
+
+              switch (m.provider) {
+                case "UPLOAD":
+                  url = reference?.url || reference?.assetUrl || null;
+                  if (!url && reference?.storageKey) {
+                    url = await generatePresignedMediaUrl(reference.storageKey);
+                  }
+                  previewUrl = reference?.thumbnailUrl || url;
+                  break;
+                case "SPOTIFY":
+                  url = reference?.previewUrl || null;
+                  previewUrl = reference?.albumArt || reference?.imageUrl || null;
+                  break;
+                case "YOUTUBE":
+                  url = reference?.videoId ? `https://www.youtube.com/watch?v=${reference.videoId}` : null;
+                  previewUrl = reference?.thumbnailUrl || (reference?.videoId ? `https://img.youtube.com/vi/${reference.videoId}/hqdefault.jpg` : null);
+                  break;
+                default:
+                  url = reference?.url || null;
+              }
+
+              return {
+                id: m.id,
+                provider: m.provider,
+                mediaType: m.mediaType,
+                url,
+                previewUrl,
+                metadata: m.metadata,
+                displayOrder: m.displayOrder,
+              };
+            }));
+
             // Calculate timerEndsAt for proper client sync
             const timerEndsAt = itemStartedAt && timerDuration 
               ? parseInt(itemStartedAt) + parseInt(timerDuration) * 1000 
@@ -1876,6 +1960,7 @@ io.on("connection", (socket: Socket) => {
               prompt: item.question.prompt,
               questionType: item.question.type,
               options: optionsToSend,
+              media: mediaItems,
               mediaUrl: item.question.media?.[0]?.reference || null,
               timerDuration: Math.ceil(remainingMs / 1000), // Remaining seconds
               timerEndsAt: timerEndsAt, // Absolute timestamp for accurate sync
@@ -2038,14 +2123,19 @@ io.on("connection", (socket: Socket) => {
           const question = quizItem.question;
           
           // Process media - resolve URLs for different providers
-          const mediaItems = question.media.map((m) => {
+          // Uses presigned URLs for UPLOAD provider (private S3/R2 bucket)
+          const mediaItems = await Promise.all(question.media.map(async (m) => {
             const reference = m.reference as any;
             let url: string | null = null;
             let previewUrl: string | null = null;
 
             switch (m.provider) {
               case "UPLOAD":
+                // Try existing URL first, then generate a presigned URL from storageKey
                 url = reference?.url || reference?.assetUrl || null;
+                if (!url && reference?.storageKey) {
+                  url = await generatePresignedMediaUrl(reference.storageKey);
+                }
                 previewUrl = reference?.thumbnailUrl || url;
                 break;
               case "SPOTIFY":
@@ -2067,8 +2157,9 @@ io.on("connection", (socket: Socket) => {
               url,
               previewUrl,
               metadata: m.metadata,
+              displayOrder: m.displayOrder,
             };
-          });
+          }));
 
           // Prepare options for sending to players
           let optionsToSend = question.options.map((opt) => ({

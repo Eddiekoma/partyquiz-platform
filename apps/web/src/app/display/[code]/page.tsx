@@ -188,6 +188,14 @@ export default function DisplayPage() {
           isCorrect: false, // Hide correct answer on display!
         })),
         mediaUrl: data.mediaUrl,
+        media: data.media?.map((m: any, index: number) => ({
+          id: m.id,
+          url: m.url,
+          type: m.mediaType,
+          width: m.metadata?.width || null,
+          height: m.metadata?.height || null,
+          displayOrder: m.displayOrder ?? index,
+        })),
       });
       setTimeRemaining(data.timerDuration);
       setAnsweredCount(0);
