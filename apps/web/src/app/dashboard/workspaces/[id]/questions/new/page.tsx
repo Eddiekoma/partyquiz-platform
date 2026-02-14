@@ -314,8 +314,8 @@ export default function NewQuestionPage() {
       return;
     }
 
-    // Validate NUMERIC fields - correctAnswer must be > 0 and margin must be >= 0
-    if (selectedType === "NUMERIC" || selectedType === "PHOTO_NUMERIC") {
+    // Validate NUMERIC/SLIDER fields - correctAnswer must be > 0 and margin must be >= 0
+    if (selectedType === "NUMERIC" || selectedType === "PHOTO_NUMERIC" || selectedType === "SLIDER" || selectedType === "PHOTO_SLIDER") {
       if (!estimationAnswer || estimationAnswer <= 0) {
         alert("Please enter a correct answer greater than 0 for numeric questions");
         return;
@@ -335,6 +335,8 @@ export default function NewQuestionPage() {
       switch (selectedType) {
         case "MC_SINGLE":
         case "MC_MULTIPLE":
+        case "PHOTO_MC_SINGLE":
+        case "PHOTO_MC_MULTIPLE":
           questionOptions = options.filter(opt => opt.text.trim() !== "");
           break;
         case "TRUE_FALSE":
@@ -408,6 +410,7 @@ export default function NewQuestionPage() {
           spotifyTrackId: spotifyTrackId || undefined,
           youtubeVideoId: youtubeVideoId || undefined,
           mediaUrl: uploadedAsset?.storageKey || undefined,
+          mediaAssetId: uploadedAsset?.id || undefined,
         }),
       });
 
@@ -566,13 +569,13 @@ export default function NewQuestionPage() {
         </Card>
 
         {/* Type-Specific Fields */}
-        {(selectedType === "MC_SINGLE" || selectedType === "MC_MULTIPLE") && (
+        {(selectedType === "MC_SINGLE" || selectedType === "MC_MULTIPLE" || selectedType === "PHOTO_MC_SINGLE" || selectedType === "PHOTO_MC_MULTIPLE") && (
           <Card className="p-6">
             <label className="block text-sm font-semibold mb-4">Answer Options</label>
             <div className="space-y-3">
               {options.map((option, index) => (
                 <div key={index} className="flex gap-3 items-center">
-                  {selectedType === "MC_SINGLE" ? (
+                  {(selectedType === "MC_SINGLE" || selectedType === "PHOTO_MC_SINGLE") ? (
                     <input
                       type="radio"
                       checked={option.isCorrect}
@@ -620,7 +623,7 @@ export default function NewQuestionPage() {
           </Card>
         )}
 
-        {selectedType === "TRUE_FALSE" && (
+        {(selectedType === "TRUE_FALSE" || selectedType === "PHOTO_TRUE_FALSE") && (
           <Card className="p-6">
             <label className="block text-sm font-semibold mb-4">Correct Answer</label>
             <div className="flex gap-4">
@@ -628,8 +631,8 @@ export default function NewQuestionPage() {
                 onClick={() => setTrueFalseAnswer(true)}
                 className={`flex-1 px-6 py-4 rounded-lg border-2 font-semibold transition-colors ${
                   trueFalseAnswer
-                    ? "border-green-500 bg-green-50 text-green-700"
-                    : "border-slate-600 bg-white text-slate-300 hover:border-slate-500"
+                    ? "border-green-500 bg-green-900/30 text-green-300"
+                    : "border-slate-600 bg-slate-800 text-slate-400 hover:border-slate-500"
                 }`}
               >
                 ✅ True
@@ -638,8 +641,8 @@ export default function NewQuestionPage() {
                 onClick={() => setTrueFalseAnswer(false)}
                 className={`flex-1 px-6 py-4 rounded-lg border-2 font-semibold transition-colors ${
                   !trueFalseAnswer
-                    ? "border-red-500 bg-red-50 text-red-700"
-                    : "border-slate-600 bg-white text-slate-300 hover:border-slate-500"
+                    ? "border-red-500 bg-red-900/30 text-red-300"
+                    : "border-slate-600 bg-slate-800 text-slate-400 hover:border-slate-500"
                 }`}
               >
                 ❌ False
@@ -837,16 +840,16 @@ export default function NewQuestionPage() {
             ) : (
               <div className="border border-slate-700 rounded-lg p-4">
                 <div className="flex items-start gap-4">
-                  {selectedType.startsWith("PHOTO") && (
+                  {selectedType.startsWith("PHOTO") && uploadedAsset.url && (
                     <img 
                       src={uploadedAsset.url} 
                       alt={uploadedAsset.filename}
-                      className="w-32 h-32 object-cover rounded"
+                      className="w-32 h-32 object-contain rounded bg-slate-800"
                     />
                   )}
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-900">{uploadedAsset.filename}</p>
-                    <p className="text-sm text-slate-400 mt-1">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-slate-200 truncate">{uploadedAsset.filename}</p>
+                    <p className="text-sm text-emerald-400 mt-1">
                       {selectedType.startsWith("PHOTO") ? "Image" :
                        selectedType.startsWith("AUDIO") ? "Audio" : "Video"} uploaded successfully
                     </p>

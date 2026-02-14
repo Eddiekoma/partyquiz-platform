@@ -86,42 +86,19 @@ export function UploadButton({
 
       const { uploadUrl, assetId, publicUrl, storageKey } = await uploadResponse.json();
 
-      // Step 2: Upload file to S3 using presigned URL
-      const xhr = new XMLHttpRequest();
-
-      xhr.upload.addEventListener("progress", (e) => {
-        if (e.lengthComputable) {
-          const progress: UploadProgress = {
-            loaded: e.loaded,
-            total: e.total,
-            percentage: Math.round((e.loaded / e.total) * 100),
-          };
-          onUploadProgress?.(progress);
-        }
+      // Step 2: Upload file via server proxy (avoids CORS issues with R2)
+      const proxyRes = await fetch(`/api/uploads/${assetId}/upload`, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
       });
 
-      xhr.addEventListener("load", () => {
-        if (xhr.status === 200) {
+      if (proxyRes.ok) {
           onUploadComplete?.({ assetId, publicUrl, storageKey });
-        } else {
+      } else {
           onUploadError?.("Upload failed");
-        }
-        setUploading(false);
-      });
-
-      xhr.addEventListener("error", () => {
-        onUploadError?.("Upload failed");
-        setUploading(false);
-      });
-
-      xhr.addEventListener("abort", () => {
-        onUploadError?.("Upload cancelled");
-        setUploading(false);
-      });
-
-      xhr.open("PUT", uploadUrl);
-      xhr.setRequestHeader("Content-Type", file.type);
-      xhr.send(file);
+      }
+      setUploading(false);
     } catch (error) {
       console.error("Upload error:", error);
       onUploadError?.(error instanceof Error ? error.message : "Upload failed");
@@ -230,39 +207,20 @@ export function UploadZone({
 
       const { uploadUrl, assetId, publicUrl, storageKey } = await uploadResponse.json();
 
-      const xhr = new XMLHttpRequest();
-
-      xhr.upload.addEventListener("progress", (e) => {
-        if (e.lengthComputable) {
-          const prog: UploadProgress = {
-            loaded: e.loaded,
-            total: e.total,
-            percentage: Math.round((e.loaded / e.total) * 100),
-          };
-          setProgress(prog);
-          onUploadProgress?.(prog);
-        }
+      // Upload file via server proxy (avoids CORS issues with R2)
+      const proxyRes = await fetch(`/api/uploads/${assetId}/upload`, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
       });
 
-      xhr.addEventListener("load", () => {
-        if (xhr.status === 200) {
-          onUploadComplete?.({ assetId, publicUrl, storageKey });
-          setProgress(null);
-        } else {
-          onUploadError?.("Upload failed");
-        }
-        setUploading(false);
-      });
-
-      xhr.addEventListener("error", () => {
-        onUploadError?.("Upload failed");
-        setUploading(false);
+      if (proxyRes.ok) {
+        onUploadComplete?.({ assetId, publicUrl, storageKey });
         setProgress(null);
-      });
-
-      xhr.open("PUT", uploadUrl);
-      xhr.setRequestHeader("Content-Type", file.type);
-      xhr.send(file);
+      } else {
+        onUploadError?.("Upload failed");
+      }
+      setUploading(false);
     } catch (error) {
       console.error("Upload error:", error);
       onUploadError?.(error instanceof Error ? error.message : "Upload failed");

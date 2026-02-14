@@ -53,6 +53,7 @@ interface Question {
   type: QuestionTypeValue;
   title: string;
   prompt: string;
+  explanation?: string | null;
   difficulty: Difficulty;
   status: Status;
   tagsJson: unknown;
@@ -62,13 +63,13 @@ interface Question {
     name: string | null;
     email: string;
   };
-  options?: Array<{
+  options: Array<{
     id: string;
     text: string;
     isCorrect: boolean;
     order: number;
   }>;
-  media?: Array<{
+  media: Array<{
     id: string;
     provider: string;
     mediaType: string;
@@ -594,78 +595,318 @@ export default function QuestionSetDetailPage() {
       ) : (
         <>
           <div className="space-y-3">
-            {questions.map((question) => (
-              <div key={question.id} className="backdrop-blur-xl bg-slate-800/40 border border-slate-700/50 rounded-xl p-4 hover:bg-slate-800/60 transition-all">
-                <div className="flex items-start gap-4">
-                  <div className="flex-shrink-0">
-                    <QuestionTypeBadge type={question.type} size="md" showLabel={false} />
-                  </div>
+            {questions.map((question) => {
+              const tags = Array.isArray(question.tagsJson) 
+                ? question.tagsJson 
+                : typeof question.tagsJson === 'string'
+                  ? JSON.parse(question.tagsJson)
+                  : [];
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-4 mb-2">
-                      <h3 className="font-semibold text-lg text-white">{question.title}</h3>
-                      <div className="flex gap-2 flex-shrink-0">
-                        <Link href={`/dashboard/workspaces/${workspaceId}/questions/${question.id}/edit`}>
-                          <button className="px-3 py-1.5 text-sm bg-slate-700 hover:bg-slate-600 text-slate-200 rounded transition-colors">
-                            Edit
+              // Determine question category for rendering
+              const isPhotoType = question.type.startsWith("PHOTO_");
+              const isAudioType = question.type.startsWith("AUDIO_");
+              const isVideoType = question.type.startsWith("VIDEO_");
+              const isMusicType = question.type.startsWith("MUSIC_");
+              const isYoutubeType = question.type.startsWith("YOUTUBE_");
+              const hasMedia = question.media && question.media.length > 0;
+              const hasOptions = question.options && question.options.length > 0;
+              const baseType = isPhotoType ? question.type.replace("PHOTO_", "") : question.type;
+
+              // Identify MC/order/true-false/open/numeric/slider
+              const isMC = baseType === "MC_SINGLE" || baseType === "MC_MULTIPLE" || question.type === "AUDIO_QUESTION" || question.type === "VIDEO_QUESTION";
+              const isOrder = baseType === "MC_ORDER" || question.type === "ORDER";
+              const isTrueFalse = baseType === "TRUE_FALSE";
+              const isOpenText = baseType === "OPEN_TEXT" || question.type === "AUDIO_OPEN" || question.type === "VIDEO_OPEN";
+              const isNumeric = baseType === "NUMERIC" || question.type === "ESTIMATION";
+              const isSlider = baseType === "SLIDER";
+              const isPoll = question.type === "POLL";
+
+              return (
+                <div key={question.id} className="backdrop-blur-xl bg-slate-800/40 border border-slate-700/50 rounded-xl p-4 hover:bg-slate-800/60 transition-all">
+                  {/* Header row: type badge + title + badges + actions */}
+                  <div className="flex items-start gap-3">
+                    <div className="flex-shrink-0 mt-0.5">
+                      <QuestionTypeBadge type={question.type} size="md" showLabel={false} />
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-2 flex-wrap min-w-0">
+                          <h3 className="font-semibold text-white truncate">{question.title}</h3>
+                          <QuestionTypeBadge type={question.type} size="sm" />
+                          <span className={`px-1.5 py-0.5 text-xs rounded border ${getDifficultyColor(question.difficulty)}`}>
+                            {getDifficultyLabel(question.difficulty)}
+                          </span>
+                          <span className={`px-1.5 py-0.5 text-xs rounded border ${getStatusColor(question.status)}`}>
+                            {question.status}
+                          </span>
+                        </div>
+                        <div className="flex gap-1.5 flex-shrink-0">
+                          <Link href={`/dashboard/workspaces/${workspaceId}/questions/${question.id}/edit`}>
+                            <button className="px-2.5 py-1 text-xs bg-slate-700 hover:bg-slate-600 text-slate-200 rounded transition-colors">
+                              Edit
+                            </button>
+                          </Link>
+                          <button
+                            onClick={() => handleDelete(question.id)}
+                            className="px-2.5 py-1 text-xs bg-red-900/50 hover:bg-red-900/70 text-red-300 rounded transition-colors"
+                          >
+                            Delete
                           </button>
-                        </Link>
-                        <button
-                          onClick={() => handleDelete(question.id)}
-                          className="px-3 py-1.5 text-sm bg-red-900/50 hover:bg-red-900/70 text-red-300 rounded transition-colors"
-                        >
-                          Delete
-                        </button>
+                        </div>
                       </div>
-                    </div>
 
-                    {question.prompt && (
-                      <p className="text-sm text-slate-400 mb-2">{question.prompt}</p>
-                    )}
-
-                    <div className="flex flex-wrap items-center gap-3 text-sm mb-3">
-                      <QuestionTypeBadge type={question.type} size="sm" />
-                      <span className={`px-2 py-1 rounded border ${getDifficultyColor(question.difficulty)}`}>
-                        {getDifficultyLabel(question.difficulty)}
-                      </span>
-                      <span className={`px-2 py-1 rounded border ${getStatusColor(question.status)}`}>
-                        {question.status}
-                      </span>
-                      {question.options && question.options.length > 0 && (
-                        <span className="text-slate-400">📝 {question.options.length} options</span>
+                      {/* Prompt / question text */}
+                      {question.prompt && (
+                        <p className="text-sm text-slate-300 mt-1 line-clamp-2">{question.prompt}</p>
                       )}
-                      {question.media && question.media.length > 0 && (
-                        <span className="text-slate-400">📎 {question.media.length} media</span>
-                      )}
-                    </div>
 
-                    {(() => {
-                      const tags = Array.isArray(question.tagsJson) 
-                        ? question.tagsJson 
-                        : typeof question.tagsJson === 'string'
-                          ? JSON.parse(question.tagsJson)
-                          : [];
-                      return tags.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mb-2">
-                          {tags.map((tag: string) => (
+                      {/* Content area: options/answers + media side by side */}
+                      <div className="flex gap-4 mt-2">
+                        {/* Left: Options / Answer details */}
+                        <div className="flex-1 min-w-0">
+                          {/* MC Single / MC Multiple / Audio Question / Video Question */}
+                          {isMC && hasOptions && (
+                            <div className="grid grid-cols-2 gap-1">
+                              {question.options.map((opt, i) => (
+                                <div
+                                  key={opt.id || i}
+                                  className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs ${
+                                    opt.isCorrect
+                                      ? "bg-emerald-900/40 border border-emerald-700/50 text-emerald-300"
+                                      : "bg-slate-700/40 border border-slate-600/30 text-slate-400"
+                                  }`}
+                                >
+                                  <span className="flex-shrink-0">
+                                    {opt.isCorrect ? "✅" : "○"}
+                                  </span>
+                                  <span className="truncate">{opt.text}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* True/False */}
+                          {isTrueFalse && hasOptions && (
+                            <div className="flex gap-2">
+                              {question.options.map((opt, i) => (
+                                <div
+                                  key={opt.id || i}
+                                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium ${
+                                    opt.isCorrect
+                                      ? "bg-emerald-900/40 border border-emerald-700/50 text-emerald-300"
+                                      : "bg-slate-700/40 border border-slate-600/30 text-slate-500"
+                                  }`}
+                                >
+                                  {opt.isCorrect ? "✅" : "○"} {opt.text}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Put in Order */}
+                          {isOrder && hasOptions && (
+                            <div className="flex flex-col gap-1">
+                              {question.options
+                                .slice()
+                                .sort((a, b) => a.order - b.order)
+                                .map((opt, i) => (
+                                <div
+                                  key={opt.id || i}
+                                  className="flex items-center gap-2 px-2 py-1 rounded text-xs bg-orange-900/20 border border-orange-700/30 text-orange-300"
+                                >
+                                  <span className="flex-shrink-0 w-5 h-5 flex items-center justify-center bg-orange-800/50 rounded text-orange-200 font-bold text-[10px]">
+                                    {i + 1}
+                                  </span>
+                                  <span className="truncate">{opt.text}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Open Text */}
+                          {isOpenText && hasOptions && (
+                            <div className="flex flex-wrap gap-1">
+                              <span className="text-xs text-slate-500 mr-1">Accepted:</span>
+                              {question.options.map((opt, i) => (
+                                <span
+                                  key={opt.id || i}
+                                  className="px-2 py-0.5 rounded text-xs bg-purple-900/30 border border-purple-700/40 text-purple-300"
+                                >
+                                  {opt.text}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Numeric */}
+                          {isNumeric && hasOptions && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-slate-500">Answer:</span>
+                              <span className="px-2 py-0.5 rounded text-xs bg-amber-900/30 border border-amber-700/40 text-amber-300 font-mono font-bold">
+                                {question.options[0]?.text}
+                              </span>
+                              {question.options.length > 1 && (
+                                <span className="text-xs text-slate-500">
+                                  (±{question.options[1]?.text} margin)
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Slider */}
+                          {isSlider && hasOptions && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-slate-500">Answer:</span>
+                              <span className="px-2 py-0.5 rounded text-xs bg-yellow-900/30 border border-yellow-700/40 text-yellow-300 font-mono font-bold">
+                                {question.options[0]?.text}
+                              </span>
+                              <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden max-w-[120px]">
+                                <div className="h-full bg-yellow-500/60 rounded-full" style={{ width: "50%" }} />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Poll */}
+                          {isPoll && hasOptions && (
+                            <div className="grid grid-cols-2 gap-1">
+                              {question.options.map((opt, i) => (
+                                <div
+                                  key={opt.id || i}
+                                  className="flex items-center gap-1.5 px-2 py-1 rounded text-xs bg-slate-700/40 border border-slate-600/30 text-slate-300"
+                                >
+                                  <span className="text-slate-500">📊</span>
+                                  <span className="truncate">{opt.text}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Spotify Music types */}
+                          {isMusicType && hasMedia && (
+                            <div className="flex items-center gap-2">
+                              {question.media.map((m, i) => {
+                                const ref = typeof m.reference === 'string' ? JSON.parse(m.reference) : m.reference;
+                                return (
+                                  <div key={m.id || i} className="flex items-center gap-2 px-2 py-1 rounded text-xs bg-emerald-900/20 border border-emerald-700/30 text-emerald-300">
+                                    <span>🎵</span>
+                                    <span className="truncate">{ref?.title || ref?.trackId || "Spotify Track"}</span>
+                                  </div>
+                                );
+                              })}
+                              {hasOptions && (
+                                <span className="px-2 py-0.5 rounded text-xs bg-emerald-900/30 border border-emerald-700/40 text-emerald-300 font-medium">
+                                  Answer: {question.options.find(o => o.isCorrect)?.text || question.options[0]?.text}
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          {/* YouTube types */}
+                          {isYoutubeType && hasMedia && (
+                            <div className="flex items-center gap-2">
+                              {question.media.map((m, i) => {
+                                const ref = typeof m.reference === 'string' ? JSON.parse(m.reference) : m.reference;
+                                return (
+                                  <div key={m.id || i} className="flex items-center gap-2 px-2 py-1 rounded text-xs bg-red-900/20 border border-red-700/30 text-red-300">
+                                    <span>▶️</span>
+                                    <span className="truncate">{ref?.title || ref?.videoId || "YouTube Video"}</span>
+                                  </div>
+                                );
+                              })}
+                              {hasOptions && (
+                                <span className="px-2 py-0.5 rounded text-xs bg-red-900/30 border border-red-700/40 text-red-300 font-medium">
+                                  Answer: {question.options.find(o => o.isCorrect)?.text || question.options[0]?.text}
+                                </span>
+                              )}
+                            </div>
+                          )}
+
+                          {/* No options at all */}
+                          {!hasOptions && !isMusicType && !isYoutubeType && (
+                            <p className="text-xs text-slate-500 italic">No answer options configured</p>
+                          )}
+                        </div>
+
+                        {/* Right: Media thumbnails (for photo/audio/video types) */}
+                        {hasMedia && !isMusicType && !isYoutubeType && (
+                          <div className="flex-shrink-0 flex gap-1.5">
+                            {question.media.slice(0, 4).map((m, i) => {
+                              const ref = typeof m.reference === 'string' ? JSON.parse(m.reference) : m.reference;
+                              const assetId = ref?.assetId;
+                              
+                              if (m.mediaType === "IMAGE" && assetId) {
+                                return (
+                                  <div key={m.id || i} className="w-14 h-14 rounded-lg overflow-hidden border border-slate-600/50 bg-slate-700/50">
+                                    <img
+                                      src={`/api/uploads/${assetId}/file`}
+                                      alt=""
+                                      className="w-full h-full object-cover"
+                                      onError={(e) => {
+                                        (e.target as HTMLImageElement).style.display = 'none';
+                                        (e.target as HTMLImageElement).parentElement!.innerHTML = '<span class="flex items-center justify-center w-full h-full text-lg">📷</span>';
+                                      }}
+                                    />
+                                  </div>
+                                );
+                              }
+                              if (m.mediaType === "AUDIO") {
+                                return (
+                                  <div key={m.id || i} className="w-14 h-14 rounded-lg border border-cyan-600/50 bg-cyan-900/20 flex items-center justify-center">
+                                    <span className="text-lg">🔊</span>
+                                  </div>
+                                );
+                              }
+                              if (m.mediaType === "VIDEO") {
+                                return (
+                                  <div key={m.id || i} className="w-14 h-14 rounded-lg border border-red-600/50 bg-red-900/20 flex items-center justify-center">
+                                    <span className="text-lg">🎬</span>
+                                  </div>
+                                );
+                              }
+                              return (
+                                <div key={m.id || i} className="w-14 h-14 rounded-lg border border-slate-600/50 bg-slate-700/50 flex items-center justify-center">
+                                  <span className="text-lg">📎</span>
+                                </div>
+                              );
+                            })}
+                            {question.media.length > 4 && (
+                              <div className="w-14 h-14 rounded-lg border border-slate-600/50 bg-slate-700/50 flex items-center justify-center">
+                                <span className="text-xs text-slate-400">+{question.media.length - 4}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Explanation */}
+                      {question.explanation && (
+                        <p className="text-xs text-slate-500 mt-1.5 italic line-clamp-1">
+                          💡 {question.explanation}
+                        </p>
+                      )}
+
+                      {/* Footer: tags + creator */}
+                      <div className="flex items-center justify-between mt-2">
+                        <div className="flex flex-wrap gap-1.5">
+                          {tags.length > 0 && tags.map((tag: string) => (
                             <span
                               key={tag}
-                              className="px-2 py-1 text-xs bg-slate-700 text-slate-300 rounded"
+                              className="px-1.5 py-0.5 text-[10px] bg-slate-700/60 text-slate-400 rounded"
                             >
                               #{tag}
                             </span>
                           ))}
                         </div>
-                      );
-                    })()}
-
-                    <div className="text-xs text-slate-500">
-                      Created by {question.creator.name || question.creator.email}
+                        <span className="text-[10px] text-slate-500 flex-shrink-0">
+                          {question.creator.name || question.creator.email}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {totalPages > 1 && (

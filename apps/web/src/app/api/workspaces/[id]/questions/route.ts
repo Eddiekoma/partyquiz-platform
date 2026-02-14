@@ -24,6 +24,7 @@ const createQuestionSchema = z.object({
   spotifyTrackId: z.string().optional(),
   youtubeVideoId: z.string().optional(),
   mediaUrl: z.string().optional(),
+  mediaAssetId: z.string().optional(),
 });
 
 export async function GET(
@@ -194,7 +195,7 @@ export async function POST(
       mediaEntries.push({
         provider: "UPLOAD",
         mediaType,
-        reference: { storageKey: data.mediaUrl },
+        reference: { storageKey: data.mediaUrl, assetId: data.mediaAssetId || null },
         order: mediaEntries.length,
       });
     }

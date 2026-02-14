@@ -58,8 +58,8 @@ export function FileUploader({
 
       const { assetId, uploadUrl, storageKey } = await presignRes.json();
 
-      // Step 2: Upload directly to S3
-      const uploadRes = await fetch(uploadUrl, {
+      // Step 2: Upload via server proxy (avoids CORS issues with R2/S3)
+      const uploadRes = await fetch(`/api/uploads/${assetId}/upload`, {
         method: "PUT",
         headers: {
           "Content-Type": file.type,
@@ -68,7 +68,8 @@ export function FileUploader({
       });
 
       if (!uploadRes.ok) {
-        throw new Error("Failed to upload file to storage");
+        const uploadError = await uploadRes.json().catch(() => ({}));
+        throw new Error(uploadError.error || "Failed to upload file to storage");
       }
 
       setProgress(75);
@@ -89,7 +90,7 @@ export function FileUploader({
       // Success!
       onUploadComplete({
         ...asset,
-        url: uploadUrl.split("?")[0], // Remove query params for display
+        url: `/api/uploads/${assetId}/file`,
       });
     } catch (error: any) {
       console.error("Upload error:", error);

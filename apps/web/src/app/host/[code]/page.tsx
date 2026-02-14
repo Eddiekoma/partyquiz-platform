@@ -1335,7 +1335,11 @@ export default function HostControlPage() {
                   </div>
                   <h2 className="text-2xl font-bold mb-4">{currentItem.question.prompt}</h2>
                   
-                  {currentItem.question.options && currentItem.question.type === "ORDER" ? (
+                  {currentItem.question.options && (
+                    currentItem.question.type === "ORDER" || 
+                    currentItem.question.type === "MC_ORDER" || 
+                    currentItem.question.type === "PHOTO_MC_ORDER"
+                  ) ? (
                     /* ORDER: Show numbered list in correct order */
                     <div className="space-y-2">
                       <p className="text-sm text-slate-400 mb-3">Correcte volgorde:</p>
@@ -1489,7 +1493,7 @@ export default function HostControlPage() {
                             text: opt.text,
                             isCorrect: opt.isCorrect,
                           }))}
-                          correctOrder={currentItem.question?.type === "ORDER" || currentItem.question?.type === "MC_ORDER"
+                          correctOrder={currentItem.question?.type === "ORDER" || currentItem.question?.type === "MC_ORDER" || currentItem.question?.type === "PHOTO_MC_ORDER"
                             ? currentItem.question?.options
                               ?.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
                               .map((opt, idx) => ({

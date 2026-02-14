@@ -27,8 +27,10 @@ export function AnswerInput({
   };
 
   // Multiple Choice Question - MC_SINGLE (single answer) or MC_MULTIPLE (multiple answers)
-  if (questionType === "MC_SINGLE" || questionType === "MC_MULTIPLE") {
-    const isMultiple = settingsJson?.allowMultiple || questionType === "MC_MULTIPLE";
+  // PHOTO_MC_SINGLE / PHOTO_MC_MULTIPLE work identically — just with photos displayed above
+  if (questionType === "MC_SINGLE" || questionType === "MC_MULTIPLE" ||
+      questionType === "PHOTO_MC_SINGLE" || questionType === "PHOTO_MC_MULTIPLE") {
+    const isMultiple = settingsJson?.allowMultiple || questionType === "MC_MULTIPLE" || questionType === "PHOTO_MC_MULTIPLE";
 
     if (isMultiple) {
       return (
@@ -71,7 +73,8 @@ export function AnswerInput({
   }
 
   // True/False - Select first, then submit
-  if (questionType === "TRUE_FALSE") {
+  // PHOTO_TRUE_FALSE works identically — just with photos displayed above
+  if (questionType === "TRUE_FALSE" || questionType === "PHOTO_TRUE_FALSE") {
     return (
       <div className="space-y-3 md:space-y-4">
         <div className="grid grid-cols-2 gap-3 md:gap-4">
@@ -109,8 +112,8 @@ export function AnswerInput({
     );
   }
 
-  // Open Text Question - OPEN_TEXT
-  if (questionType === "OPEN_TEXT") {
+  // Open Text Question - OPEN_TEXT, PHOTO_OPEN_TEXT
+  if (questionType === "OPEN_TEXT" || questionType === "PHOTO_OPEN_TEXT") {
     return (
       <div className="space-y-3 md:space-y-4">
         <input
