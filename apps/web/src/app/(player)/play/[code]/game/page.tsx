@@ -839,10 +839,34 @@ export default function GamePage() {
               onSubmit={handleSubmitAnswer}
               disabled={isLocked}
             />
-            {myAnswer !== null && (
-              <p className="text-center text-white/50 text-xs md:text-sm mt-2">
-                ✏️ You can change your answer until time runs out
-              </p>
+            {/* Show inline submit confirmation right below input */}
+            {myAnswer !== null && !answerResult && (
+              <div className="mt-3 p-3 md:p-4 rounded-xl bg-green-600/30 border border-green-500/50 text-center animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <p className="text-base md:text-lg font-bold text-green-300">
+                  ✅ Antwoord verzonden!
+                </p>
+                <p className="text-sm text-green-200/70 mt-1">
+                  ✏️ Je kunt je antwoord wijzigen tot de tijd om is
+                </p>
+              </div>
+            )}
+            {myAnswer !== null && answerResult && (
+              <div className={`mt-3 p-3 md:p-4 rounded-xl text-center animate-in fade-in duration-300 ${
+                answerResult.score > 0 
+                  ? "bg-green-600/30 border border-green-500/50" 
+                  : "bg-red-600/30 border border-red-500/50"
+              }`}>
+                <p className="text-lg md:text-xl font-bold text-white">
+                  {answerResult.scorePercentage === 100 
+                    ? "🎯 Perfect!" 
+                    : answerResult.score > 0 
+                      ? `⭐ ${answerResult.score} punten!` 
+                      : "❌ Helaas, geen punten"}
+                </p>
+                <p className="text-sm text-white/60 mt-1">
+                  ✏️ Je kunt je antwoord nog wijzigen
+                </p>
+              </div>
             )}
           </div>
         )}

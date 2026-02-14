@@ -219,7 +219,6 @@ export const itemStartedEventSchema = z.object({
   // Media-specific fields
   spotify: z.object({
     trackId: z.string(),
-    previewUrl: z.string().nullable(),
     albumArt: z.string().nullable(),
     startMs: z.number().default(0),
     durationMs: z.number().default(30000),

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { UploadZone } from "@/components/ui/Upload";
 import { FileUploader } from "@/components/media/FileUploader";
+import { SpotifyTrackSelector } from "@/components/SpotifyTrackSelector";
 import { parseTimestamp, formatTimestamp, QuestionType, normalizeQuestionType, requiresPhotos, getMaxPhotos } from "@partyquiz/shared";
 import { ScoringInfoCard } from "@/components/ScoringInfoCard";
 import Image from "next/image";
@@ -78,6 +79,9 @@ export default function EditQuestionPage() {
 
   // Spotify/YouTube
   const [spotifyTrackId, setSpotifyTrackId] = useState<string | null>(null);
+  const [spotifyTrack, setSpotifyTrack] = useState<any>(null);
+  const [audioStartMs, setAudioStartMs] = useState<number>(0);
+  const [audioDurationMs, setAudioDurationMs] = useState<number>(30000);
   const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>(null);
   const [youtubeStartTime, setYoutubeStartTime] = useState<string>("0:00");
   const [youtubeEndTime, setYoutubeEndTime] = useState<string>("");
@@ -168,6 +172,32 @@ export default function EditQuestionPage() {
 
       setSpotifyTrackId(question.spotifyTrackId);
       setYoutubeVideoId(question.youtubeVideoId);
+
+      // Load Spotify track data from media
+      if (question.spotifyTrackId && question.media) {
+        const spotifyMedia = question.media.find((m: any) => m.provider === "SPOTIFY");
+        if (spotifyMedia) {
+          const ref = spotifyMedia.reference as any;
+          const meta = spotifyMedia.metadata as any;
+          // Reconstruct a track-like object for SpotifyTrackSelector
+          setSpotifyTrack({
+            id: question.spotifyTrackId,
+            name: ref?.trackName || "",
+            artists: meta?.artists
+              ? meta.artists.map((name: string) => ({ name }))
+              : ref?.artistName
+              ? [{ name: ref.artistName }]
+              : [],
+            album: {
+              name: meta?.albumName || "",
+              release_date: meta?.releaseDate || "",
+              images: ref?.albumArt ? [{ url: ref.albumArt }] : [],
+            },
+          });
+          if (meta?.startMs !== undefined) setAudioStartMs(meta.startMs);
+          if (meta?.durationMs !== undefined) setAudioDurationMs(meta.durationMs);
+        }
+      }
       
       // Load YouTube timestamps from settingsJson
       if (question.settingsJson) {
@@ -416,6 +446,23 @@ export default function EditQuestionPage() {
             });
           }
           break;
+        case QuestionType.MUSIC_GUESS_TITLE:
+          if (spotifyTrack) {
+            questionOptions = [{ text: spotifyTrack.name, isCorrect: true, order: 0 }];
+          }
+          break;
+        case QuestionType.MUSIC_GUESS_ARTIST:
+          if (spotifyTrack) {
+            const artistName = spotifyTrack.artists?.[0]?.name || "";
+            questionOptions = [{ text: artistName, isCorrect: true, order: 1 }]; // order=1 means fuzzy match
+          }
+          break;
+        case QuestionType.MUSIC_GUESS_YEAR:
+          if (spotifyTrack && spotifyTrack.album?.release_date) {
+            const releaseYear = new Date(spotifyTrack.album.release_date).getFullYear();
+            questionOptions = [{ text: String(releaseYear), isCorrect: true, order: 2 }]; // order=2 means ±2 year margin
+          }
+          break;
       }
 
       const response = await fetch(`/api/workspaces/${workspaceId}/questions/${questionId}`, {
@@ -431,6 +478,16 @@ export default function EditQuestionPage() {
           tags,
           options: questionOptions,
           spotifyTrackId: spotifyTrackId || undefined,
+          spotifyTrackData: spotifyTrack ? {
+            name: spotifyTrack.name,
+            artists: spotifyTrack.artists.map((a: any) => a.name),
+            albumName: spotifyTrack.album?.name,
+            albumArt: spotifyTrack.album?.images?.[0]?.url || null,
+            releaseDate: spotifyTrack.album?.release_date,
+            releaseYear: spotifyTrack.album?.release_date ? new Date(spotifyTrack.album.release_date).getFullYear() : undefined,
+            startMs: audioStartMs > 0 ? audioStartMs : undefined,
+            durationMs: audioDurationMs !== 30000 ? audioDurationMs : undefined,
+          } : undefined,
           youtubeVideoId: youtubeVideoId || undefined,
           settingsJson: 
             selectedType === "YOUTUBE_SCENE_QUESTION" ||
@@ -970,17 +1027,127 @@ export default function EditQuestionPage() {
           selectedType === QuestionType.MUSIC_GUESS_ARTIST || 
           selectedType === QuestionType.MUSIC_GUESS_YEAR) && (
           <Card className="p-6">
-            <label className="block text-sm font-semibold mb-4">Spotify Track</label>
-            <div className="space-y-3">
-              <Input
-                value={spotifyTrackId || ""}
-                onChange={(e) => setSpotifyTrackId(e.target.value || null)}
-                placeholder="Enter Spotify Track ID (e.g., 3n3Ppam7vgaVa1iaRUc9Lp)"
-              />
-              <p className="text-sm text-slate-400">
-                You can find the Track ID in the Spotify share URL. Full Spotify integration coming soon!
-              </p>
-            </div>
+            <label className="block text-sm font-semibold mb-4">🎵 Spotify Track Selection</label>
+            <SpotifyTrackSelector
+              selectedTrack={spotifyTrack}
+              onSelect={(track) => {
+                setSpotifyTrack(track);
+                setSpotifyTrackId(track.id);
+                // Reset fragment when selecting new track
+                setAudioStartMs(0);
+                setAudioDurationMs(30000);
+              }}
+            />
+
+            {/* Fragment Selector - only show when track is selected */}
+            {spotifyTrack && (
+              <div className="mt-6 border-t border-slate-700 pt-6">
+                <label className="block text-sm font-semibold mb-3">✂️ Audio Fragment</label>
+                <p className="text-sm text-slate-400 mb-4">
+                  Choose which part of the track to play. Default is first 30 seconds.
+                </p>
+
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Start time</label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={Math.max(0, (spotifyTrack.duration_ms || 30000) - audioDurationMs)}
+                        step={1000}
+                        value={audioStartMs}
+                        onChange={(e) => setAudioStartMs(Math.max(0, Number(e.target.value)))}
+                        className="w-24"
+                      />
+                      <span className="text-sm text-slate-400">ms</span>
+                      <span className="text-xs text-slate-500 ml-2">
+                        ({Math.floor(audioStartMs / 1000)}s)
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1">Duration</label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={5000}
+                        max={Math.min(30000, (spotifyTrack.duration_ms || 30000) - audioStartMs)}
+                        step={1000}
+                        value={audioDurationMs}
+                        onChange={(e) => setAudioDurationMs(Math.max(5000, Math.min(30000, Number(e.target.value))))}
+                        className="w-24"
+                      />
+                      <span className="text-sm text-slate-400">ms</span>
+                      <span className="text-xs text-slate-500 ml-2">
+                        ({Math.floor(audioDurationMs / 1000)}s)
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Visual timeline slider */}
+                <div className="mb-4">
+                  <div className="flex justify-between text-xs text-slate-400 mb-1">
+                    <span>0:00</span>
+                    <span className="font-medium text-green-400">
+                      Playing: {Math.floor(audioStartMs / 1000)}s – {Math.floor((audioStartMs + audioDurationMs) / 1000)}s
+                    </span>
+                    <span>
+                      {spotifyTrack.duration_ms 
+                        ? `${Math.floor(spotifyTrack.duration_ms / 60000)}:${String(Math.floor((spotifyTrack.duration_ms % 60000) / 1000)).padStart(2, '0')}`
+                        : '0:30'}
+                    </span>
+                  </div>
+                  <div className="relative h-3 bg-slate-700 rounded-full overflow-hidden">
+                    <div 
+                      className="absolute h-full bg-green-500 rounded-full"
+                      style={{
+                        left: `${(audioStartMs / (spotifyTrack.duration_ms || 30000)) * 100}%`,
+                        width: `${(audioDurationMs / (spotifyTrack.duration_ms || 30000)) * 100}%`,
+                      }}
+                    />
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={Math.max(0, (spotifyTrack.duration_ms || 30000) - audioDurationMs)}
+                    step={1000}
+                    value={audioStartMs}
+                    onChange={(e) => setAudioStartMs(Number(e.target.value))}
+                    className="w-full mt-1 accent-green-500"
+                  />
+                </div>
+
+                {/* Quick presets */}
+                <div className="flex gap-2 flex-wrap">
+                  <span className="text-xs text-slate-500 self-center mr-1">Presets:</span>
+                  {[
+                    { label: "First 10s", start: 0, dur: 10000 },
+                    { label: "First 15s", start: 0, dur: 15000 },
+                    { label: "First 30s", start: 0, dur: 30000 },
+                    { label: "Middle 15s", start: Math.floor((spotifyTrack.duration_ms || 30000) / 2) - 7500, dur: 15000 },
+                    { label: "Chorus (~30s in)", start: 30000, dur: 15000 },
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => {
+                        setAudioStartMs(Math.max(0, preset.start));
+                        setAudioDurationMs(preset.dur);
+                      }}
+                      className={`px-3 py-1 text-xs rounded-full border transition-colors ${
+                        audioStartMs === Math.max(0, preset.start) && audioDurationMs === preset.dur
+                          ? 'bg-green-900/30 border-green-500 text-green-400'
+                          : 'bg-slate-800 border-slate-600 text-slate-400 hover:bg-green-900/20 hover:border-green-600'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </Card>
         )}
 

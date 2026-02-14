@@ -6,7 +6,6 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui";
 export function SpotifyConnectCard() {
   const [loading, setLoading] = useState(true);
   const [connected, setConnected] = useState(false);
-  const [connectUrl, setConnectUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -16,11 +15,8 @@ export function SpotifyConnectCard() {
   const checkSpotifyConnection = async () => {
     try {
       setLoading(true);
-      // Check if user has Spotify tokens
       const response = await fetch("/api/auth/session");
       const session = await response.json();
-      
-      // User is considered connected if they have spotifyConnected flag
       setConnected(!!session?.user?.spotifyConnected);
     } catch (error) {
       console.error("Failed to check Spotify connection:", error);
@@ -31,7 +27,6 @@ export function SpotifyConnectCard() {
   };
 
   const handleConnect = () => {
-    // Redirect to Spotify OAuth flow
     window.location.href = "/api/spotify/auth";
   };
 
@@ -42,10 +37,12 @@ export function SpotifyConnectCard() {
 
     try {
       setLoading(true);
-      // In a real implementation, this would call an API to clear Spotify tokens
-      // For now, we'll just show a message
-      alert("To disconnect Spotify, please contact support or clear tokens manually.");
-      // TODO: Implement /api/spotify/disconnect endpoint
+      setError(null);
+      const response = await fetch("/api/spotify/disconnect", { method: "POST" });
+      if (!response.ok) {
+        throw new Error("Failed to disconnect");
+      }
+      setConnected(false);
     } catch (error) {
       console.error("Failed to disconnect:", error);
       setError("Failed to disconnect Spotify");
@@ -62,7 +59,7 @@ export function SpotifyConnectCard() {
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center py-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500"></div>
           </div>
         </CardContent>
       </Card>
@@ -77,18 +74,18 @@ export function SpotifyConnectCard() {
       <CardContent>
         {connected ? (
           <div className="space-y-4">
-            <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+            <div className="flex items-center gap-2 p-3 bg-green-900/30 border border-green-700/50 rounded-lg">
               <span className="text-2xl">✓</span>
               <div>
-                <p className="font-semibold text-green-800">Connected to Spotify</p>
-                <p className="text-sm text-green-700">
+                <p className="font-semibold text-green-400">Connected to Spotify</p>
+                <p className="text-sm text-green-300/80">
                   You can now search for tracks and use music questions
                 </p>
               </div>
             </div>
             <button
               onClick={handleDisconnect}
-              className="px-4 py-2 text-sm text-red-600 border border-red-300 rounded-lg hover:bg-red-50 transition-colors"
+              className="px-4 py-2 text-sm text-red-400 border border-red-700/50 rounded-lg hover:bg-red-900/30 transition-colors"
             >
               Disconnect Spotify
             </button>
@@ -98,13 +95,13 @@ export function SpotifyConnectCard() {
             <p className="text-slate-400">
               Connect your Spotify account to search for tracks and create music-based questions.
             </p>
-            <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-start gap-2 p-3 bg-slate-700/30 border border-slate-600/50 rounded-lg">
               <span className="text-lg">ℹ️</span>
-              <div className="text-sm text-blue-800">
+              <div className="text-sm text-slate-300">
                 <p className="font-semibold mb-1">What you can do with Spotify:</p>
-                <ul className="list-disc list-inside space-y-1">
+                <ul className="list-disc list-inside space-y-1 text-slate-400">
                   <li>Search millions of tracks</li>
-                  <li>Create "Guess the Song" questions</li>
+                  <li>Create &quot;Guess the Song&quot; questions</li>
                   <li>Use 30-second track previews</li>
                   <li>Add album artwork to questions</li>
                 </ul>
@@ -118,7 +115,7 @@ export function SpotifyConnectCard() {
               Connect Spotify
             </button>
             {error && (
-              <p className="text-sm text-red-600">
+              <p className="text-sm text-red-400">
                 {error}
               </p>
             )}

@@ -129,8 +129,9 @@ export async function GET(
                     }
                   } else if (m.provider === "YOUTUBE" && ref?.videoId) {
                     resolvedUrl = `https://www.youtube.com/watch?v=${ref.videoId}`;
-                  } else if (m.provider === "SPOTIFY" && ref?.previewUrl) {
-                    resolvedUrl = ref.previewUrl;
+                  } else if (m.provider === "SPOTIFY" && ref?.trackId) {
+                    // Spotify uses Web Playback SDK, no URL needed — trackId is sufficient
+                    resolvedUrl = null;
                   }
                   return {
                     ...m,

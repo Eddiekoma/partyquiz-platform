@@ -1,8 +1,71 @@
 # 🎵 Spotify Quiz Integration - Complete Implementation Plan
 
-> **Version:** 2.0 (Final)  
-> **Date:** February 13, 2026  
-> **Status:** Ready for Implementation
+> **Version:** 3.1 (SDK Improvements)  
+> **Date:** February 14, 2026  
+> **Status:** Partially Implemented
+
+---
+
+## 🆕 Implementation Status (Latest)
+
+### ✅ Completed
+
+| Feature | File(s) | Notes |
+|---------|---------|-------|
+| **OAuth PKCE flow** | `auth/route.ts`, `callback/route.ts` | 10 scopes incl. `user-top-read`, `user-read-recently-played` |
+| **Shared Spotify helper** | `lib/spotify.ts` | `getSpotifyToken()`, `spotifyFetch()`, `requireAuth()` — DRY token mgmt |
+| **Search** (tracks + albums) | `search/route.ts` | Supports `type=track,album,playlist`, uses shared helper |
+| **Track details** | `track/[id]/route.ts` | Refactored to use `spotifyFetch` |
+| **Album tracks** | `albums/[id]/tracks/route.ts` | Refactored to use `spotifyFetch` |
+| **User's playlists** | `playlists/route.ts` | Lists all playlists (50 per page) |
+| **Playlist tracks** | `playlists/[id]/tracks/route.ts` | Get tracks from any playlist |
+| **Top tracks** | `me/top-tracks/route.ts` | `time_range`: short/medium/long term |
+| **Saved tracks** | `me/saved-tracks/route.ts` | Paginated liked songs |
+| **Playback control** | `play/route.ts` | Play/pause/resume via Spotify Connect, uses shared helper |
+| **Token for SDK** | `token/route.ts` | Returns access token for Web Playback SDK, uses shared helper |
+| **Disconnect** | `disconnect/route.ts` | Remove Spotify tokens |
+| **SpotifyTrackSelector** | `components/SpotifyTrackSelector.tsx` | **4-tab interface**: 🔍 Zoeken, 📂 Afspeellijsten, ⭐ Top Tracks, 💚 Opgeslagen |
+| **SpotifyWebPlayer** | `components/SpotifyWebPlayer.tsx` | SDK-only, full event handling, mobile support, Media Session API |
+| **preview_url cleanup** | All files | Fully removed — Spotify deprecated preview_url |
+
+### Scopes
+
+```
+user-read-email user-read-private user-library-read streaming
+user-modify-playback-state user-read-playback-state
+playlist-read-private playlist-read-collaborative
+user-top-read user-read-recently-played
+```
+
+### SpotifyTrackSelector Tabs
+
+1. **🔍 Zoeken** — Search tracks + albums, click album → browse tracks
+2. **📂 Afspeellijsten** — Browse your Spotify playlists → click to see tracks
+3. **⭐ Top Tracks** — Your most-played tracks (4 weeks / 6 months / all time)
+4. **💚 Opgeslagen** — Your liked/saved songs with "load more" pagination
+
+### Architecture Note
+
+All Spotify API routes use `lib/spotify.ts` for token management. No more duplicated
+`refreshAccessToken` + `prisma.user.update` boilerplate in individual routes.
+
+### SpotifyWebPlayer SDK Details (v3.1)
+
+Based on official [Web Playback SDK Reference](https://developer.spotify.com/documentation/web-playback-sdk/reference):
+
+- **`enableMediaSession: true`** — Native browser media controls (play/pause in notification area)
+- **`getOAuthToken`** — Always fetches fresh token (SDK calls this on connect + every 60 min)
+- **`activateElement()`** — Called on user interaction for mobile autoplay support (iOS/Safari)
+- **Full typed interfaces** — `WebPlaybackState`, `WebPlaybackTrack`, all SDK methods typed
+- **All SDK events handled:**
+  - `ready` / `not_ready` — Device connection state
+  - `player_state_changed` — Playback state with proper end-of-track detection
+  - `autoplay_failed` — Mobile browser autoplay blocked (graceful fallback)
+  - `initialization_error` / `authentication_error` / `account_error` / `playback_error`
+- **Quiz playback props:**
+  - `startPositionMs` — Start playback from specific position (quiz fragments)
+  - `playDurationMs` — Auto-pause after N milliseconds (timed quiz rounds)
+- **End detection fix** — Tracks `wasPlayingRef` state to distinguish track-end from initial load
 
 ---
 
@@ -33,8 +96,8 @@ Implement Spotify-powered music quiz questions for PartyQuiz, enabling pub quiz 
 | Principle | Decision |
 |-----------|----------|
 | **Primary Playback** | Spotify Web Playback SDK on Display device |
-| **Fallback** | Spotify Connect to external speaker |
-| **Preview URLs** | Treat as "nice-to-have", not core dependency |
+| **Fallback** | Spotify deep link (open in Spotify app) |
+| **Preview URLs** | ~~Deprecated since late 2024~~ — removed from codebase |
 | **Account Model** | 1 Spotify Premium account = 1 active stream |
 | **Device Setup** | Display runs on real Chrome (mini-PC/laptop via HDMI) |
 
@@ -284,13 +347,12 @@ export interface SpotifyTrackConfig {
   releaseYear: number;
   isrc?: string;                // International Standard Recording Code
   
+  // NOTE: preview_url is deprecated since late 2024 — returns null for all tracks
+  // Playback uses Spotify Web Playback SDK (requires Premium)
+  
   // Fragment settings
   startPositionMs: number;      // Where to start playback (0 = beginning)
   playDurationMs: number;       // How long to play (5000-30000)
-  
-  // Preview availability (NOT guaranteed!)
-  previewUrl: string | null;    // 30s preview URL (often null)
-  previewAvailable: boolean;    // false = show warning in builder
   
   // Playback behavior overrides
   stopMode?: 'pause' | 'fade';  // Override session default
@@ -373,7 +435,7 @@ export interface SessionAudioSettings {
 export interface AudioDeviceCapabilities {
   webPlaybackSDK: boolean;      // Can use Spotify Web Playback SDK
   spotifyConnect: boolean;      // Can receive Spotify Connect
-  previewPlayback: boolean;     // Can play preview URLs (HTML5 Audio)
+  previewPlayback: boolean;     // DEPRECATED: preview_url no longer works (late 2024)
   browserName: string;          // Chrome, Firefox, Safari, etc.
   browserVersion: string;
   platform: string;             // Windows, macOS, Linux, Android, etc.
@@ -1874,30 +1936,12 @@ async function checkActiveDevice() {
 }
 ```
 
-### 12.5 Preview Fallback (When SDK Fails)
+### 12.5 Preview Fallback — REMOVED
 
-```typescript
-// If Web Playback SDK fails, fall back to preview URL
-function playWithFallback(track: SpotifyTrackConfig) {
-  if (sdkReady && playbackStrategy === 'SDK_DEVICE') {
-    playWithSDK(track);
-  } else if (track.previewUrl && playbackStrategy !== 'SDK_DEVICE') {
-    playPreview(track.previewUrl, track.startPositionMs, track.playDurationMs);
-  } else {
-    showError('Unable to play audio. Check device connection.');
-  }
-}
-
-function playPreview(url: string, startMs: number, durationMs: number) {
-  const audio = new Audio(url);
-  audio.currentTime = startMs / 1000;
-  audio.play();
-  
-  setTimeout(() => {
-    fadeOutAudio(audio, 500);
-  }, durationMs - 500);
-}
-```
+> **Note:** Spotify deprecated `preview_url` in late 2024. It returns `null` for virtually all tracks.
+> The preview fallback code has been removed from the codebase.
+> All playback now uses the Spotify Web Playback SDK (requires Premium).
+> For non-Premium users, a "Open in Spotify" deep link is shown as fallback.
 
 ---
 
@@ -1944,7 +1988,7 @@ apps/
 │       │           └── BuzzerButton.tsx         # NEW
 │       ├── components/
 │       │   ├── SpotifyTrackSelector.tsx    # Enhanced
-│       │   ├── SpotifyPlayer.tsx           # Enhanced
+│       │   ├── SpotifyWebPlayer.tsx         # SDK-based player (replaced SpotifyPlayer.tsx)
 │       │   └── builder/
 │       │       ├── MusicQuestionBuilder.tsx    # NEW
 │       │       └── MusicFragmentSelector.tsx   # NEW
@@ -2015,10 +2059,9 @@ apps/
 
 1. **Spotify Premium Required:** Web Playback SDK requires Premium account
 2. **One Stream Per Account:** Cannot play on multiple devices simultaneously
-3. **Preview URLs Unreliable:** Many tracks return `null` for preview_url
+3. **Preview URLs Deprecated:** Spotify deprecated `preview_url` in late 2024 — returns `null` for all tracks. Removed from codebase.
 4. **TV Browser Support:** Smart TV browsers often don't support Web Playback SDK
 5. **Lyrics Not Available:** Spotify API doesn't provide lyrics
-6. **30-Second Previews:** Preview clips are always 30 seconds, starting point not controllable
 
 ---
 

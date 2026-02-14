@@ -153,7 +153,6 @@ export interface SpotifyTrack {
     images: Array<{ url: string; height: number; width: number }>;
     release_date: string; // YYYY-MM-DD
   };
-  preview_url: string | null; // 30s MP3 preview
   duration_ms: number;
   uri: string; // spotify:track:xxx
   external_urls: {

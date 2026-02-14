@@ -1,117 +1,65 @@
 /**
- * Spotify Search API - Search for tracks, artists, albums
+ * Spotify Search API - Search for tracks, artists, albums, playlists
  * Requires authenticated user with valid Spotify token
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { refreshAccessToken, type SpotifyTrack } from "@partyquiz/shared";
-
-const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID!;
+import { spotifyFetch, requireAuth } from "@/lib/spotify";
 
 /**
- * GET /api/spotify/search?q=query&type=track&limit=20
+ * GET /api/spotify/search?q=query&type=track,album,playlist&limit=20
+ * type can be comma-separated: track, artist, album, playlist
  */
 export async function GET(request: NextRequest) {
   try {
-    // Authenticate user
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Get user's Spotify tokens
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: {
-        spotifyAccessToken: true,
-        spotifyRefreshToken: true,
-        spotifyTokenExpiry: true,
-      },
-    });
-
-    if (!user?.spotifyAccessToken) {
-      return NextResponse.json(
-        { error: "Spotify not connected. Please authenticate first." },
-        { status: 403 }
-      );
-    }
-
-    // Check if token is expired and refresh if needed
-    let accessToken = user.spotifyAccessToken;
-    if (user.spotifyTokenExpiry && new Date() >= user.spotifyTokenExpiry) {
-      if (!user.spotifyRefreshToken) {
-        return NextResponse.json(
-          { error: "Spotify token expired. Please reconnect." },
-          { status: 403 }
-        );
-      }
-
-      // Refresh token
-      const tokenResponse = await refreshAccessToken({
-        clientId: SPOTIFY_CLIENT_ID,
-        refreshToken: user.spotifyRefreshToken,
-      });
-
-      accessToken = tokenResponse.access_token;
-
-      // Update stored tokens
-      await prisma.user.update({
-        where: { id: session.user.id },
-        data: {
-          spotifyAccessToken: accessToken,
-          spotifyTokenExpiry: new Date(Date.now() + tokenResponse.expires_in * 1000),
-          // Spotify may return new refresh token on refresh
-          ...(tokenResponse.refresh_token && {
-            spotifyRefreshToken: tokenResponse.refresh_token,
-          }),
-        },
-      });
-    }
+    const authResult = await requireAuth();
+    if ("error" in authResult) return authResult.error;
 
     // Get search parameters
     const searchParams = request.nextUrl.searchParams;
     const query = searchParams.get("q");
-    const type = searchParams.get("type") || "track"; // track, artist, album
-    const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 50);
-    const offset = parseInt(searchParams.get("offset") || "0");
+    const type = searchParams.get("type") || "track,album"; // Default: tracks + albums
+    // Spotify Search API: Default: 5, Range: 0-10 (as of 2026)
+    const limitParsed = parseInt(searchParams.get("limit") || "5");
+    const limit = Number.isNaN(limitParsed) ? 5 : Math.min(Math.max(limitParsed, 1), 10);
+    const offsetParsed = parseInt(searchParams.get("offset") || "0");
+    const offset = Number.isNaN(offsetParsed) ? 0 : Math.max(offsetParsed, 0);
 
     if (!query) {
       return NextResponse.json({ error: "Missing query parameter" }, { status: 400 });
     }
 
-    // Call Spotify Web API
-    const spotifyUrl = new URL("https://api.spotify.com/v1/search");
-    spotifyUrl.searchParams.set("q", query);
-    spotifyUrl.searchParams.set("type", type);
-    spotifyUrl.searchParams.set("limit", limit.toString());
-    spotifyUrl.searchParams.set("offset", offset.toString());
-    spotifyUrl.searchParams.set("market", "NL"); // Limit to Dutch market
-
-    const response = await fetch(spotifyUrl.toString(), {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      console.error("Spotify API error:", error);
+    // Validate types
+    const validTypes = ["track", "artist", "album", "playlist"];
+    const requestedTypes = type.split(",").map((t) => t.trim());
+    const invalidTypes = requestedTypes.filter((t) => !validTypes.includes(t));
+    if (invalidTypes.length > 0) {
       return NextResponse.json(
-        { error: "Spotify API error", details: error },
-        { status: response.status }
+        { error: `Invalid type(s): ${invalidTypes.join(", ")}. Valid: ${validTypes.join(", ")}` },
+        { status: 400 }
       );
     }
 
-    const data = await response.json();
+    const spotifyUrl = `/search?q=${encodeURIComponent(query)}&type=${type}&limit=${limit}&offset=${offset}&market=NL`;
+
+    const result = await spotifyFetch<Record<string, any>>(spotifyUrl);
+
+    if ("error" in result) return result.error;
+
+    const data = result.data;
 
     // Return results (formatted for frontend)
     return NextResponse.json({
       tracks: data.tracks?.items || [],
       artists: data.artists?.items || [],
       albums: data.albums?.items || [],
-      total: data.tracks?.total || 0,
+      playlists: data.playlists?.items || [],
+      total: {
+        tracks: data.tracks?.total || 0,
+        artists: data.artists?.total || 0,
+        albums: data.albums?.total || 0,
+        playlists: data.playlists?.total || 0,
+      },
       limit,
       offset,
     });

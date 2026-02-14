@@ -3,7 +3,6 @@ import { requiresPhotos } from "@partyquiz/shared";
 import { YouTubePlayer } from "../YouTubePlayer";
 import { QuestionTypeBadge } from "../QuestionTypeBadge";
 import { PhotoGrid } from "../PhotoGrid";
-import { SpotifyPlayer } from "../SpotifyPlayer";
 
 interface QuestionMedia {
   id: string;
@@ -65,21 +64,40 @@ function renderMedia(
   mediaUrl: string,
   settingsJson?: any
 ) {
-  // Spotify music question types - use SpotifyPlayer
+  // Spotify music question types - show listening indicator (audio plays on display screen)
   if (
     questionType === "MUSIC_GUESS_TITLE" ||
     questionType === "MUSIC_GUESS_ARTIST" ||
     questionType === "MUSIC_GUESS_YEAR"
   ) {
     return (
-      <div className="max-w-2xl mx-auto">
-        <SpotifyPlayer
-          trackId=""
-          previewUrl={mediaUrl}
-          albumArt={null}
-          title={undefined}
-          artist={undefined}
-        />
+      <div className="max-w-2xl mx-auto text-center">
+        {/* Animated equalizer bars */}
+        <div className="flex items-end justify-center gap-1.5 mb-3 h-12">
+          {[...Array(8)].map((_, i) => (
+            <div
+              key={i}
+              className="w-2 bg-gradient-to-t from-green-500 to-green-300 rounded-full"
+              style={{
+                animation: `playerEqualizer 0.7s ease-in-out infinite alternate`,
+                animationDelay: `${i * 0.09}s`,
+                height: "10px",
+              }}
+            />
+          ))}
+        </div>
+        <style>{`
+          @keyframes playerEqualizer {
+            0% { height: 6px; }
+            100% { height: 40px; }
+          }
+        `}</style>
+        <p className="text-lg font-bold text-white mb-1">🎧 Listen to the screen!</p>
+        <p className="text-sm text-white/50">
+          {questionType === "MUSIC_GUESS_TITLE" ? "Guess the song title" :
+           questionType === "MUSIC_GUESS_ARTIST" ? "Guess the artist" :
+           "Guess the release year"}
+        </p>
       </div>
     );
   }

@@ -4,92 +4,23 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { refreshAccessToken } from "@partyquiz/shared";
-
-const SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID!;
+import { spotifyFetch } from "@/lib/spotify";
 
 /**
  * GET /api/spotify/track/[id]
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{  id: string}> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const trackId = (await params).id;
 
-    // Authenticate user
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const result = await spotifyFetch<any>(`/tracks/${trackId}?market=NL`);
+    if ("error" in result) return result.error;
 
-    // Get user's Spotify tokens
-    const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
-      select: {
-        spotifyAccessToken: true,
-        spotifyRefreshToken: true,
-        spotifyTokenExpiry: true,
-      },
-    });
+    const track = result.data;
 
-    if (!user?.spotifyAccessToken) {
-      return NextResponse.json(
-        { error: "Spotify not connected" },
-        { status: 403 }
-      );
-    }
-
-    // Check and refresh token if needed
-    let accessToken = user.spotifyAccessToken;
-    if (user.spotifyTokenExpiry && new Date() >= user.spotifyTokenExpiry) {
-      if (!user.spotifyRefreshToken) {
-        return NextResponse.json(
-          { error: "Spotify token expired" },
-          { status: 403 }
-        );
-      }
-
-      const tokenResponse = await refreshAccessToken({
-        clientId: SPOTIFY_CLIENT_ID,
-        refreshToken: user.spotifyRefreshToken,
-      });
-
-      accessToken = tokenResponse.access_token;
-
-      await prisma.user.update({
-        where: { id: session.user.id },
-        data: {
-          spotifyAccessToken: accessToken,
-          spotifyTokenExpiry: new Date(Date.now() + tokenResponse.expires_in * 1000),
-        },
-      });
-    }
-
-    // Fetch track details from Spotify
-    const response = await fetch(
-      `https://api.spotify.com/v1/tracks/${trackId}?market=NL`,
-      {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      }
-    );
-
-    if (!response.ok) {
-      const error = await response.json();
-      return NextResponse.json(
-        { error: "Failed to fetch track", details: error },
-        { status: response.status }
-      );
-    }
-
-    const track = await response.json();
-
-    // Return formatted track data
     return NextResponse.json({
       id: track.id,
       name: track.name,
@@ -100,7 +31,6 @@ export async function GET(
         images: track.album.images,
         release_date: track.album.release_date,
       },
-      preview_url: track.preview_url,
       duration_ms: track.duration_ms,
       uri: track.uri,
       external_urls: track.external_urls,

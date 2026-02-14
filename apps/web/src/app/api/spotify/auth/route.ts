@@ -17,9 +17,18 @@ const SPOTIFY_REDIRECT_URI = process.env.SPOTIFY_REDIRECT_URI ||
 
 // Required Spotify scopes for our features
 const SPOTIFY_SCOPES = [
-  "user-read-email", // Get user email
-  "user-read-private", // Get user profile
-  "user-library-read", // Access saved tracks (optional)
+  "user-read-email",            // Get user email
+  "user-read-private",          // Get user profile & subscription type
+  "user-library-read",          // Access saved tracks/albums
+  "streaming",                  // Web Playback SDK - play full tracks in browser (Premium required)
+  "user-modify-playback-state", // Start/pause/skip playback via API
+  "user-read-playback-state",   // Read current playback state & devices
+  "user-read-currently-playing",// Read currently playing track & queue
+  "playlist-read-private",      // Access user's private playlists (for track browsing)
+  "playlist-read-collaborative",// Access collaborative playlists
+  "user-top-read",              // Access user's top artists and tracks
+  "user-read-recently-played",  // Access recently played tracks
+  "user-follow-read",           // Access followed artists
 ];
 
 export async function GET(request: NextRequest) {

@@ -113,7 +113,21 @@ export function SpotifyPlayer({
     };
 
     const handleError = () => {
-      const errorMsg = "Failed to load audio preview";
+      const audioError = audio.error;
+      let errorMsg = "Failed to load audio preview";
+      if (audioError) {
+        switch (audioError.code) {
+          case MediaError.MEDIA_ERR_NETWORK:
+            errorMsg = "Network error - check your connection";
+            break;
+          case MediaError.MEDIA_ERR_DECODE:
+            errorMsg = "Audio format not supported";
+            break;
+          case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+            errorMsg = "Preview not available for this track";
+            break;
+        }
+      }
       setError(errorMsg);
       setIsLoading(false);
       onError?.(errorMsg);
@@ -135,6 +149,16 @@ export function SpotifyPlayer({
       audio.removeEventListener("error", handleError);
     };
   }, [autoplay, startMs, endTimeSeconds, onPlay, onEnd, onError]);
+
+  // Auto-stop when autoplay prop changes to false (e.g. reveal phase)
+  const prevAutoplayRef = useRef(autoplay);
+  useEffect(() => {
+    if (prevAutoplayRef.current && !autoplay) {
+      // autoplay went from true → false, pause the audio
+      audioRef.current?.pause();
+    }
+    prevAutoplayRef.current = autoplay;
+  }, [autoplay]);
 
   const togglePlay = useCallback(() => {
     const audio = audioRef.current;
@@ -234,7 +258,21 @@ export function SpotifyPlayer({
           )}
 
           {error ? (
-            <p className="text-sm text-red-400 mt-2">{error}</p>
+            <div className="mt-2">
+              <p className="text-sm text-red-400">{error}</p>
+              <button
+                onClick={() => {
+                  setError(null);
+                  setIsLoading(true);
+                  if (audioRef.current) {
+                    audioRef.current.load();
+                  }
+                }}
+                className="text-xs text-green-400 hover:text-green-300 mt-1 underline"
+              >
+                Retry
+              </button>
+            </div>
           ) : (
             <>
               {/* Progress Bar */}

@@ -8,7 +8,7 @@ import { SwanRace } from "@/components/SwanRace";
 import { SwanChaseDisplay } from "@/components/SwanChaseDisplay";
 import { QuestionTypeBadge } from "@/components/QuestionTypeBadge";
 import { PhotoGrid } from "@/components/PhotoGrid";
-import { SpotifyPlayer } from "@/components/SpotifyPlayer";
+import { SpotifyWebPlayer } from "@/components/SpotifyWebPlayer";
 import QRCode from "react-qr-code";
 
 interface Player {
@@ -36,10 +36,11 @@ interface CurrentQuestion {
   media?: QuestionMedia[];
   spotify?: {
     trackId: string;
-    previewUrl: string | null;
     albumArt: string | null;
     trackName?: string | null;
     artistName?: string | null;
+    startMs?: number;
+    durationMs?: number;
   };
 }
 
@@ -190,22 +191,22 @@ export default function DisplayPage() {
       
       // Extract Spotify data from media entries
       const spotifyMedia = data.media?.find((m: any) => m.provider === "SPOTIFY");
-      const spotifyData = spotifyMedia ? {
+      // Prefer explicit spotify object (has trackName, artistName, releaseYear)
+      // Fall back to media entry fields for URLs
+      const spotifyData = data.spotify ? {
+        trackId: data.spotify.trackId || spotifyMedia?.metadata?.trackId || "",
+        albumArt: data.spotify.albumArt || spotifyMedia?.previewUrl || null,
+        trackName: data.spotify.trackName || spotifyMedia?.metadata?.trackName || null,
+        artistName: data.spotify.artistName || spotifyMedia?.metadata?.artistName || null,
+        startMs: data.spotify.startMs ?? spotifyMedia?.metadata?.startMs ?? 0,
+        durationMs: data.spotify.durationMs ?? spotifyMedia?.metadata?.durationMs ?? 30000,
+      } : spotifyMedia ? {
         trackId: spotifyMedia.metadata?.trackId || "",
-        previewUrl: spotifyMedia.url || null,
-        albumArt: spotifyMedia.previewUrl || null, // previewUrl in media = albumArt for SPOTIFY
+        albumArt: spotifyMedia.previewUrl || null,
         trackName: spotifyMedia.metadata?.trackName || null,
         artistName: spotifyMedia.metadata?.artistName || null,
-        startMs: spotifyMedia.metadata?.startMs ?? data.spotify?.startMs ?? 0,
-        durationMs: spotifyMedia.metadata?.durationMs ?? data.spotify?.durationMs ?? 30000,
-      } : data.spotify ? {
-        trackId: data.spotify.trackId || "",
-        previewUrl: data.spotify.previewUrl || null,
-        albumArt: data.spotify.albumArt || null,
-        trackName: data.spotify.trackName || null,
-        artistName: data.spotify.artistName || null,
-        startMs: data.spotify.startMs ?? 0,
-        durationMs: data.spotify.durationMs ?? 30000,
+        startMs: spotifyMedia.metadata?.startMs ?? 0,
+        durationMs: spotifyMedia.metadata?.durationMs ?? 30000,
       } : undefined;
       
       setCurrentQuestion({
@@ -741,26 +742,18 @@ export default function DisplayPage() {
               currentQuestion.type === "MUSIC_GUESS_ARTIST" ||
               currentQuestion.type === "MUSIC_GUESS_YEAR") && (
               <div className="py-6">
-                {/* Spotify Player */}
-                {currentQuestion.spotify?.previewUrl || currentQuestion.mediaUrl ? (
-                  <div className="max-w-2xl mx-auto">
-                    <SpotifyPlayer
-                      trackId={currentQuestion.spotify?.trackId || ""}
-                      previewUrl={currentQuestion.spotify?.previewUrl || currentQuestion.mediaUrl || ""}
-                      albumArt={displayState === "reveal" ? (currentQuestion.spotify?.albumArt || undefined) : undefined}
-                      title={displayState === "reveal" ? (currentQuestion.spotify?.trackName || undefined) : undefined}
-                      artist={displayState === "reveal" ? (currentQuestion.spotify?.artistName || undefined) : undefined}
-                      startMs={currentQuestion.spotify?.startMs}
-                      durationMs={currentQuestion.spotify?.durationMs}
-                      autoplay={displayState === "question"}
-                    />
-                  </div>
-                ) : (
-                  <div className="text-center">
-                    <div className="text-6xl mb-4">🎵</div>
-                    <p className="text-xl text-white/60">Audio loading...</p>
-                  </div>
-                )}
+                {/* Spotify Web Player - plays full tracks via SDK, falls back gracefully */}
+                <div className="max-w-2xl mx-auto">
+                  <SpotifyWebPlayer
+                    trackId={currentQuestion.spotify?.trackId || ""}
+                    albumArt={displayState === "reveal" ? (currentQuestion.spotify?.albumArt || undefined) : undefined}
+                    title={displayState === "reveal" ? (currentQuestion.spotify?.trackName || undefined) : undefined}
+                    artist={displayState === "reveal" ? (currentQuestion.spotify?.artistName || undefined) : undefined}
+                    autoplay={displayState === "question" || displayState === "locked"}
+                    startPositionMs={currentQuestion.spotify?.startMs || 0}
+                    playDurationMs={currentQuestion.spotify?.durationMs}
+                  />
+                </div>
                 
                 {/* Listening visual - during question phase */}
                 {displayState === "question" && (
@@ -796,12 +789,6 @@ export default function DisplayPage() {
                         />
                       ))}
                     </div>
-                    <style jsx>{`
-                      @keyframes equalizer {
-                        0% { height: 8px; }
-                        100% { height: ${40 + Math.random() * 24}px; }
-                      }
-                    `}</style>
                     
                     <p className="text-2xl font-bold text-white mb-2">
                       🎧 {currentQuestion.type === "MUSIC_GUESS_TITLE" ? "Guess the Song!" :
@@ -824,12 +811,6 @@ export default function DisplayPage() {
                       />
                       <div className="absolute -inset-1 bg-gradient-to-r from-green-400 via-blue-500 to-purple-600 rounded-2xl opacity-30 blur-xl -z-10" />
                     </div>
-                    <style jsx>{`
-                      @keyframes albumReveal {
-                        0% { filter: blur(20px) brightness(0.5); transform: scale(0.9); }
-                        100% { filter: blur(0px) brightness(1); transform: scale(1); }
-                      }
-                    `}</style>
                     {currentQuestion.spotify.trackName && (
                       <p className="text-3xl font-black text-white mt-2">{currentQuestion.spotify.trackName}</p>
                     )}
@@ -1118,6 +1099,14 @@ export default function DisplayPage() {
         }
         .animate-fadeIn {
           animation: fadeIn 0.3s ease-out forwards;
+        }
+        @keyframes equalizer {
+          0% { height: 8px; }
+          100% { height: 48px; }
+        }
+        @keyframes albumReveal {
+          0% { filter: blur(20px) brightness(0.5); transform: scale(0.9); }
+          100% { filter: blur(0px) brightness(1); transform: scale(1); }
         }
       `}</style>
     </div>

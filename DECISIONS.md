@@ -400,24 +400,16 @@ if (user.spotifyTokenExpiry && new Date() >= user.spotifyTokenExpiry) {
 
 **6. Playback Strategy:**
 
-**MVP (Simple - IMPLEMENTED):**
-- Store track ID + 30s preview URL
-- Player shows "Open in Spotify" button
-- Host controls playback manually
-- Works without Premium account
+**Spotify Web Playback SDK (IMPLEMENTED):**
+- Store track ID + album art (preview_url is deprecated since late 2024)
+- Uses Spotify Web Playback SDK for full track playback in browser
+- Requires Spotify Premium account
+- Falls back to "Open in Spotify" deep link for non-Premium users
+- SpotifyWebPlayer component handles SDK initialization + device registration
 
-**Future (Advanced - TODO):**
-- Spotify Web Playback SDK
-- Browser-based auto-play
-- Requires Premium account
-- Better UX but more complex
-
-**Rationale for MVP approach:**
-1. **Simpler** - No Premium account required
-2. **Faster to build** - Less complexity
-3. **Works for most use cases** - Host has Spotify open anyway
-4. **Can upgrade later** - PKCE tokens support SDK
-5. **30s preview** - Sufficient for MUSIC_GUESS_YEAR questions
+**Note:** Spotify deprecated `preview_url` in late 2024 — it returns `null` for virtually all tracks.
+The old `SpotifyPlayer` component (HTML5 Audio with preview URLs) has been removed.
+All playback now goes through `SpotifyWebPlayer` using the Web Playback SDK.
 
 **Security Measures:**
 - ✅ Client secret NOT needed (PKCE flow)
@@ -439,7 +431,8 @@ if (user.spotifyTokenExpiry && new Date() >= user.spotifyTokenExpiry) {
 - [ ] Token refresh after expiry
 - [ ] Search API with various queries
 - [ ] Track details API
-- [ ] Preview URL playback
+- [x] ~~Preview URL playback~~ (deprecated by Spotify, removed)
+- [ ] Web Playback SDK full track playback
 - [ ] MUSIC_GUESS_YEAR question type with Spotify tracks
 
 **Alternatives Considered:**

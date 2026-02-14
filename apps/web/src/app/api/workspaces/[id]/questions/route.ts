@@ -27,7 +27,6 @@ const createQuestionSchema = z.object({
     artists: z.array(z.string()),
     albumName: z.string(),
     albumArt: z.string().nullable(),
-    previewUrl: z.string().nullable(),
     releaseDate: z.string(),
     releaseYear: z.number(),
     startMs: z.number().optional(),
@@ -190,7 +189,6 @@ export async function POST(
         mediaType: "AUDIO",
         reference: {
           trackId: data.spotifyTrackId,
-          previewUrl: data.spotifyTrackData?.previewUrl || null,
           albumArt: data.spotifyTrackData?.albumArt || null,
           trackName: data.spotifyTrackData?.name || null,
           artistName: data.spotifyTrackData?.artists?.join(", ") || null,

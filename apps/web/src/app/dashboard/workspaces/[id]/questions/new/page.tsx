@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { SpotifyTrackSelector } from "@/components/SpotifyTrackSelector";
-import { SpotifyPlayer } from "@/components/SpotifyPlayer";
 import { FileUploader } from "@/components/media/FileUploader";
 import { ScoringInfoCard } from "@/components/ScoringInfoCard";
 import { requiresPhotos, getMaxPhotos, QuestionType } from "@partyquiz/shared";
@@ -75,9 +74,9 @@ const QUESTION_TYPES: { value: QuestionTypeValue; label: string; description: st
   { value: "VIDEO_QUESTION", label: "Video Question", description: "Multiple choice with video" },
   { value: "VIDEO_OPEN", label: "Video Open", description: "Open answer with video" },
   // === SPOTIFY MUSIC (3) ===
-  { value: "MUSIC_GUESS_TITLE", label: "Guess the Song", description: "Guess song title from Spotify preview" },
-  { value: "MUSIC_GUESS_ARTIST", label: "Guess the Artist", description: "Guess artist from Spotify preview" },
-  { value: "MUSIC_GUESS_YEAR", label: "Guess the Year", description: "Guess release year from Spotify preview" },
+  { value: "MUSIC_GUESS_TITLE", label: "Guess the Song", description: "Guess the song title from a Spotify track" },
+  { value: "MUSIC_GUESS_ARTIST", label: "Guess the Artist", description: "Guess the artist from a Spotify track" },
+  { value: "MUSIC_GUESS_YEAR", label: "Guess the Year", description: "Guess the release year from a Spotify track" },
   // === YOUTUBE VIDEOS (3) ===
   { value: "YOUTUBE_SCENE_QUESTION", label: "Video Scene", description: "Question about a YouTube video scene" },
   { value: "YOUTUBE_NEXT_LINE", label: "Next Line", description: "Guess the next line in a YouTube video" },
@@ -463,7 +462,6 @@ export default function NewQuestionPage() {
             artists: spotifyTrack.artists.map((a: any) => a.name),
             albumName: spotifyTrack.album.name,
             albumArt: spotifyTrack.album.images?.[0]?.url || null,
-            previewUrl: spotifyTrack.preview_url || null,
             releaseDate: spotifyTrack.album.release_date,
             releaseYear: new Date(spotifyTrack.album.release_date).getFullYear(),
             startMs: audioStartMs > 0 ? audioStartMs : undefined,
@@ -1097,22 +1095,6 @@ export default function NewQuestionPage() {
                     </button>
                   ))}
                 </div>
-
-                {/* Preview player */}
-                {spotifyTrack.preview_url && (
-                  <div className="mt-4 p-3 bg-slate-50 rounded-lg border border-slate-200">
-                    <p className="text-xs text-slate-500 mb-2">🔊 Preview with selected fragment:</p>
-                    <SpotifyPlayer
-                      trackId={spotifyTrackId}
-                      previewUrl={spotifyTrack.preview_url}
-                      title={spotifyTrack.name}
-                      artist={spotifyTrack.artists.map((a: any) => a.name).join(", ")}
-                      albumArt={spotifyTrack.album.images?.[0]?.url}
-                      startMs={audioStartMs}
-                      durationMs={audioDurationMs}
-                    />
-                  </div>
-                )}
               </div>
             )}
           </Card>

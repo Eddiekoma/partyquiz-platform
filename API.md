@@ -971,7 +971,6 @@ Search Spotify tracks.
       "album": "A Night at the Opera",
       "releaseDate": "1975-10-31",
       "durationMs": 354000,
-      "previewUrl": "https://p.scdn.co/...",
       "albumArt": "https://i.scdn.co/image/..."
     }
   ]

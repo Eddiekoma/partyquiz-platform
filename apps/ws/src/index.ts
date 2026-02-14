@@ -1926,7 +1926,9 @@ io.on("connection", (socket: Socket) => {
                   previewUrl = reference?.thumbnailUrl || url;
                   break;
                 case "SPOTIFY":
-                  url = reference?.previewUrl || null;
+                  // Spotify preview_url is deprecated (returns null since late 2024)
+                  // Playback is handled client-side via Spotify Web Playback SDK
+                  url = null;
                   previewUrl = reference?.albumArt || reference?.imageUrl || null;
                   break;
                 case "YOUTUBE":
@@ -2139,7 +2141,9 @@ io.on("connection", (socket: Socket) => {
                 previewUrl = reference?.thumbnailUrl || url;
                 break;
               case "SPOTIFY":
-                url = reference?.previewUrl || null;
+                // Spotify preview_url is deprecated (returns null since late 2024)
+                // Playback is handled client-side via Spotify Web Playback SDK
+                url = null;
                 previewUrl = reference?.albumArt || reference?.imageUrl || null;
                 break;
               case "YOUTUBE":
@@ -2200,8 +2204,10 @@ io.on("connection", (socket: Socket) => {
             ...(mediaItems[0]?.provider === "SPOTIFY" ? {
               spotify: {
                 trackId: (question.media[0]?.reference as any)?.trackId || "",
-                previewUrl: mediaItems[0]?.url || null,
-                albumArt: mediaItems[0]?.previewUrl || null,
+                albumArt: (question.media[0]?.reference as any)?.albumArt || mediaItems[0]?.previewUrl || null,
+                trackName: (question.media[0]?.reference as any)?.trackName || null,
+                artistName: (question.media[0]?.reference as any)?.artistName || null,
+                releaseYear: (question.media[0]?.reference as any)?.releaseYear || null,
                 startMs: (question.media[0]?.metadata as any)?.startMs ?? 0,
                 durationMs: (question.media[0]?.metadata as any)?.durationMs ?? 30000,
               },

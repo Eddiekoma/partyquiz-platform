@@ -8,7 +8,7 @@ import Link from "next/link";
 import { QuestionTypeBadge, getQuestionTypeIcon } from "@/components/QuestionTypeBadge";
 import { AnswerPanel, type PlayerAnswer } from "@/components/host/AnswerPanel";
 import { PhotoGrid } from "@/components/PhotoGrid";
-import { SpotifyPlayer } from "@/components/SpotifyPlayer";
+import { SpotifyWebPlayer } from "@/components/SpotifyWebPlayer";
 import QRCode from "react-qr-code";
 import { SwanChaseConfig } from "@/components/host/SwanChaseConfig";
 
@@ -36,6 +36,7 @@ interface QuizItem {
       provider: string;
       mediaType: string;
       reference: any;
+      metadata?: any;
       displayOrder: number;
       order: number;
     }>;
@@ -1486,18 +1487,17 @@ export default function HostControlPage() {
                     currentItem.question.type === "MUSIC_GUESS_YEAR") && (() => {
                     const spotifyMedia = currentItem.question?.media?.find(m => m.provider === "SPOTIFY");
                     const ref = spotifyMedia?.reference as any;
+                    const meta = spotifyMedia?.metadata as any;
                     return (
                       <div className="space-y-3">
-                        {/* Spotify Player */}
-                        {ref?.previewUrl && (
-                          <SpotifyPlayer
-                            trackId={ref.trackId || ""}
-                            previewUrl={ref.previewUrl}
-                            albumArt={ref.albumArt || undefined}
-                            title={ref.trackName || undefined}
-                            artist={ref.artistName || undefined}
-                          />
-                        )}
+                        {/* Spotify Web Player - plays full tracks via SDK, falls back gracefully */}
+                        <SpotifyWebPlayer
+                          trackId={ref?.trackId || ""}
+                          albumArt={ref?.albumArt || undefined}
+                          title={ref?.trackName || undefined}
+                          artist={ref?.artistName || undefined}
+                          autoplay={false}
+                        />
                         
                         {/* Track info for host reference */}
                         <div className="bg-slate-700/50 border-2 border-slate-600 rounded-lg p-4">

@@ -19,6 +19,16 @@ const updateQuestionSchema = z.object({
     order: z.number().int(),
   })).optional(),
   spotifyTrackId: z.string().nullable().optional(),
+  spotifyTrackData: z.object({
+    name: z.string().optional(),
+    artists: z.array(z.string()).optional(),
+    albumName: z.string().optional(),
+    albumArt: z.string().nullable().optional(),
+    releaseDate: z.string().optional(),
+    releaseYear: z.number().optional(),
+    startMs: z.number().optional(),
+    durationMs: z.number().optional(),
+  }).optional(),
   youtubeVideoId: z.string().nullable().optional(),
   settingsJson: z.record(z.string(), z.any()).optional(),
 });
@@ -123,7 +133,7 @@ export async function PUT(
     // Parse and validate request
     const body = await request.json();
     console.log("[API] PUT question - Incoming body:", JSON.stringify(body, null, 2));
-    const { tags, options, settingsJson, ...rest } = updateQuestionSchema.parse(body);
+    const { tags, options, settingsJson, spotifyTrackData, ...rest } = updateQuestionSchema.parse(body);
     console.log("[API] PUT question - Parsed rest:", JSON.stringify(rest, null, 2));
 
     // Build update data
@@ -183,6 +193,49 @@ export async function PUT(
           order: opt.order,
         })),
       });
+    }
+
+    // Upsert Spotify media if spotifyTrackData is provided
+    if (rest.spotifyTrackId && spotifyTrackData) {
+      const reference = {
+        trackId: rest.spotifyTrackId,
+        albumArt: spotifyTrackData.albumArt || null,
+        trackName: spotifyTrackData.name || null,
+        artistName: spotifyTrackData.artists?.join(", ") || null,
+        releaseYear: spotifyTrackData.releaseYear || null,
+      };
+      const metadata = {
+        albumName: spotifyTrackData.albumName,
+        releaseDate: spotifyTrackData.releaseDate,
+        artists: spotifyTrackData.artists,
+        ...(spotifyTrackData.startMs !== undefined ? { startMs: spotifyTrackData.startMs } : {}),
+        ...(spotifyTrackData.durationMs !== undefined ? { durationMs: spotifyTrackData.durationMs } : {}),
+      };
+
+      // Check if a SPOTIFY media entry already exists
+      const existingSpotifyMedia = await prisma.questionMedia.findFirst({
+        where: { questionId, provider: "SPOTIFY" },
+      });
+
+      if (existingSpotifyMedia) {
+        // Update existing
+        await prisma.questionMedia.update({
+          where: { id: existingSpotifyMedia.id },
+          data: { reference, metadata },
+        });
+      } else {
+        // Create new
+        await prisma.questionMedia.create({
+          data: {
+            questionId,
+            provider: "SPOTIFY",
+            mediaType: "AUDIO",
+            reference,
+            metadata,
+            order: 0,
+          },
+        });
+      }
     }
 
     // Audit log

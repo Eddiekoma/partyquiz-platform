@@ -1,0 +1,841 @@
+"use client";
+
+import { useState, useCallback, useEffect, useMemo } from "react";
+import Image from "next/image";
+
+// ============================================
+// TYPES
+// ============================================
+
+interface SpotifyTrack {
+  id: string;
+  name: string;
+  artists: { id?: string; name: string }[];
+  album: {
+    id?: string;
+    name: string;
+    images: { url: string; height?: number; width?: number }[];
+    release_date: string;
+  };
+  duration_ms?: number;
+  uri?: string;
+}
+
+interface SpotifyAlbum {
+  id: string;
+  name: string;
+  artists: { id?: string; name: string }[];
+  images: { url: string }[];
+  release_date: string;
+  total_tracks: number;
+  album_type?: string;
+}
+
+interface SpotifyPlaylistItem {
+  id: string;
+  name: string;
+  description?: string | null;
+  image: string | null;
+  trackCount: number;
+  owner: string;
+}
+
+interface SpotifyArtist {
+  id: string;
+  name: string;
+  genres: string[];
+  images: { url: string; height?: number; width?: number }[];
+  popularity: number;
+  followers: number;
+}
+
+interface SpotifyRecentTrack extends SpotifyTrack {
+  playedAt?: string;
+}
+
+interface SpotifyTrackSelectorProps {
+  onSelect: (track: SpotifyTrack) => void;
+  selectedTrack?: SpotifyTrack | null;
+}
+
+// ============================================
+// TABS
+// ============================================
+
+type TabKey = "search" | "playlists" | "top" | "saved" | "artists" | "recent" | "new" | "discover";
+
+const TABS: { key: TabKey; label: string; icon: string }[] = [
+  { key: "search", label: "Zoeken", icon: "🔍" },
+  { key: "playlists", label: "Lijsten", icon: "📂" },
+  { key: "top", label: "Top", icon: "⭐" },
+  { key: "saved", label: "Liked", icon: "💚" },
+  { key: "artists", label: "Artiesten", icon: "🎤" },
+  { key: "recent", label: "Recent", icon: "🕐" },
+  { key: "new", label: "Nieuw", icon: "🆕" },
+  { key: "discover", label: "Ontdek", icon: "🎲" },
+];
+
+// ============================================
+// TRACK ITEM (shared render)
+// ============================================
+
+function TrackItem({
+  track,
+  isSelected,
+  onSelect,
+}: {
+  track: SpotifyTrack;
+  isSelected: boolean;
+  onSelect: () => void;
+}) {
+  const albumImage = track.album.images?.[2] || track.album.images?.[0];
+  const year = track.album.release_date
+    ? new Date(track.album.release_date).getFullYear()
+    : "";
+
+  return (
+    <div
+      className={`flex items-center gap-3 p-3 border rounded-lg transition-colors cursor-pointer ${
+        isSelected
+          ? "border-green-500 bg-green-900/30"
+          : "border-slate-700 hover:border-blue-400 hover:bg-slate-700/50"
+      }`}
+      onClick={onSelect}
+    >
+      {albumImage && (
+        <Image
+          src={albumImage.url}
+          alt={track.album.name}
+          width={48}
+          height={48}
+          className="rounded shadow-sm flex-shrink-0"
+        />
+      )}
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-white truncate">{track.name}</p>
+        <p className="text-sm text-slate-400 truncate">
+          {track.artists.map((a) => a.name).join(", ")}
+        </p>
+        <p className="text-xs text-slate-500 truncate">
+          {track.album.name}
+          {year ? ` · ${year}` : ""}
+          {track.duration_ms
+            ? ` · ${Math.floor(track.duration_ms / 60000)}:${String(
+                Math.floor((track.duration_ms % 60000) / 1000)
+              ).padStart(2, "0")}`
+            : ""}
+        </p>
+      </div>
+      {isSelected && (
+        <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
+          <span className="text-white text-xs">✓</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================
+// MAIN COMPONENT
+// ============================================
+
+export function SpotifyTrackSelector({
+  onSelect,
+  selectedTrack,
+}: SpotifyTrackSelectorProps) {
+  const [activeTab, setActiveTab] = useState<TabKey>("search");
+
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchTracks, setSearchTracks] = useState<SpotifyTrack[]>([]);
+  const [searchAlbums, setSearchAlbums] = useState<SpotifyAlbum[]>([]);
+  const [searchArtists, setSearchArtists] = useState<SpotifyArtist[]>([]);
+  const [searchError, setSearchError] = useState<string | null>(null);
+
+  // Album drill-down state (used from search tab, artist tab, new releases, saved albums)
+  const [selectedAlbum, setSelectedAlbum] = useState<SpotifyAlbum | null>(null);
+  const [albumTracks, setAlbumTracks] = useState<SpotifyTrack[]>([]);
+  const [loadingAlbumTracks, setLoadingAlbumTracks] = useState(false);
+  const [albumDrillSource, setAlbumDrillSource] = useState<string>("search");
+
+  // Artist drill-down state (used from search tab, artists tab, recommendations, related)
+  const [selectedArtist, setSelectedArtist] = useState<SpotifyArtist | null>(null);
+  const [artistTopTracks, setArtistTopTracks] = useState<SpotifyTrack[]>([]);
+  const [artistAlbums, setArtistAlbums] = useState<SpotifyAlbum[]>([]);
+  const [relatedArtists, setRelatedArtists] = useState<SpotifyArtist[]>([]);
+  const [loadingArtistDetail, setLoadingArtistDetail] = useState(false);
+  const [artistDrillSource, setArtistDrillSource] = useState<string>("search");
+  const [artistDetailTab, setArtistDetailTab] = useState<"tracks" | "albums" | "related">("tracks");
+
+  // Playlists state
+  const [playlists, setPlaylists] = useState<SpotifyPlaylistItem[]>([]);
+  const [loadingPlaylists, setLoadingPlaylists] = useState(false);
+  const [playlistsLoaded, setPlaylistsLoaded] = useState(false);
+  const [selectedPlaylist, setSelectedPlaylist] =
+    useState<SpotifyPlaylistItem | null>(null);
+  const [playlistTracks, setPlaylistTracks] = useState<SpotifyTrack[]>([]);
+  const [loadingPlaylistTracks, setLoadingPlaylistTracks] = useState(false);
+
+  // Top tracks state
+  const [topTracks, setTopTracks] = useState<SpotifyTrack[]>([]);
+  const [loadingTopTracks, setLoadingTopTracks] = useState(false);
+  const [topTracksLoaded, setTopTracksLoaded] = useState(false);
+  const [topTimeRange, setTopTimeRange] = useState<string>("medium_term");
+
+  // Saved tracks state
+  const [savedTracks, setSavedTracks] = useState<SpotifyTrack[]>([]);
+  const [loadingSavedTracks, setLoadingSavedTracks] = useState(false);
+  const [savedTracksLoaded, setSavedTracksLoaded] = useState(false);
+  const [savedOffset, setSavedOffset] = useState(0);
+  const [savedTotal, setSavedTotal] = useState(0);
+
+  // Top artists state
+  const [topArtists, setTopArtists] = useState<SpotifyArtist[]>([]);
+  const [loadingTopArtists, setLoadingTopArtists] = useState(false);
+  const [topArtistsLoaded, setTopArtistsLoaded] = useState(false);
+  const [artistTimeRange, setArtistTimeRange] = useState<string>("medium_term");
+
+  // Recently played state
+  const [recentTracks, setRecentTracks] = useState<SpotifyRecentTrack[]>([]);
+  const [loadingRecent, setLoadingRecent] = useState(false);
+  const [recentLoaded, setRecentLoaded] = useState(false);
+
+  // New releases state
+  const [newReleases, setNewReleases] = useState<SpotifyAlbum[]>([]);
+  const [loadingNewReleases, setLoadingNewReleases] = useState(false);
+  const [newReleasesLoaded, setNewReleasesLoaded] = useState(false);
+
+  // Discover/Recommendations state
+  const [discoverTracks, setDiscoverTracks] = useState<SpotifyTrack[]>([]);
+  const [loadingDiscover, setLoadingDiscover] = useState(false);
+  const [discoverMode, setDiscoverMode] = useState<"auto" | "energy" | "chill" | "party" | "focus">("auto");
+
+  // Saved albums state
+  const [savedAlbums, setSavedAlbums] = useState<SpotifyAlbum[]>([]);
+  const [loadingSavedAlbums, setLoadingSavedAlbums] = useState(false);
+  const [savedAlbumsLoaded, setSavedAlbumsLoaded] = useState(false);
+  const [savedAlbumsOffset, setSavedAlbumsOffset] = useState(0);
+  const [savedAlbumsTotal, setSavedAlbumsTotal] = useState(0);
+  const [showSavedAlbums, setShowSavedAlbums] = useState(false);
+
+  // General error
+  const [error, setError] = useState<string | null>(null);
+
+  // ========== SEARCH (now includes artists) ==========
+
+  const handleSearch = useCallback(async () => {
+    if (!searchQuery.trim()) return;
+
+    setIsSearching(true);
+    setSearchError(null);
+    setSelectedAlbum(null);
+    setAlbumTracks([]);
+    setSelectedArtist(null);
+
+    try {
+      const response = await fetch(
+        `/api/spotify/search?q=${encodeURIComponent(searchQuery)}&type=track,album,artist&limit=10`
+      );
+
+      if (!response.ok) throw new Error("Zoeken mislukt");
+
+      const data = await response.json();
+      setSearchTracks(data.tracks || []);
+      setSearchAlbums(data.albums || []);
+      setSearchArtists(
+        (data.artists || []).map((a: any) => ({
+          id: a.id,
+          name: a.name,
+          genres: a.genres || [],
+          images: a.images || [],
+          popularity: a.popularity || 0,
+          followers: a.followers?.total || a.followers || 0,
+        }))
+      );
+    } catch (err: any) {
+      setSearchError(err.message || "Zoeken mislukt");
+      setSearchTracks([]);
+      setSearchAlbums([]);
+      setSearchArtists([]);
+    } finally {
+      setIsSearching(false);
+    }
+  }, [searchQuery]);
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") handleSearch();
+  };
+
+  // ========== ALBUM DRILL-DOWN ==========
+
+  const loadAlbumTracks = useCallback(async (album: SpotifyAlbum) => {
+    setSelectedAlbum(album);
+    setLoadingAlbumTracks(true);
+
+    try {
+      const response = await fetch(`/api/spotify/albums/${album.id}/tracks`);
+      if (!response.ok) throw new Error("Album laden mislukt");
+
+      const data = await response.json();
+      setAlbumTracks(data.tracks || []);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoadingAlbumTracks(false);
+    }
+  }, []);
+
+  // ========== PLAYLISTS ==========
+
+  const loadPlaylists = useCallback(async () => {
+    if (playlistsLoaded) return;
+    setLoadingPlaylists(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/spotify/playlists?limit=50");
+      if (!response.ok) throw new Error("Afspeellijsten laden mislukt");
+
+      const data = await response.json();
+      setPlaylists(data.playlists || []);
+      setPlaylistsLoaded(true);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoadingPlaylists(false);
+    }
+  }, [playlistsLoaded]);
+
+  const loadPlaylistTracks = useCallback(
+    async (playlist: SpotifyPlaylistItem) => {
+      setSelectedPlaylist(playlist);
+      setLoadingPlaylistTracks(true);
+
+      try {
+        const response = await fetch(
+          `/api/spotify/playlists/${playlist.id}/tracks?limit=50`
+        );
+        if (!response.ok) throw new Error("Nummers laden mislukt");
+
+        const data = await response.json();
+        setPlaylistTracks(data.tracks || []);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoadingPlaylistTracks(false);
+      }
+    },
+    []
+  );
+
+  // ========== TOP TRACKS ==========
+
+  const loadTopTracks = useCallback(
+    async (timeRange?: string) => {
+      const range = timeRange || topTimeRange;
+      setLoadingTopTracks(true);
+      setError(null);
+
+      try {
+        const response = await fetch(
+          `/api/spotify/me/top-tracks?time_range=${range}&limit=50`
+        );
+        if (!response.ok) throw new Error("Top tracks laden mislukt");
+
+        const data = await response.json();
+        setTopTracks(data.tracks || []);
+        setTopTracksLoaded(true);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoadingTopTracks(false);
+      }
+    },
+    [topTimeRange]
+  );
+
+  // ========== SAVED TRACKS ==========
+
+  const loadSavedTracks = useCallback(
+    async (offset = 0, append = false) => {
+      setLoadingSavedTracks(true);
+      setError(null);
+
+      try {
+        const response = await fetch(
+          `/api/spotify/me/saved-tracks?limit=50&offset=${offset}`
+        );
+        if (!response.ok) throw new Error("Opgeslagen nummers laden mislukt");
+
+        const data = await response.json();
+        if (append) {
+          setSavedTracks((prev) => [...prev, ...(data.tracks || [])]);
+        } else {
+          setSavedTracks(data.tracks || []);
+        }
+        setSavedTotal(data.total || 0);
+        setSavedOffset(offset + (data.tracks?.length || 0));
+        setSavedTracksLoaded(true);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoadingSavedTracks(false);
+      }
+    },
+    []
+  );
+
+  // ========== TAB CHANGE: AUTO-LOAD DATA ==========
+
+  useEffect(() => {
+    if (activeTab === "playlists" && !playlistsLoaded) {
+      loadPlaylists();
+    } else if (activeTab === "top" && !topTracksLoaded) {
+      loadTopTracks();
+    } else if (activeTab === "saved" && !savedTracksLoaded) {
+      loadSavedTracks(0);
+    }
+  }, [
+    activeTab,
+    playlistsLoaded,
+    topTracksLoaded,
+    savedTracksLoaded,
+    loadPlaylists,
+    loadTopTracks,
+    loadSavedTracks,
+  ]);
+
+  // ============================================
+  // RENDER
+  // ============================================
+
+  return (
+    <div className="space-y-4">
+      {/* Selected Track Display */}
+      {selectedTrack && (
+        <div className="border border-green-500 bg-green-900/20 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-2 h-2 bg-green-500 rounded-full" />
+            <p className="text-sm font-medium text-green-300">
+              Geselecteerd nummer
+            </p>
+          </div>
+          <div className="flex items-center gap-4">
+            {selectedTrack.album.images[0] && (
+              <Image
+                src={selectedTrack.album.images[0].url}
+                alt={selectedTrack.album.name}
+                width={64}
+                height={64}
+                className="rounded-md shadow-md"
+              />
+            )}
+            <div>
+              <p className="font-semibold text-white">{selectedTrack.name}</p>
+              <p className="text-sm text-slate-400">
+                {selectedTrack.artists.map((a) => a.name).join(", ")}
+              </p>
+              <p className="text-xs text-slate-500">
+                {selectedTrack.album.name} (
+                {new Date(selectedTrack.album.release_date).getFullYear()})
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab Navigation */}
+      <div className="flex border-b border-slate-700">
+        {TABS.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 ${
+              activeTab === tab.key
+                ? "border-blue-500 text-blue-400"
+                : "border-transparent text-slate-400 hover:text-slate-300 hover:border-slate-600"
+            }`}
+          >
+            <span>{tab.icon}</span>
+            <span>{tab.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Error Display */}
+      {(error || searchError) && (
+        <div className="border border-red-500/50 bg-red-900/20 rounded-lg p-3">
+          <p className="text-red-400 text-sm">
+            ❌ {error || searchError}
+          </p>
+        </div>
+      )}
+
+      {/* ============ SEARCH TAB ============ */}
+      {activeTab === "search" && (
+        <div className="space-y-4">
+          {/* Search Bar */}
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              placeholder="Zoek op titel, artiest, album..."
+              className="flex-1 px-3 py-2 border border-slate-600 rounded-lg bg-slate-800 text-white placeholder-slate-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+            <button
+              onClick={handleSearch}
+              disabled={isSearching || !searchQuery.trim()}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed transition-colors font-medium"
+            >
+              {isSearching ? "⏳" : "🔍"} Zoeken
+            </button>
+          </div>
+
+          {/* Album Drill-down (back button + tracks) */}
+          {selectedAlbum && (
+            <div className="space-y-3">
+              <button
+                onClick={() => {
+                  setSelectedAlbum(null);
+                  setAlbumTracks([]);
+                }}
+                className="text-sm text-blue-400 hover:text-blue-300 flex items-center gap-1"
+              >
+                ← Terug naar zoekresultaten
+              </button>
+
+              <div className="flex items-center gap-3 p-3 bg-slate-800 rounded-lg border border-slate-700">
+                {selectedAlbum.images[0] && (
+                  <Image
+                    src={selectedAlbum.images[0].url}
+                    alt={selectedAlbum.name}
+                    width={56}
+                    height={56}
+                    className="rounded shadow-md"
+                  />
+                )}
+                <div>
+                  <p className="font-semibold text-white">
+                    {selectedAlbum.name}
+                  </p>
+                  <p className="text-sm text-slate-400">
+                    {selectedAlbum.artists.map((a) => a.name).join(", ")} ·{" "}
+                    {new Date(selectedAlbum.release_date).getFullYear()} ·{" "}
+                    {selectedAlbum.total_tracks} nummers
+                  </p>
+                </div>
+              </div>
+
+              {loadingAlbumTracks ? (
+                <LoadingState text="Album laden..." />
+              ) : (
+                <TrackList
+                  tracks={albumTracks}
+                  selectedTrack={selectedTrack}
+                  onSelect={onSelect}
+                />
+              )}
+            </div>
+          )}
+
+          {/* Search Results (when no album is selected) */}
+          {!selectedAlbum && (
+            <>
+              {/* Track Results */}
+              {searchTracks.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-slate-300">
+                    🎵 Nummers ({searchTracks.length})
+                  </p>
+                  <TrackList
+                    tracks={searchTracks}
+                    selectedTrack={selectedTrack}
+                    onSelect={onSelect}
+                  />
+                </div>
+              )}
+
+              {/* Album Results */}
+              {searchAlbums.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-slate-300">
+                    💿 Albums ({searchAlbums.length})
+                  </p>
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {searchAlbums.map((album) => (
+                      <div
+                        key={album.id}
+                        className="flex items-center gap-3 p-3 border border-slate-700 rounded-lg hover:border-blue-400 hover:bg-slate-700/50 cursor-pointer transition-colors"
+                        onClick={() => loadAlbumTracks(album)}
+                      >
+                        {album.images[1] && (
+                          <Image
+                            src={album.images[1].url}
+                            alt={album.name}
+                            width={48}
+                            height={48}
+                            className="rounded shadow-sm"
+                          />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-white truncate">
+                            {album.name}
+                          </p>
+                          <p className="text-sm text-slate-400 truncate">
+                            {album.artists.map((a) => a.name).join(", ")} ·{" "}
+                            {new Date(album.release_date).getFullYear()}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {album.total_tracks} nummers
+                          </p>
+                        </div>
+                        <span className="text-slate-500 text-sm">→</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* No Results */}
+              {!isSearching &&
+                searchQuery &&
+                searchTracks.length === 0 &&
+                searchAlbums.length === 0 &&
+                !searchError && (
+                  <EmptyState
+                    icon="🔍"
+                    text={`Geen resultaten voor "${searchQuery}"`}
+                  />
+                )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ============ PLAYLISTS TAB ============ */}
+      {activeTab === "playlists" && (
+        <div className="space-y-3">
+          {/* Playlist Drill-down */}
+          {selectedPlaylist ? (
+            <>
+              <button
+                onClick={() => {
+                  setSelectedPlaylist(null);
+                  setPlaylistTracks([]);
+                }}
+                className="text-sm text-blue-400 hover:text-blue-300 flex items-center gap-1"
+              >
+                ← Terug naar afspeellijsten
+              </button>
+
+              <div className="flex items-center gap-3 p-3 bg-slate-800 rounded-lg border border-slate-700">
+                {selectedPlaylist.image && (
+                  <Image
+                    src={selectedPlaylist.image}
+                    alt={selectedPlaylist.name}
+                    width={56}
+                    height={56}
+                    className="rounded shadow-md"
+                  />
+                )}
+                <div>
+                  <p className="font-semibold text-white">
+                    {selectedPlaylist.name}
+                  </p>
+                  <p className="text-sm text-slate-400">
+                    {selectedPlaylist.owner} · {selectedPlaylist.trackCount}{" "}
+                    nummers
+                  </p>
+                </div>
+              </div>
+
+              {loadingPlaylistTracks ? (
+                <LoadingState text="Nummers laden..." />
+              ) : (
+                <TrackList
+                  tracks={playlistTracks}
+                  selectedTrack={selectedTrack}
+                  onSelect={onSelect}
+                />
+              )}
+            </>
+          ) : (
+            <>
+              {loadingPlaylists ? (
+                <LoadingState text="Afspeellijsten laden..." />
+              ) : playlists.length === 0 ? (
+                <EmptyState
+                  icon="📂"
+                  text="Geen afspeellijsten gevonden"
+                />
+              ) : (
+                <div className="space-y-2 max-h-[28rem] overflow-y-auto">
+                  {playlists.map((playlist) => (
+                    <div
+                      key={playlist.id}
+                      className="flex items-center gap-3 p-3 border border-slate-700 rounded-lg hover:border-blue-400 hover:bg-slate-700/50 cursor-pointer transition-colors"
+                      onClick={() => loadPlaylistTracks(playlist)}
+                    >
+                      {playlist.image ? (
+                        <Image
+                          src={playlist.image}
+                          alt={playlist.name}
+                          width={48}
+                          height={48}
+                          className="rounded shadow-sm"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 bg-slate-700 rounded flex items-center justify-center text-xl">
+                          🎵
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-white truncate">
+                          {playlist.name}
+                        </p>
+                        <p className="text-sm text-slate-400 truncate">
+                          {playlist.owner} · {playlist.trackCount} nummers
+                        </p>
+                      </div>
+                      <span className="text-slate-500 text-sm">→</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ============ TOP TRACKS TAB ============ */}
+      {activeTab === "top" && (
+        <div className="space-y-3">
+          {/* Time Range Selector */}
+          <div className="flex gap-2">
+            {[
+              { value: "short_term", label: "4 weken" },
+              { value: "medium_term", label: "6 maanden" },
+              { value: "long_term", label: "Altijd" },
+            ].map((option) => (
+              <button
+                key={option.value}
+                onClick={() => {
+                  setTopTimeRange(option.value);
+                  setTopTracksLoaded(false);
+                  loadTopTracks(option.value);
+                }}
+                className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                  topTimeRange === option.value
+                    ? "bg-blue-600 text-white"
+                    : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          {loadingTopTracks ? (
+            <LoadingState text="Top tracks laden..." />
+          ) : topTracks.length === 0 ? (
+            <EmptyState
+              icon="⭐"
+              text="Nog geen luisterdata beschikbaar"
+            />
+          ) : (
+            <TrackList
+              tracks={topTracks}
+              selectedTrack={selectedTrack}
+              onSelect={onSelect}
+            />
+          )}
+        </div>
+      )}
+
+      {/* ============ SAVED TRACKS TAB ============ */}
+      {activeTab === "saved" && (
+        <div className="space-y-3">
+          {loadingSavedTracks && savedTracks.length === 0 ? (
+            <LoadingState text="Opgeslagen nummers laden..." />
+          ) : savedTracks.length === 0 ? (
+            <EmptyState
+              icon="💚"
+              text="Geen opgeslagen nummers gevonden"
+            />
+          ) : (
+            <>
+              <p className="text-sm text-slate-400">
+                {savedTotal} opgeslagen nummers
+              </p>
+              <TrackList
+                tracks={savedTracks}
+                selectedTrack={selectedTrack}
+                onSelect={onSelect}
+              />
+              {/* Load More */}
+              {savedOffset < savedTotal && (
+                <button
+                  onClick={() => loadSavedTracks(savedOffset, true)}
+                  disabled={loadingSavedTracks}
+                  className="w-full py-2 text-sm text-blue-400 hover:text-blue-300 border border-slate-700 rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50"
+                >
+                  {loadingSavedTracks
+                    ? "Laden..."
+                    : `Meer laden (${savedOffset}/${savedTotal})`}
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================
+// SHARED HELPER COMPONENTS
+// ============================================
+
+function TrackList({
+  tracks,
+  selectedTrack,
+  onSelect,
+}: {
+  tracks: SpotifyTrack[];
+  selectedTrack?: SpotifyTrack | null;
+  onSelect: (track: SpotifyTrack) => void;
+}) {
+  return (
+    <div className="space-y-2 max-h-96 overflow-y-auto">
+      {tracks.map((track) => (
+        <TrackItem
+          key={track.id}
+          track={track}
+          isSelected={selectedTrack?.id === track.id}
+          onSelect={() => onSelect(track)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function LoadingState({ text }: { text: string }) {
+  return (
+    <div className="flex items-center justify-center py-8 text-slate-400">
+      <div className="animate-spin w-5 h-5 border-2 border-slate-600 border-t-blue-500 rounded-full mr-3" />
+      <p className="text-sm">{text}</p>
+    </div>
+  );
+}
+
+function EmptyState({ icon, text }: { icon: string; text: string }) {
+  return (
+    <div className="text-center py-8 text-slate-400">
+      <p className="text-4xl mb-2">{icon}</p>
+      <p className="text-sm">{text}</p>
+    </div>
+  );
+}
