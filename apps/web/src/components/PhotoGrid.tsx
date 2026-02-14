@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { getAspectRatioCategory, type AspectRatioCategory } from "@partyquiz/shared";
-import Image from "next/image";
 
 interface Photo {
   id: string;
@@ -139,11 +138,10 @@ export function PhotoGrid({ photos, className = "" }: PhotoGridProps) {
 
           {/* Image */}
           <div className="relative max-w-[90vw] max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
-            <Image
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src={sortedPhotos[lightboxIndex].url}
               alt={`Photo ${lightboxIndex + 1}`}
-              width={sortedPhotos[lightboxIndex].width || 1200}
-              height={sortedPhotos[lightboxIndex].height || 800}
               className="max-w-full max-h-[90vh] object-contain"
             />
           </div>
@@ -172,17 +170,56 @@ export function PhotoGrid({ photos, className = "" }: PhotoGridProps) {
 
 // === LAYOUT COMPONENTS ===
 
-function SinglePhotoLayout({ photo, onClick }: { photo: Photo; onClick: () => void }) {
+/**
+ * PhotoTile: Renders a single photo at its EXACT aspect ratio.
+ * When width/height metadata is available, uses it directly.
+ * When missing (null), detects the real dimensions from the loaded image
+ * via onLoad and updates the container so nothing gets cropped.
+ */
+function PhotoTile({ photo, index, onClick }: { photo: Photo; index: number; onClick: () => void }) {
+  // Start with known dimensions or null (unknown)
+  const knownRatio = (photo.width && photo.height) 
+    ? photo.width / photo.height 
+    : null;
+  
+  const [detectedRatio, setDetectedRatio] = useState<number | null>(null);
+
+  const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    // Only detect if we don't already have metadata dimensions
+    if (!knownRatio) {
+      const img = e.currentTarget;
+      if (img.naturalWidth && img.naturalHeight) {
+        setDetectedRatio(img.naturalWidth / img.naturalHeight);
+      }
+    }
+  }, [knownRatio]);
+
+  // Use known ratio, or detected ratio, or fallback 16/9 while loading
+  const aspectRatio = knownRatio ?? detectedRatio ?? 16 / 9;
+
   return (
     <div className="cursor-pointer group" onClick={onClick}>
-      <div className="relative w-full aspect-video overflow-hidden rounded-2xl">
-        <Image
+      <div 
+        className="relative w-full overflow-hidden rounded-xl"
+        style={{ aspectRatio }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
           src={photo.url}
-          alt="Photo"
-          fill
-          className="object-cover group-hover:scale-105 transition-transform duration-300"
+          alt={`Photo ${index + 1}`}
+          className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          onLoad={handleImageLoad}
         />
       </div>
+    </div>
+  );
+}
+
+function SinglePhotoLayout({ photo, onClick }: { photo: Photo; onClick: () => void }) {
+  // Single photo at exact aspect ratio, centered, max-w so it doesn't stretch too wide
+  return (
+    <div className="max-w-2xl mx-auto">
+      <PhotoTile photo={photo} index={0} onClick={onClick} />
     </div>
   );
 }
@@ -196,41 +233,11 @@ function TwoPhotosLayout({
   categories: AspectRatioCategory[];
   onClickPhoto: (index: number) => void;
 }) {
-  // If both are portrait/tall, stack vertically. Otherwise side by side.
-  const bothPortrait = categories.every(cat => cat === "PORTRAIT" || cat === "TALL");
-
-  if (bothPortrait) {
-    return (
-      <div className="space-y-4">
-        {photos.map((photo, idx) => (
-          <div key={photo.id} className="cursor-pointer group" onClick={() => onClickPhoto(idx)}>
-            <div className="relative w-full aspect-[4/3] overflow-hidden rounded-2xl">
-              <Image
-                src={photo.url}
-                alt={`Photo ${idx + 1}`}
-                fill
-                className="object-cover group-hover:scale-105 transition-transform duration-300"
-              />
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
+  // Always side by side — both with matching aspect ratio for clean look
   return (
-    <div className="grid grid-cols-2 gap-4">
+    <div className="grid grid-cols-2 gap-3">
       {photos.map((photo, idx) => (
-        <div key={photo.id} className="cursor-pointer group" onClick={() => onClickPhoto(idx)}>
-          <div className="relative w-full aspect-video overflow-hidden rounded-2xl">
-            <Image
-              src={photo.url}
-              alt={`Photo ${idx + 1}`}
-              fill
-              className="object-cover group-hover:scale-105 transition-transform duration-300"
-            />
-          </div>
-        </div>
+        <PhotoTile key={photo.id} photo={photo} index={idx} onClick={() => onClickPhoto(idx)} />
       ))}
     </div>
   );
@@ -245,34 +252,13 @@ function ThreePhotosLayout({
   categories: AspectRatioCategory[];
   onClickPhoto: (index: number) => void;
 }) {
-  // Layout: One large photo on left, two stacked on right
+  // Layout: First photo full width on top, two side-by-side below
   return (
-    <div className="grid grid-cols-2 gap-4 h-[600px]">
-      {/* Large photo */}
-      <div className="cursor-pointer group row-span-2" onClick={() => onClickPhoto(0)}>
-        <div className="relative w-full h-full overflow-hidden rounded-2xl">
-          <Image
-            src={photos[0].url}
-            alt="Photo 1"
-            fill
-            className="object-cover group-hover:scale-105 transition-transform duration-300"
-          />
-        </div>
-      </div>
-
-      {/* Two smaller photos */}
-      <div className="space-y-4">
+    <div className="space-y-3">
+      <PhotoTile photo={photos[0]} index={0} onClick={() => onClickPhoto(0)} />
+      <div className="grid grid-cols-2 gap-3">
         {photos.slice(1).map((photo, idx) => (
-          <div key={photo.id} className="cursor-pointer group" onClick={() => onClickPhoto(idx + 1)}>
-            <div className="relative w-full h-[288px] overflow-hidden rounded-2xl">
-              <Image
-                src={photo.url}
-                alt={`Photo ${idx + 2}`}
-                fill
-                className="object-cover group-hover:scale-105 transition-transform duration-300"
-              />
-            </div>
-          </div>
+          <PhotoTile key={photo.id} photo={photo} index={idx + 1} onClick={() => onClickPhoto(idx + 1)} />
         ))}
       </div>
     </div>
@@ -286,19 +272,11 @@ function FourPhotosLayout({
   photos: Photo[];
   onClickPhoto: (index: number) => void;
 }) {
+  // 2x2 grid, each photo at its own natural aspect ratio
   return (
-    <div className="grid grid-cols-2 gap-4">
+    <div className="grid grid-cols-2 gap-3">
       {photos.map((photo, idx) => (
-        <div key={photo.id} className="cursor-pointer group" onClick={() => onClickPhoto(idx)}>
-          <div className="relative w-full aspect-video overflow-hidden rounded-2xl">
-            <Image
-              src={photo.url}
-              alt={`Photo ${idx + 1}`}
-              fill
-              className="object-cover group-hover:scale-105 transition-transform duration-300"
-            />
-          </div>
-        </div>
+        <PhotoTile key={photo.id} photo={photo} index={idx} onClick={() => onClickPhoto(idx)} />
       ))}
     </div>
   );
@@ -311,19 +289,11 @@ function ManyPhotosLayout({
   photos: Photo[];
   onClickPhoto: (index: number) => void;
 }) {
+  // 3-column grid for 5-6 photos, each at natural aspect ratio
   return (
-    <div className="grid grid-cols-3 gap-4">
+    <div className="grid grid-cols-3 gap-3">
       {photos.map((photo, idx) => (
-        <div key={photo.id} className="cursor-pointer group" onClick={() => onClickPhoto(idx)}>
-          <div className="relative w-full aspect-video overflow-hidden rounded-2xl">
-            <Image
-              src={photo.url}
-              alt={`Photo ${idx + 1}`}
-              fill
-              className="object-cover group-hover:scale-105 transition-transform duration-300"
-            />
-          </div>
-        </div>
+        <PhotoTile key={photo.id} photo={photo} index={idx} onClick={() => onClickPhoto(idx)} />
       ))}
     </div>
   );

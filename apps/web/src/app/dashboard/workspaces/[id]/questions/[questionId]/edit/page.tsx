@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 import { UploadZone } from "@/components/ui/Upload";
-import { parseTimestamp, formatTimestamp, QuestionType, normalizeQuestionType } from "@partyquiz/shared";
+import { FileUploader } from "@/components/media/FileUploader";
+import { parseTimestamp, formatTimestamp, QuestionType, normalizeQuestionType, requiresPhotos, getMaxPhotos } from "@partyquiz/shared";
 import { ScoringInfoCard } from "@/components/ScoringInfoCard";
+import Image from "next/image";
 
 interface QuestionOption {
   id?: string;
@@ -265,9 +267,12 @@ export default function EditQuestionPage() {
     }
   };
 
-  const handleMediaUploadResult = async (result: { assetId: string; publicUrl: string }) => {
+  const handleMediaUploadResult = async (result: { assetId: string; publicUrl: string } | { id: string; filename: string; storageKey: string; mime: string; size: number; type: string; url: string }) => {
     setUploadingMedia(true);
     try {
+      // Support both UploadZone format ({ assetId }) and FileUploader format ({ id })
+      const assetId = 'assetId' in result ? result.assetId : result.id;
+      
       // Determine media type from selected question type
       const mediaType = selectedType?.startsWith("PHOTO")
         ? "IMAGE"
@@ -284,7 +289,7 @@ export default function EditQuestionPage() {
           body: JSON.stringify({
             provider: "UPLOAD",
             mediaType,
-            assetId: result.assetId,
+            assetId,
             order: media.length,
           }),
         }
@@ -835,12 +840,83 @@ export default function EditQuestionPage() {
           </Card>
         )}
 
-        {/* Media Upload for PHOTO/AUDIO/VIDEO types */}
-        {(selectedType === "PHOTO_MC_SINGLE" ||
-          selectedType === "AUDIO_QUESTION" ||
-          selectedType === "VIDEO_QUESTION" ||
-          selectedType === "PHOTO_OPEN_TEXT" ||
+        {/* Media Upload for PHOTO types - Multi-photo support */}
+        {selectedType && requiresPhotos(selectedType as QuestionType) && (
+          <Card className="p-6">
+            <label className="block text-sm font-semibold mb-4">
+              📸 Photos ({media.filter(m => m.mediaType === "IMAGE").length} / {getMaxPhotos(selectedType as QuestionType)})
+            </label>
+            
+            {/* Show existing photos as thumbnails */}
+            {media.filter(m => m.mediaType === "IMAGE").length > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+                {media
+                  .filter(m => m.mediaType === "IMAGE")
+                  .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+                  .map((m) => {
+                    const ref = m.reference as any;
+                    const assetId = ref?.assetId;
+                    const imgUrl = assetId ? `/api/uploads/${assetId}/file` : ref?.url || ref?.assetUrl;
+                    return (
+                      <div key={m.id} className="relative group aspect-video bg-slate-800 rounded-lg overflow-hidden">
+                        {imgUrl && (
+                          <Image
+                            src={imgUrl}
+                            alt={ref?.filename || "Photo"}
+                            fill
+                            className="object-cover"
+                          />
+                        )}
+                        {/* Order Badge */}
+                        <div className="absolute top-2 left-2 w-7 h-7 bg-black/60 backdrop-blur rounded-full flex items-center justify-center text-white font-bold text-xs">
+                          {(m.order ?? 0) + 1}
+                        </div>
+                        {/* Delete Button */}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveMedia(m.id)}
+                          className="absolute top-2 right-2 w-7 h-7 bg-red-600 hover:bg-red-700 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+
+            {/* Upload more photos (if under max) */}
+            {media.filter(m => m.mediaType === "IMAGE").length < getMaxPhotos(selectedType as QuestionType) && (
+              <FileUploader
+                workspaceId={workspaceId}
+                category="images"
+                accept="image/*"
+                maxSize={15}
+                onUploadComplete={(asset) => {
+                  handleMediaUploadResult(asset);
+                }}
+                onError={(error) => alert(`Upload failed: ${error}`)}
+              />
+            )}
+
+            {media.filter(m => m.mediaType === "IMAGE").length >= getMaxPhotos(selectedType as QuestionType) && (
+              <p className="text-sm text-slate-400">
+                Maximum number of photos reached. Remove a photo to upload a different one.
+              </p>
+            )}
+
+            <div className="text-xs text-slate-500 mt-3 space-y-1">
+              <p>• Supported formats: JPG, PNG, WebP, GIF, SVG</p>
+              <p>• Max size: 15MB per photo</p>
+              <p>• Hover over a photo to delete it</p>
+            </div>
+          </Card>
+        )}
+
+        {/* Media Upload for AUDIO/VIDEO types - single file */}
+        {(selectedType === "AUDIO_QUESTION" ||
           selectedType === "AUDIO_OPEN" ||
+          selectedType === "VIDEO_QUESTION" ||
           selectedType === "VIDEO_OPEN") && (
           <Card className="p-6">
             <label className="block text-sm font-semibold mb-4">Media Attachment</label>
@@ -872,9 +948,7 @@ export default function EditQuestionPage() {
               <UploadZone
                 workspaceId={workspaceId}
                 accept={
-                  selectedType.startsWith("PHOTO")
-                    ? "image/*"
-                    : selectedType.startsWith("AUDIO")
+                  selectedType.startsWith("AUDIO")
                     ? "audio/*"
                     : "video/*"
                 }
