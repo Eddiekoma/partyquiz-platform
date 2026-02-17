@@ -1100,7 +1100,7 @@ export default function HostControlPage() {
                     if (window.Spotify?.Player) {
                       // Find any existing player instance and activate it
                       // The SpotifyAudioTarget component manages the player instance
-                      const event = new CustomEvent('spotify-activate-request');
+                      const event = new CustomEvent('spotifyActivateRequest');
                       window.dispatchEvent(event);
                     }
                     setNeedsAudioActivation(false);

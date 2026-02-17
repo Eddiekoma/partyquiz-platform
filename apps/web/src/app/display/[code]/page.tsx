@@ -582,7 +582,7 @@ export default function DisplayPage() {
               // The click satisfies the browser autoplay policy.
               // SpotifyAudioTarget will be (re)initialized via the SDK's activateElement().
               // Dispatch event for SpotifyAudioTarget to handle
-              const event = new CustomEvent('spotify-activate-request');
+              const event = new CustomEvent('spotifyActivateRequest');
               window.dispatchEvent(event);
               setShowAudioActivation(false);
             }}

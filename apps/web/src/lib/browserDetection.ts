@@ -49,6 +49,8 @@ export function isMobile(): boolean {
 
 /**
  * Detects if the device is likely a tablet
+ * Note: Uses common tablet breakpoints (768-1024px) which align with the project's
+ * responsive design system. May need adjustment for specific use cases.
  */
 export function isTablet(): boolean {
   if (typeof window === 'undefined') return false;
@@ -56,7 +58,7 @@ export function isTablet(): boolean {
   const ua = navigator.userAgent.toLowerCase();
   const isTabletUA = /(ipad|tablet|(android(?!.*mobile))|(windows(?!.*phone)(.*touch))|kindle|playbook|silk|(puffin(?!.*(IP|AP|WP))))/.test(ua);
   
-  // Also check screen size as a fallback
+  // Screen size check aligns with Tailwind's md/lg breakpoints (768-1024px)
   const hasTabletScreen = window.innerWidth >= 768 && window.innerWidth <= 1024;
   
   return isTabletUA || hasTabletScreen;

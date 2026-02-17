@@ -723,9 +723,9 @@ export function SpotifyAudioTarget({
     };
 
     if (typeof window !== 'undefined') {
-      window.addEventListener('spotify-activate-request', handleActivationRequest);
+      window.addEventListener('spotifyActivateRequest', handleActivationRequest);
       return () => {
-        window.removeEventListener('spotify-activate-request', handleActivationRequest);
+        window.removeEventListener('spotifyActivateRequest', handleActivationRequest);
       };
     }
   }, [onNeedsActivation, setSdkState]);

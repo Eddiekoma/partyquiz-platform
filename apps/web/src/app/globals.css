@@ -932,15 +932,13 @@
     max-width: calc(100vw - 2rem);
   }
   
-  /* Touch-friendly button minimum sizes */
-  button, .btn, a[role="button"] {
+  /* Touch-friendly button minimum sizes for interactive elements */
+  button:not(.icon-only), 
+  .btn, 
+  a[role="button"],
+  input[type="button"],
+  input[type="submit"] {
     min-height: 44px;
-    min-width: 44px;
-  }
-  
-  /* Ensure text is readable on mobile */
-  body {
-    font-size: 16px;
   }
   
   /* Prevent horizontal scrolling */
