@@ -162,6 +162,10 @@ export default function HostControlPage() {
   // Audio error toast
   const [audioError, setAudioError] = useState<string | null>(null);
   const audioErrorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Mobile tab state for responsive navigation
+  const [mobileTab, setMobileTab] = useState<"players" | "controls" | "overview">("controls");
+  // Spotify audio activation state for mobile
+  const [needsAudioActivation, setNeedsAudioActivation] = useState(false);
 
   // Refs to access current values in event handlers
   const currentItemAnswersRef = useRef(currentItemAnswers);
@@ -1058,6 +1062,7 @@ export default function HostControlPage() {
         sessionCode={code}
         kind="HOST"
         socket={socket}
+        onNeedsActivation={setNeedsAudioActivation}
       />
 
       {/* Audio error toast */}
@@ -1079,14 +1084,48 @@ export default function HostControlPage() {
         </div>
       )}
 
+      {/* Audio Activation Button for Mobile/Autoplay Browsers */}
+      {needsAudioActivation && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] max-w-sm animate-in slide-in-from-top">
+          <div className="bg-green-900/90 border border-green-600/50 rounded-lg px-6 py-4 shadow-xl">
+            <div className="text-center">
+              <p className="text-sm font-semibold text-green-300 mb-2">🔊 Audio Activeren</p>
+              <p className="text-xs text-green-200/80 mb-3">
+                Klik om muziek af te spelen (vereist voor mobiel)
+              </p>
+              <button
+                onClick={async () => {
+                  try {
+                    // This must be called from within a user gesture handler
+                    if (window.Spotify?.Player) {
+                      // Find any existing player instance and activate it
+                      // The SpotifyAudioTarget component manages the player instance
+                      const event = new CustomEvent('spotifyActivateRequest');
+                      window.dispatchEvent(event);
+                    }
+                    setNeedsAudioActivation(false);
+                  } catch (err) {
+                    console.error('[Host] Audio activation error:', err);
+                  }
+                }}
+                className="w-full px-6 py-3 bg-green-600 hover:bg-green-500 rounded-lg text-white font-semibold transition-colors min-h-[44px] flex items-center justify-center gap-2"
+              >
+                <span className="text-xl">🔊</span>
+                <span>Activeer Audio</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
-      <header className="bg-slate-800 border-b border-slate-700 px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+      <header className="bg-slate-800 border-b border-slate-700 px-4 md:px-6 py-3 md:py-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-2 md:gap-4">
             {/* Back to Quiz Button */}
             <Link
               href={`/dashboard/workspaces/${session.workspaceId}/quizzes/${session.quiz.id}`}
-              className="p-2 hover:bg-slate-700 rounded-lg transition-colors text-slate-400 hover:text-white"
+              className="p-2 hover:bg-slate-700 rounded-lg transition-colors text-slate-400 hover:text-white min-w-[44px] min-h-[44px] flex items-center justify-center"
               title="Back to Quiz Editor"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1098,18 +1137,18 @@ export default function HostControlPage() {
               <img 
                 src={session.workspace.logo} 
                 alt={session.workspace.name}
-                className="h-10 w-10 rounded-lg object-cover"
+                className="h-8 w-8 md:h-10 md:w-10 rounded-lg object-cover"
               />
             )}
-            <div>
-              <h1 className="text-xl font-bold">{session.quiz.title}</h1>
-              <p className="text-sm text-slate-400">{session.workspace.name}</p>
+            <div className="min-w-0">
+              <h1 className="text-base md:text-xl font-bold truncate">{session.quiz.title}</h1>
+              <p className="text-xs md:text-sm text-slate-400 truncate">{session.workspace.name}</p>
             </div>
           </div>
           
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 md:gap-4 flex-wrap">
             {/* Session Status */}
-            <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${
+            <div className={`flex items-center gap-2 px-2 md:px-3 py-1 rounded-full text-xs md:text-sm ${
               session.status === "ENDED" 
                 ? "bg-red-900/50 text-red-400"
                 : session.status === "LOBBY"
@@ -1126,27 +1165,66 @@ export default function HostControlPage() {
               {session.status === "ENDED" ? "Ended" : session.status === "LOBBY" ? "Lobby" : "Live"}
             </div>
             
-            <div className={`flex items-center gap-2 px-3 py-1 rounded-full ${
+            <div className={`flex items-center gap-2 px-2 md:px-3 py-1 rounded-full text-xs md:text-sm ${
               isConnected ? "bg-green-900/50 text-green-400" : "bg-red-900/50 text-red-400"
             }`}>
               <span className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-400" : "bg-red-400"}`} />
-              {isConnected ? "Connected" : "Disconnected"}
+              <span className="hidden sm:inline">{isConnected ? "Connected" : "Disconnected"}</span>
             </div>
             
             <Link 
               href={`/display/${code}`}
               target="_blank"
-              className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition-colors"
+              className="px-3 md:px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-xs md:text-sm font-medium transition-colors min-h-[44px] flex items-center gap-1"
             >
-              📺 Open Display
+              <span>📺</span>
+              <span className="hidden sm:inline">Open Display</span>
             </Link>
           </div>
         </div>
       </header>
 
-      <div className="flex h-[calc(100vh-73px)]">
+      {/* Mobile Navigation Tabs - Only visible on mobile */}
+      <div className="lg:hidden bg-slate-800 border-b border-slate-700 px-4 py-2">
+        <div className="flex gap-1">
+          <button
+            onClick={() => setMobileTab("players")}
+            className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px] ${
+              mobileTab === "players"
+                ? "bg-blue-600 text-white"
+                : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+            }`}
+          >
+            👥 Players
+          </button>
+          <button
+            onClick={() => setMobileTab("controls")}
+            className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px] ${
+              mobileTab === "controls"
+                ? "bg-blue-600 text-white"
+                : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+            }`}
+          >
+            🎮 Controls
+          </button>
+          <button
+            onClick={() => setMobileTab("overview")}
+            className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px] ${
+              mobileTab === "overview"
+                ? "bg-blue-600 text-white"
+                : "bg-slate-700 text-slate-300 hover:bg-slate-600"
+            }`}
+          >
+            📋 Overview
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-col lg:flex-row h-[calc(100vh-73px)] lg:h-[calc(100vh-73px)]">
         {/* Left Sidebar - Players & Join Info */}
-        <aside className="w-80 bg-slate-800 border-r border-slate-700 p-4 overflow-y-auto">
+        <aside className={`w-full lg:w-80 bg-slate-800 border-r border-slate-700 p-4 overflow-y-auto ${
+          mobileTab !== "players" ? "hidden lg:block" : "block"
+        }`}>
           {/* Join Info */}
           <div className="bg-slate-700 rounded-lg p-4 mb-6">
             <div className="text-center mb-3">
@@ -1339,7 +1417,9 @@ export default function HostControlPage() {
         </aside>
 
         {/* Main Content - Current Item & Controls */}
-        <main className="flex-1 p-6 overflow-y-auto">
+        <main className={`flex-1 p-4 md:p-6 overflow-y-auto ${
+          mobileTab !== "controls" ? "hidden lg:block" : "block"
+        }`}>
           {/* Progress Bar */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
@@ -1706,15 +1786,15 @@ export default function HostControlPage() {
           )}
 
           {/* Control Buttons */}
-          <div className="bg-slate-800 rounded-xl p-6">
+          <div className="bg-slate-800 rounded-xl p-4 md:p-6">
             <h3 className="text-sm font-semibold text-slate-400 uppercase mb-4">Controls</h3>
             
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-2 md:gap-3">
               {/* Navigation */}
               <button
                 onClick={previousItem}
                 disabled={currentItemIndex === 0}
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-medium transition-colors"
+                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-medium transition-colors min-h-[44px]"
               >
                 ← Previous
               </button>
@@ -1722,12 +1802,12 @@ export default function HostControlPage() {
               <button
                 onClick={nextItem}
                 disabled={currentItemIndex >= totalItems - 1}
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-medium transition-colors"
+                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg font-medium transition-colors min-h-[44px]"
               >
                 Next →
               </button>
 
-              <div className="w-px bg-slate-600 mx-2" />
+              <div className="w-px bg-slate-600 mx-2 hidden md:block" />
 
               {/* Item Controls */}
               {currentItem?.itemType === "QUESTION" && (
@@ -1736,7 +1816,7 @@ export default function HostControlPage() {
                     <>
                       <button
                         onClick={startItem}
-                        className="px-6 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-medium transition-colors"
+                        className="px-4 md:px-6 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-medium transition-colors min-h-[44px]"
                       >
                         ▶️ Start Question
                       </button>
@@ -1745,7 +1825,7 @@ export default function HostControlPage() {
                       {completedItemIds.has(currentItem.id) && (
                         <button
                           onClick={revealAnswers}
-                          className="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition-colors"
+                          className="px-4 md:px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition-colors min-h-[44px]"
                           title="Show answers again on display/player screens"
                         >
                           👁️ Re-reveal Answers
@@ -1756,19 +1836,19 @@ export default function HostControlPage() {
                   
                   {itemState === "active" && (
                     <>
-                      <div className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 ${
+                      <div className={`px-3 md:px-4 py-2 rounded-lg font-bold flex items-center gap-2 min-h-[44px] ${
                         timeRemaining <= 5 
                           ? 'bg-red-600 animate-pulse' 
                           : timeRemaining <= 10 
                             ? 'bg-orange-600' 
                             : 'bg-green-600'
                       }`}>
-                        <span className="text-2xl tabular-nums">⏱️ {timeRemaining}s</span>
-                        <span className="text-sm opacity-75">({answeredCount}/{totalPlayerCount || session?.players.length || 0} answers)</span>
+                        <span className="text-xl md:text-2xl tabular-nums">⏱️ {timeRemaining}s</span>
+                        <span className="text-xs md:text-sm opacity-75">({answeredCount}/{totalPlayerCount || session?.players.length || 0})</span>
                       </div>
                       <button
                         onClick={cancelItem}
-                        className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg font-medium transition-colors"
+                        className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg font-medium transition-colors min-h-[44px]"
                         title="Cancel question and allow restart"
                       >
                         ✖️ Cancel
@@ -1780,13 +1860,13 @@ export default function HostControlPage() {
                     <>
                       <button
                         onClick={revealAnswers}
-                        className="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition-colors"
+                        className="px-4 md:px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition-colors min-h-[44px]"
                       >
                         👁️ Reveal Answer
                       </button>
                       <button
                         onClick={cancelItem}
-                        className="px-4 py-2 bg-red-600/70 hover:bg-red-600 rounded-lg font-medium transition-colors"
+                        className="px-4 py-2 bg-red-600/70 hover:bg-red-600 rounded-lg font-medium transition-colors min-h-[44px]"
                         title="Cancel question and allow restart"
                       >
                         ✖️ Cancel
@@ -1800,23 +1880,23 @@ export default function HostControlPage() {
                 <button
                   onClick={startSwanRace}
                   disabled={itemState === "active"}
-                  className="px-6 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 rounded-lg font-medium transition-colors"
+                  className="px-4 md:px-6 py-2 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 rounded-lg font-medium transition-colors min-h-[44px]"
                 >
                   🦢 Start Swan Race
                 </button>
               )}
 
-              <div className="w-px bg-slate-600 mx-2" />
+              <div className="w-px bg-slate-600 mx-2 hidden md:block" />
 
               {/* Scoreboard Controls - Always available when no question is active */}
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                 {!showingScoreboard ? (
                   <>
                     <select
                       value={scoreboardType}
                       onChange={(e) => setScoreboardType(e.target.value as any)}
                       disabled={itemState === "active"}
-                      className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-sm disabled:opacity-50"
+                      className="px-3 py-2 bg-slate-700 border border-slate-600 rounded-lg text-sm disabled:opacity-50 min-h-[44px]"
                     >
                       <option value="TOP_3">🏆 Top 3</option>
                       <option value="TOP_5">🎯 Top 5</option>
@@ -1826,7 +1906,7 @@ export default function HostControlPage() {
                     <button
                       onClick={() => showScoreboard()}
                       disabled={itemState === "active"}
-                      className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 disabled:opacity-50 rounded-lg font-medium transition-colors"
+                      className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 disabled:opacity-50 rounded-lg font-medium transition-colors min-h-[44px]"
                     >
                       📊 Scoreboard
                     </button>
@@ -1834,27 +1914,27 @@ export default function HostControlPage() {
                 ) : (
                   <button
                     onClick={hideScoreboard}
-                    className="px-4 py-2 bg-slate-600 hover:bg-slate-500 rounded-lg font-medium transition-colors"
+                    className="px-4 py-2 bg-slate-600 hover:bg-slate-500 rounded-lg font-medium transition-colors min-h-[44px]"
                   >
                     ✕ Hide Scoreboard
                   </button>
                 )}
               </div>
 
-              <div className="w-px bg-slate-600 mx-2" />
+              <div className="w-px bg-slate-600 mx-2 hidden md:block" />
 
               {/* Session Controls */}
               {isPaused ? (
                 <button
                   onClick={resumeSession}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-medium transition-colors"
+                  className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-medium transition-colors min-h-[44px]"
                 >
                   ▶️ Resume
                 </button>
               ) : (
                 <button
                   onClick={pauseSession}
-                  className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 rounded-lg font-medium transition-colors"
+                  className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 rounded-lg font-medium transition-colors min-h-[44px]"
                 >
                   ⏸️ Pause
                 </button>
@@ -1863,14 +1943,14 @@ export default function HostControlPage() {
               {session.status === "ENDED" ? (
                 <button
                   onClick={resetSession}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition-colors"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition-colors min-h-[44px]"
                 >
                   🔄 Restart Session
                 </button>
               ) : (
                 <button
                   onClick={endSession}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg font-medium transition-colors"
+                  className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg font-medium transition-colors min-h-[44px]"
                 >
                   🛑 End Session
                 </button>
@@ -1943,7 +2023,9 @@ export default function HostControlPage() {
         </main>
 
         {/* Right Sidebar - Quiz Overview */}
-        <aside className="w-72 bg-slate-800 border-l border-slate-700 p-4 overflow-y-auto">
+        <aside className={`w-full lg:w-72 bg-slate-800 border-l border-slate-700 p-4 overflow-y-auto ${
+          mobileTab !== "overview" ? "hidden lg:block" : "block"
+        }`}>
           <h3 className="text-sm font-semibold text-slate-400 uppercase mb-3">
             Quiz Structure
           </h3>

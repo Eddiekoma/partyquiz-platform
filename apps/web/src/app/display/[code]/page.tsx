@@ -576,18 +576,21 @@ export default function DisplayPage() {
 
       {/* Spotify activation overlay – mobile/TV browsers require a user gesture */}
       {showAudioActivation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
           <button
             onClick={() => {
               // The click satisfies the browser autoplay policy.
               // SpotifyAudioTarget will be (re)initialized via the SDK's activateElement().
+              // Dispatch event for SpotifyAudioTarget to handle
+              const event = new CustomEvent('spotifyActivateRequest');
+              window.dispatchEvent(event);
               setShowAudioActivation(false);
             }}
-            className="flex flex-col items-center gap-4 rounded-2xl bg-green-600 px-12 py-8 text-white shadow-xl transition hover:bg-green-500 active:scale-95"
+            className="flex flex-col items-center gap-4 rounded-2xl bg-green-600 px-8 py-8 md:px-12 md:py-10 text-white shadow-xl transition hover:bg-green-500 active:scale-95 min-h-[80px] touch-manipulation"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-            <span className="text-2xl font-bold">Klik om audio te activeren</span>
-            <span className="text-sm text-green-200">Spotify audio wordt via dit scherm afgespeeld</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            <span className="text-xl md:text-2xl font-bold">Klik om audio te activeren</span>
+            <span className="text-xs md:text-sm text-green-200">Spotify audio wordt via dit scherm afgespeeld</span>
           </button>
         </div>
       )}
