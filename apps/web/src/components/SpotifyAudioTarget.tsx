@@ -692,6 +692,31 @@ export function SpotifyAudioTarget({
     };
   }, [teardownPlayer]);
 
+  // Handle manual audio activation request from UI (mobile browsers)
+  useEffect(() => {
+    const handleActivationRequest = async () => {
+      const player = playerRef.current;
+      if (player && sdkStateRef.current !== AudioSDKState.DISCONNECTED) {
+        try {
+          console.log('[SpotifyAudioTarget] Manual activation request received');
+          await player.activateElement();
+          setIsActive(true);
+          onNeedsActivation?.(false);
+          setSdkState(AudioSDKState.ACTIVATED);
+        } catch (err) {
+          console.error('[SpotifyAudioTarget] Manual activation failed:', err);
+        }
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('spotify-activate-request', handleActivationRequest);
+      return () => {
+        window.removeEventListener('spotify-activate-request', handleActivationRequest);
+      };
+    }
+  }, [onNeedsActivation, setSdkState]);
+
   // Headless component — renders nothing
   return null;
 }
