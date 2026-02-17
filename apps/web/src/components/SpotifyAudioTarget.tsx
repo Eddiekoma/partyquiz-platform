@@ -36,6 +36,7 @@ import {
   releaseSpotifyLock,
   destroySpotifyLock,
 } from "@/lib/spotifyTabLock";
+import { isIOSSafari } from "@/lib/browserDetection";
 
 // Spotify SDK Player type (avoids global declaration conflicts)
 type SpotifySDKPlayer = {
@@ -549,7 +550,13 @@ export function SpotifyAudioTarget({
     player.addListener("initialization_error", ({ message }: { message: string }) => {
       console.error("[SpotifyAudioTarget] Init error:", message);
       setSdkState(AudioSDKState.ERROR_RECOVERY);
-      onError?.(message);
+      
+      // Add iOS Safari specific guidance
+      if (isIOSSafari()) {
+        onError?.("Spotify SDK wordt niet volledig ondersteund op iOS Safari. Gebruik Chrome of de Spotify app voor de beste ervaring.");
+      } else {
+        onError?.(message);
+      }
     });
     player.addListener("authentication_error", ({ message }: { message: string }) => {
       console.error("[SpotifyAudioTarget] Auth error:", message);
@@ -559,7 +566,13 @@ export function SpotifyAudioTarget({
     player.addListener("account_error", ({ message }: { message: string }) => {
       console.error("[SpotifyAudioTarget] Account error:", message);
       setSdkState(AudioSDKState.ERROR_RECOVERY);
-      onError?.("Spotify Premium required");
+      
+      // Add clear message about Premium requirement
+      if (isIOSSafari()) {
+        onError?.("Spotify Premium is vereist. Let op: Spotify SDK werkt mogelijk niet correct op iOS Safari.");
+      } else {
+        onError?.("Spotify Premium is vereist voor audio playback");
+      }
     });
     player.addListener("playback_error", ({ message }: { message: string }) => {
       console.error("[SpotifyAudioTarget] Playback error:", message);
