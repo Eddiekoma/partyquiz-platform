@@ -41,13 +41,13 @@ function ForgotPasswordForm() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#020617] p-4 relative overflow-hidden">
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-[128px]" />
-          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-cyan-500/20 rounded-full blur-[128px]" />
+          <div className="absolute top-0 left-1/4 w-64 sm:w-96 h-64 sm:h-96 bg-blue-500/20 rounded-full blur-[128px]" />
+          <div className="absolute bottom-0 right-1/4 w-64 sm:w-96 h-64 sm:h-96 bg-cyan-500/20 rounded-full blur-[128px]" />
         </div>
         <Card className="max-w-md w-full glass-elevated relative z-10" padding="lg">
           <div className="text-center space-y-4">
-            <div className="text-6xl">✉️</div>
-            <h1 className="text-3xl font-bold text-slate-100 font-display">
+            <div className="text-5xl sm:text-6xl">✉️</div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-slate-100 font-display">
               Check Your Email!
             </h1>
             <p className="text-slate-400">
@@ -71,9 +71,9 @@ function ForgotPasswordForm() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#020617] p-4 relative overflow-hidden">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-500/20 rounded-full blur-[128px] animate-pulse" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-cyan-500/20 rounded-full blur-[128px] animate-pulse" style={{ animationDelay: '1s' }} />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-purple-500/10 rounded-full blur-[128px]" />
+        <div className="absolute top-0 left-1/4 w-64 sm:w-96 h-64 sm:h-96 bg-blue-500/20 rounded-full blur-[128px] animate-pulse" />
+        <div className="absolute bottom-0 right-1/4 w-64 sm:w-96 h-64 sm:h-96 bg-cyan-500/20 rounded-full blur-[128px] animate-pulse" style={{ animationDelay: '1s' }} />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] sm:w-[600px] h-[300px] sm:h-[600px] bg-purple-500/10 rounded-full blur-[128px]" />
       </div>
 
       <Card className="max-w-md w-full glass-elevated relative z-10" padding="lg">
@@ -82,7 +82,7 @@ function ForgotPasswordForm() {
             <span className="font-display text-2xl font-bold gradient-text">PartyQuiz</span>
             <span className="ml-2 text-xs font-semibold text-blue-400 bg-blue-500/20 px-2 py-1 rounded-md">by Databridge360</span>
           </div>
-          <h1 className="text-3xl font-bold text-slate-100 font-display">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-100 font-display">
             Forgot Password?
           </h1>
           <p className="text-slate-400">

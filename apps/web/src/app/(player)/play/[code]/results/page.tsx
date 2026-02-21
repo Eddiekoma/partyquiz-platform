@@ -32,7 +32,7 @@ export default function ResultsPage() {
       const player = JSON.parse(storedPlayer);
       setPlayerId(player.id);
     }
-    
+
     // Check for cached leaderboard from SESSION_ENDED event (immediate display)
     const cachedLeaderboard = sessionStorage.getItem(`finalLeaderboard-${code.toUpperCase()}`);
     if (cachedLeaderboard) {
@@ -49,12 +49,12 @@ export default function ResultsPage() {
   // Helper function to update leaderboard state
   const updateLeaderboardState = (data: LeaderboardEntry[]) => {
     setLeaderboard(data);
-    
+
     // Find my stats - try by playerId first, then by name
     const storedPlayer = localStorage.getItem(`player-${code.toUpperCase()}`);
     const myPlayerId = storedPlayer ? JSON.parse(storedPlayer).id : null;
     const playerName = sessionStorage.getItem("playerName");
-    
+
     let myEntry = null;
     if (myPlayerId) {
       myEntry = data.find((entry: LeaderboardEntry) => entry.playerId === myPlayerId);
@@ -62,7 +62,7 @@ export default function ResultsPage() {
     if (!myEntry && playerName) {
       myEntry = data.find((entry: LeaderboardEntry) => entry.playerName === playerName);
     }
-    
+
     if (myEntry) {
       setMyStats(myEntry);
       setMyRank(data.indexOf(myEntry) + 1);
@@ -105,25 +105,25 @@ export default function ResultsPage() {
   };
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-4">
+    <div className="flex-1 flex flex-col items-center justify-start sm:justify-center px-3 sm:px-4 py-4 sm:py-6 overflow-y-auto">
       <div className="w-full max-w-3xl">
         {/* Header */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-5 sm:mb-8">
           {myRank && myRank <= 3 && (
-            <div className="text-6xl mb-4 animate-bounce">
+            <div className="text-4xl sm:text-6xl mb-3 sm:mb-4 animate-bounce">
               {getConfetti(myRank)}
             </div>
           )}
-          <h1 className="text-5xl font-black text-white mb-4">
+          <h1 className="text-3xl sm:text-5xl font-black text-white mb-3 sm:mb-4">
             Game Over!
           </h1>
           {myRank && (
-            <div className="inline-block bg-white/20 backdrop-blur-sm px-8 py-4 rounded-2xl">
-              <p className="text-2xl font-bold text-white mb-1">
+            <div className="inline-block bg-white/20 backdrop-blur-sm px-5 sm:px-8 py-3 sm:py-4 rounded-xl sm:rounded-2xl">
+              <p className="text-lg sm:text-2xl font-bold text-white mb-0.5 sm:mb-1">
                 You finished {getRankEmoji(myRank)}
               </p>
               {myStats && (
-                <p className="text-lg text-white/90">
+                <p className="text-base sm:text-lg text-white/90">
                   {myStats.totalScore} points
                 </p>
               )}
@@ -132,13 +132,13 @@ export default function ResultsPage() {
         </div>
 
         {/* Leaderboard */}
-        <div className="bg-white/10 backdrop-blur-sm rounded-3xl p-6 mb-6">
-          <h2 className="text-2xl font-black text-white mb-4 text-center">
+        <div className="bg-white/10 backdrop-blur-sm rounded-2xl sm:rounded-3xl p-3 sm:p-6 mb-4 sm:mb-6">
+          <h2 className="text-lg sm:text-2xl font-black text-white mb-3 sm:mb-4 text-center">
             🏆 Final Leaderboard
           </h2>
-          <div className="space-y-3">
+          <div className="space-y-2 sm:space-y-3">
             {leaderboard.length === 0 ? (
-              <p className="text-center text-white/60 py-8">
+              <p className="text-center text-white/60 py-6 sm:py-8 text-sm sm:text-base">
                 Loading results...
               </p>
             ) : (
@@ -152,9 +152,9 @@ export default function ResultsPage() {
                 return (
                   <div
                     key={entry.playerId}
-                    className={`flex items-center gap-4 rounded-xl p-4 transition-all ${
+                    className={`flex items-center gap-2 sm:gap-4 rounded-lg sm:rounded-xl p-2.5 sm:p-4 transition-all ${
                       isMe
-                        ? "bg-purple-600 ring-4 ring-purple-300 scale-105"
+                        ? "bg-purple-600 ring-2 sm:ring-4 ring-purple-300"
                         : "bg-white/20 backdrop-blur-sm"
                     }`}
                     style={{
@@ -162,29 +162,29 @@ export default function ResultsPage() {
                     }}
                   >
                     {/* Rank */}
-                    <div className="w-16 text-center">
-                      <span className="text-3xl font-black text-white">
+                    <div className="w-10 sm:w-16 text-center flex-shrink-0">
+                      <span className="text-xl sm:text-3xl font-black text-white">
                         {getRankEmoji(rank)}
                       </span>
                     </div>
 
                     {/* Avatar */}
-                    <div className="text-4xl">{entry.avatar}</div>
+                    <div className="text-2xl sm:text-4xl flex-shrink-0">{entry.avatar}</div>
 
                     {/* Name */}
-                    <div className="flex-1">
-                      <p className="text-xl font-black text-white">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm sm:text-xl font-black text-white truncate">
                         {entry.playerName}
                         {isMe && " (You)"}
                       </p>
                     </div>
 
                     {/* Score */}
-                    <div className="text-right">
-                      <p className="text-3xl font-black text-white">
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-lg sm:text-3xl font-black text-white">
                         {entry.totalScore}
                       </p>
-                      <p className="text-xs text-white/60">points</p>
+                      <p className="text-[10px] sm:text-xs text-white/60">points</p>
                     </div>
                   </div>
                 );
@@ -194,16 +194,16 @@ export default function ResultsPage() {
         </div>
 
         {/* Actions */}
-        <div className="flex gap-4">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
           <button
             onClick={() => router.push("/join")}
-            className="flex-1 py-4 px-6 text-lg font-bold text-white bg-white/20 backdrop-blur-sm rounded-xl hover:bg-white/30 transition-all transform hover:scale-105 active:scale-95"
+            className="flex-1 py-3 sm:py-4 px-4 sm:px-6 text-base sm:text-lg font-bold text-white bg-white/20 backdrop-blur-sm rounded-xl hover:bg-white/30 transition-all active:scale-95"
           >
             Join New Game
           </button>
           <button
             onClick={() => router.push(`/play/${code}/lobby`)}
-            className="flex-1 py-4 px-6 text-lg font-bold text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all transform hover:scale-105 active:scale-95"
+            className="flex-1 py-3 sm:py-4 px-4 sm:px-6 text-base sm:text-lg font-bold text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all active:scale-95"
           >
             Play Again
           </button>

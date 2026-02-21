@@ -35,7 +35,7 @@ export default function LobbyPage() {
   const [branding, setBranding] = useState<WorkspaceBranding>({ logo: null, themeColor: null });
   const [myPlayer, setMyPlayer] = useState<{ name: string; avatar: string } | null>(null);
   const [hasJoined, setHasJoined] = useState(false);
-  
+
   // Device recognition state
   const [deviceRecognized, setDeviceRecognized] = useState(false);
   const [recognizedPlayer, setRecognizedPlayer] = useState<RecognizedPlayer | null>(null);
@@ -236,39 +236,39 @@ export default function LobbyPage() {
   if (deviceRecognized && recognizedPlayer) {
     const themeColor = branding.themeColor || "#3B82F6";
     return (
-      <div 
-        className="flex-1 flex items-center justify-center p-4"
+      <div
+        className="flex-1 flex items-center justify-center px-4 py-6"
         style={{
           background: `linear-gradient(135deg, ${themeColor} 0%, ${themeColor}dd 100%)`,
         }}
       >
-        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-8 max-w-md w-full text-center">
-          <div className="text-6xl mb-4">📱</div>
-          <h1 className="text-2xl font-black text-white mb-4">
+        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-5 sm:p-8 max-w-md w-full text-center">
+          <div className="text-5xl sm:text-6xl mb-3 sm:mb-4">📱</div>
+          <h1 className="text-xl sm:text-2xl font-black text-white mb-3 sm:mb-4">
             Welcome back!
           </h1>
-          <p className="text-white/90 mb-6">
+          <p className="text-sm sm:text-base text-white/90 mb-4 sm:mb-6">
             This device was already in this session as:
           </p>
-          
-          <div className="bg-white/20 rounded-xl p-4 mb-6">
-            <div className="flex justify-center"><PlayerAvatar avatar={recognizedPlayer.avatar} size={56} /></div>
-            <div className="text-xl font-bold text-white mt-2">
+
+          <div className="bg-white/20 rounded-xl p-3 sm:p-4 mb-4 sm:mb-6">
+            <div className="flex justify-center"><PlayerAvatar avatar={recognizedPlayer.avatar} size={48} /></div>
+            <div className="text-lg sm:text-xl font-bold text-white mt-2">
               {recognizedPlayer.name}
             </div>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-2 sm:space-y-3">
             <button
               onClick={handleContinueAsExisting}
-              className="w-full px-6 py-4 text-lg font-bold text-white bg-green-500 hover:bg-green-400 rounded-xl transition-all"
+              className="w-full px-5 sm:px-6 py-3 sm:py-4 text-base sm:text-lg font-bold text-white bg-green-500 hover:bg-green-400 rounded-xl transition-all active:scale-95"
             >
               ✅ Continue as {recognizedPlayer.name}
             </button>
-            
+
             <button
               onClick={handleJoinAsNew}
-              className="w-full px-6 py-4 text-lg font-bold text-white bg-white/20 hover:bg-white/30 rounded-xl transition-all"
+              className="w-full px-5 sm:px-6 py-3 sm:py-4 text-base sm:text-lg font-bold text-white bg-white/20 hover:bg-white/30 rounded-xl transition-all active:scale-95"
             >
               👤 New player ({newPlayerName})
             </button>
@@ -281,20 +281,20 @@ export default function LobbyPage() {
   if (error) {
     const themeColor = branding.themeColor || "#3B82F6";
     const isNameTaken = errorCode === "NAME_ALREADY_TAKEN";
-    
+
     return (
-      <div 
-        className="flex-1 flex items-center justify-center p-4"
+      <div
+        className="flex-1 flex items-center justify-center px-4 py-6"
         style={{
           background: `linear-gradient(135deg, ${themeColor} 0%, ${themeColor}dd 100%)`,
         }}
       >
-        <div className="text-center">
-          <div className="text-6xl mb-4">{isNameTaken ? "👤" : "❌"}</div>
-          <h1 className="text-3xl font-black text-white mb-2">
+        <div className="text-center px-4">
+          <div className="text-5xl sm:text-6xl mb-3 sm:mb-4">{isNameTaken ? "👤" : "❌"}</div>
+          <h1 className="text-2xl sm:text-3xl font-black text-white mb-2">
             {isNameTaken ? "Name already in use" : "Oops!"}
           </h1>
-          <p className="text-lg text-white/90 mb-6">{error}</p>
+          <p className="text-base sm:text-lg text-white/90 mb-4 sm:mb-6">{error}</p>
           <button
             onClick={() => {
               // Clear the stored name so user can enter a new one
@@ -304,7 +304,7 @@ export default function LobbyPage() {
               setErrorCode(null);
               router.push(`/play/${code}`);
             }}
-            className="px-6 py-3 text-lg font-bold text-white bg-white/20 backdrop-blur-sm rounded-xl hover:bg-white/30 transition-all"
+            className="px-5 sm:px-6 py-3 text-base sm:text-lg font-bold text-white bg-white/20 backdrop-blur-sm rounded-xl hover:bg-white/30 transition-all active:scale-95"
           >
             {isNameTaken ? "Choose another name" : "Try Again"}
           </button>
@@ -316,15 +316,15 @@ export default function LobbyPage() {
   if (!isConnected) {
     const themeColor = branding.themeColor || "#3B82F6";
     return (
-      <div 
+      <div
         className="flex-1 flex items-center justify-center"
         style={{
           background: `linear-gradient(135deg, ${themeColor} 0%, ${themeColor}dd 100%)`,
         }}
       >
         <div className="text-center">
-          <div className="text-6xl mb-4 animate-bounce">🔌</div>
-          <p className="text-xl font-bold text-white">Connecting...</p>
+          <div className="text-5xl sm:text-6xl mb-4 animate-bounce">🔌</div>
+          <p className="text-lg sm:text-xl font-bold text-white">Connecting...</p>
         </div>
       </div>
     );
@@ -333,18 +333,18 @@ export default function LobbyPage() {
   const themeColor = branding.themeColor || "#3B82F6";
 
   return (
-    <div 
-      className="flex-1 flex flex-col p-4 relative"
+    <div
+      className="flex-1 flex flex-col p-3 sm:p-4 relative"
       style={{
         background: `linear-gradient(135deg, ${themeColor} 0%, ${themeColor}dd 100%)`,
       }}
     >
-      {/* My Player Badge - Top Left */}
+      {/* My Player Badge - Top, flow layout on mobile */}
       {myPlayer && (
-        <div className="absolute top-4 left-4 z-10">
-          <div className="flex items-center gap-3 bg-white/20 backdrop-blur-sm px-4 py-2 rounded-full shadow-lg">
-            <PlayerAvatar avatar={myPlayer.avatar} size={32} />
-            <span className="font-bold text-white text-lg">{myPlayer.name}</span>
+        <div className="mb-3 sm:mb-0 sm:absolute sm:top-4 sm:left-4 z-10">
+          <div className="flex items-center gap-2 sm:gap-3 bg-white/20 backdrop-blur-sm px-3 sm:px-4 py-2 rounded-full shadow-lg w-fit">
+            <PlayerAvatar avatar={myPlayer.avatar} size={28} />
+            <span className="font-bold text-white text-base sm:text-lg truncate max-w-[200px]">{myPlayer.name}</span>
           </div>
         </div>
       )}
@@ -353,74 +353,74 @@ export default function LobbyPage() {
         <div className="w-full max-w-2xl">
           {/* Workspace Logo */}
           {branding.logo && (
-            <div className="flex justify-center mb-6">
+            <div className="flex justify-center mb-4 sm:mb-6">
               <img
                 src={branding.logo}
                 alt="Workspace logo"
-                className="h-20 object-contain bg-white/10 p-3 rounded-xl backdrop-blur-sm"
+                className="h-14 sm:h-20 object-contain bg-white/10 p-2 sm:p-3 rounded-xl backdrop-blur-sm"
               />
             </div>
           )}
 
-        {/* Session Code */}
-        <div className="text-center mb-8">
-          <p className="text-lg text-white/80 mb-2">Game Code</p>
-          <div className="inline-block bg-white/20 backdrop-blur-sm px-8 py-4 rounded-2xl">
-            <span className="text-white font-black text-4xl tracking-widest">{code}</span>
-          </div>
-        </div>
-
-        {/* Status */}
-        <div className="text-center mb-8">
-          {sessionState === "waiting" && (
-            <>
-              <div className="text-5xl mb-3 animate-pulse">⏳</div>
-              <h1 className="text-3xl font-black text-white mb-2">Waiting for host...</h1>
-              <p className="text-lg text-white/90">The game will start soon!</p>
-            </>
-          )}
-          {sessionState === "starting" && (
-            <>
-              <div className="text-5xl mb-3 animate-bounce">🎮</div>
-              <h1 className="text-3xl font-black text-white mb-2">Get ready!</h1>
-              <p className="text-lg text-white/90">The game is starting...</p>
-            </>
-          )}
-        </div>
-
-        {/* Players List */}
-        <div className="bg-white/10 backdrop-blur-sm rounded-3xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-white">Players</h2>
-            <div className="bg-white/20 px-3 py-1 rounded-full">
-              <span className="text-sm font-bold text-white">{players.length}</span>
+          {/* Session Code */}
+          <div className="text-center mb-5 sm:mb-8">
+            <p className="text-sm sm:text-lg text-white/80 mb-1 sm:mb-2">Game Code</p>
+            <div className="inline-block bg-white/20 backdrop-blur-sm px-5 sm:px-8 py-2.5 sm:py-4 rounded-xl sm:rounded-2xl">
+              <span className="text-white font-black text-2xl sm:text-4xl tracking-widest">{code}</span>
             </div>
           </div>
-          
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {players.length === 0 ? (
-              <p className="text-center text-white/60 py-4">No players yet...</p>
-            ) : (
-              players.map((player, index) => (
-                <div
-                  key={player.id}
-                  className="flex items-center gap-4 bg-white/10 backdrop-blur-sm rounded-xl p-4 transform transition-all hover:scale-105"
-                  style={{
-                    animation: `slideIn 0.3s ease-out ${index * 0.1}s both`,
-                  }}
-                >
-                  <PlayerAvatar avatar={player.avatar} size={40} />
-                  <div className="flex-1">
-                    <p className="font-bold text-white text-lg">{player.name}</p>
-                  </div>
-                  <div className="text-2xl">
-                    {index === 0 && "👑"}
-                  </div>
-                </div>
-              ))
+
+          {/* Status */}
+          <div className="text-center mb-5 sm:mb-8">
+            {sessionState === "waiting" && (
+              <>
+                <div className="text-4xl sm:text-5xl mb-2 sm:mb-3 animate-pulse">⏳</div>
+                <h1 className="text-xl sm:text-3xl font-black text-white mb-1 sm:mb-2">Waiting for host...</h1>
+                <p className="text-base sm:text-lg text-white/90">The game will start soon!</p>
+              </>
+            )}
+            {sessionState === "starting" && (
+              <>
+                <div className="text-4xl sm:text-5xl mb-2 sm:mb-3 animate-bounce">🎮</div>
+                <h1 className="text-xl sm:text-3xl font-black text-white mb-1 sm:mb-2">Get ready!</h1>
+                <p className="text-base sm:text-lg text-white/90">The game is starting...</p>
+              </>
             )}
           </div>
-        </div>
+
+          {/* Players List */}
+          <div className="bg-white/10 backdrop-blur-sm rounded-2xl sm:rounded-3xl p-4 sm:p-6">
+            <div className="flex items-center justify-between mb-3 sm:mb-4">
+              <h2 className="text-base sm:text-xl font-bold text-white">Players</h2>
+              <div className="bg-white/20 px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full">
+                <span className="text-xs sm:text-sm font-bold text-white">{players.length}</span>
+              </div>
+            </div>
+
+            <div className="space-y-1.5 sm:space-y-2 max-h-60 sm:max-h-96 overflow-y-auto">
+              {players.length === 0 ? (
+                <p className="text-center text-white/60 py-4 text-sm sm:text-base">No players yet...</p>
+              ) : (
+                players.map((player, index) => (
+                  <div
+                    key={player.id}
+                    className="flex items-center gap-3 sm:gap-4 bg-white/10 backdrop-blur-sm rounded-lg sm:rounded-xl p-2.5 sm:p-4 transition-all"
+                    style={{
+                      animation: `slideIn 0.3s ease-out ${index * 0.1}s both`,
+                    }}
+                  >
+                    <PlayerAvatar avatar={player.avatar} size={32} />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-white text-sm sm:text-lg truncate">{player.name}</p>
+                    </div>
+                    <div className="text-lg sm:text-2xl flex-shrink-0">
+                      {index === 0 && "👑"}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </div>
       </div>
 

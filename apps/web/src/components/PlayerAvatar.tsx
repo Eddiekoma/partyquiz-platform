@@ -154,21 +154,22 @@ export function AvatarPicker({ value, onChange, takenAvatars = [] }: AvatarPicke
   };
 
   return (
-    <div className="flex flex-col items-center gap-4">
+    <div className="flex flex-col items-center gap-3 sm:gap-4">
       {/* Large avatar preview */}
       <div className="relative group">
-        <div className="w-32 h-32 rounded-full bg-gradient-to-br from-purple-100 to-pink-100 flex items-center justify-center shadow-lg ring-4 ring-purple-200 overflow-hidden transition-transform group-hover:scale-105">
-          <PlayerAvatar avatar={value} size={120} />
+        <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-br from-purple-100 to-pink-100 flex items-center justify-center shadow-lg ring-3 sm:ring-4 ring-purple-200 overflow-hidden transition-transform group-hover:scale-105">
+          <PlayerAvatar avatar={value} size={88} className="sm:hidden" />
+          <PlayerAvatar avatar={value} size={120} className="hidden sm:block" />
         </div>
-        
-        {/* Shuffle overlay on hover */}
+
+        {/* Shuffle overlay on hover/tap */}
         <button
           type="button"
           onClick={handleShuffle}
-          className="absolute inset-0 rounded-full bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100"
+          className="absolute inset-0 rounded-full bg-black/0 group-hover:bg-black/30 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100 active:opacity-100 active:bg-black/30"
           title="Shuffle avatar"
         >
-          <span className="text-4xl drop-shadow-lg">🔀</span>
+          <span className="text-3xl sm:text-4xl drop-shadow-lg">🔀</span>
         </button>
       </div>
 
@@ -176,13 +177,13 @@ export function AvatarPicker({ value, onChange, takenAvatars = [] }: AvatarPicke
       <button
         type="button"
         onClick={handleShuffle}
-        className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30 border-2 border-purple-300 text-purple-700 font-bold rounded-full transition-all transform hover:scale-105 active:scale-95"
+        className="flex items-center gap-2 px-4 sm:px-5 py-2 sm:py-2.5 bg-gradient-to-r from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30 border-2 border-purple-300 text-purple-700 font-bold rounded-full transition-all transform hover:scale-105 active:scale-95 text-sm sm:text-base"
       >
-        <span className="text-xl">🔀</span>
+        <span className="text-lg sm:text-xl">🔀</span>
         <span>Shuffle Avatar</span>
       </button>
 
-      <p className="text-xs text-gray-400">
+      <p className="text-xs text-gray-400 text-center px-4">
         Each avatar is unique — keep shuffling until you find your favorite!
       </p>
     </div>

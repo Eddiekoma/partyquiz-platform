@@ -6,75 +6,75 @@ export default async function DashboardPage() {
   const session = await auth();
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-6 sm:space-y-8 animate-fade-in">
       {/* Welcome Header */}
       <div>
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 via-cyan-400 to-purple-400 bg-clip-text text-transparent">
+        <h1 className="text-xl sm:text-3xl font-bold bg-gradient-to-r from-blue-400 via-cyan-400 to-purple-400 bg-clip-text text-transparent">
           Welcome back, {session?.user?.name || session?.user?.email}!
         </h1>
-        <p className="mt-2 text-slate-400">
+        <p className="mt-1.5 sm:mt-2 text-slate-400 text-sm sm:text-base">
           Here is an overview of your PartyQuiz platform.
         </p>
       </div>
 
       {/* Quick Actions Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Workspaces Card */}
-        <div className="glass-card p-6 hover:border-blue-500/30 transition-all duration-300 group">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
-              <span className="text-xl">🏢</span>
+        <div className="glass-card p-4 sm:p-6 hover:border-blue-500/30 transition-all duration-300 group">
+          <div className="flex items-center gap-3 mb-3 sm:mb-4">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center flex-shrink-0">
+              <span className="text-lg sm:text-xl">🏢</span>
             </div>
-            <h3 className="text-lg font-semibold text-white">Workspaces</h3>
+            <h3 className="text-base sm:text-lg font-semibold text-white">Workspaces</h3>
           </div>
-          <p className="text-slate-400 mb-4 text-sm">
+          <p className="text-slate-400 mb-3 sm:mb-4 text-sm">
             Organize your quizzes and collaborate with your team.
           </p>
           <Link
             href="/dashboard/workspaces"
             className="inline-flex items-center text-blue-400 font-semibold text-sm hover:text-blue-300 transition-colors group-hover:gap-2"
           >
-            View Workspaces 
+            View Workspaces
             <span className="ml-1 transition-transform group-hover:translate-x-1">→</span>
           </Link>
         </div>
 
         {/* Live Sessions Card */}
-        <div className="glass-card p-6 hover:border-purple-500/30 transition-all duration-300 group">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-              <span className="text-xl">🎮</span>
+        <div className="glass-card p-4 sm:p-6 hover:border-purple-500/30 transition-all duration-300 group">
+          <div className="flex items-center gap-3 mb-3 sm:mb-4">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
+              <span className="text-lg sm:text-xl">🎮</span>
             </div>
-            <h3 className="text-lg font-semibold text-white">Live Sessions</h3>
+            <h3 className="text-base sm:text-lg font-semibold text-white">Live Sessions</h3>
           </div>
-          <p className="text-slate-400 mb-4 text-sm">
+          <p className="text-slate-400 mb-3 sm:mb-4 text-sm">
             Start a live quiz session with real-time interaction.
           </p>
           <Link
             href="/dashboard/workspaces"
             className="inline-flex items-center text-purple-400 font-semibold text-sm hover:text-purple-300 transition-colors"
           >
-            Choose a Workspace 
+            Choose a Workspace
             <span className="ml-1 transition-transform group-hover:translate-x-1">→</span>
           </Link>
         </div>
 
         {/* Player Join Card */}
-        <div className="glass-card p-6 hover:border-cyan-500/30 transition-all duration-300 group">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-teal-500 flex items-center justify-center">
-              <span className="text-xl">👥</span>
+        <div className="glass-card p-4 sm:p-6 hover:border-cyan-500/30 transition-all duration-300 group">
+          <div className="flex items-center gap-3 mb-3 sm:mb-4">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-teal-500 flex items-center justify-center flex-shrink-0">
+              <span className="text-lg sm:text-xl">👥</span>
             </div>
-            <h3 className="text-lg font-semibold text-white">Player Join</h3>
+            <h3 className="text-base sm:text-lg font-semibold text-white">Player Join</h3>
           </div>
-          <p className="text-slate-400 mb-4 text-sm">
+          <p className="text-slate-400 mb-3 sm:mb-4 text-sm">
             Share the join code so players can participate.
           </p>
           <Link
             href="/join"
             className="inline-flex items-center text-cyan-400 font-semibold text-sm hover:text-cyan-300 transition-colors"
           >
-            Go to Join Page 
+            Go to Join Page
             <span className="ml-1 transition-transform group-hover:translate-x-1">→</span>
           </Link>
         </div>
@@ -84,14 +84,14 @@ export default async function DashboardPage() {
       <SpotifyConnectCard />
 
       {/* Quick Start Guide */}
-      <div className="glass-card p-6">
-        <h3 className="text-xl font-semibold text-white mb-6 flex items-center gap-2">
-          <span className="text-2xl">🚀</span> Quick Start Guide
+      <div className="glass-card p-4 sm:p-6">
+        <h3 className="text-lg sm:text-xl font-semibold text-white mb-4 sm:mb-6 flex items-center gap-2">
+          <span className="text-xl sm:text-2xl">🚀</span> Quick Start Guide
         </h3>
-        
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="flex items-start space-x-4 p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors">
-            <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center font-bold text-white text-sm">
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+          <div className="flex items-start space-x-3 sm:space-x-4 p-3 sm:p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors">
+            <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center font-bold text-white text-xs sm:text-sm">
               1
             </div>
             <div>
@@ -101,9 +101,9 @@ export default async function DashboardPage() {
               </p>
             </div>
           </div>
-          
-          <div className="flex items-start space-x-4 p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors">
-            <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center font-bold text-white text-sm">
+
+          <div className="flex items-start space-x-3 sm:space-x-4 p-3 sm:p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors">
+            <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center font-bold text-white text-xs sm:text-sm">
               2
             </div>
             <div>
@@ -113,9 +113,9 @@ export default async function DashboardPage() {
               </p>
             </div>
           </div>
-          
-          <div className="flex items-start space-x-4 p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors">
-            <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-cyan-500 to-teal-500 rounded-lg flex items-center justify-center font-bold text-white text-sm">
+
+          <div className="flex items-start space-x-3 sm:space-x-4 p-3 sm:p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors">
+            <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-cyan-500 to-teal-500 rounded-lg flex items-center justify-center font-bold text-white text-xs sm:text-sm">
               3
             </div>
             <div>
@@ -125,9 +125,9 @@ export default async function DashboardPage() {
               </p>
             </div>
           </div>
-          
-          <div className="flex items-start space-x-4 p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors">
-            <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg flex items-center justify-center font-bold text-white text-sm">
+
+          <div className="flex items-start space-x-3 sm:space-x-4 p-3 sm:p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors">
+            <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg flex items-center justify-center font-bold text-white text-xs sm:text-sm">
               4
             </div>
             <div>
