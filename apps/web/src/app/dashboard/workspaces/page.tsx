@@ -52,18 +52,18 @@ export default function WorkspacesPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
         <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+          <h1 className="text-xl sm:text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
             Workspaces
           </h1>
-          <p className="mt-2 text-slate-400">
+          <p className="mt-1 sm:mt-2 text-slate-400 text-sm sm:text-base">
             Organize your quizzes and collaborate with your team.
           </p>
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold hover:from-blue-600 hover:to-cyan-600 transition-all duration-200 flex items-center gap-2"
+          className="px-4 py-2 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold text-sm sm:text-base hover:from-blue-600 hover:to-cyan-600 transition-all duration-200 flex items-center gap-2 self-start sm:self-auto flex-shrink-0"
         >
           <span>+</span> New Workspace
         </button>

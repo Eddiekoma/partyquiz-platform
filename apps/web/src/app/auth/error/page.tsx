@@ -108,14 +108,14 @@ function AuthErrorContent() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#020617] p-4 relative overflow-hidden">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-red-500/20 rounded-full blur-[128px]" />
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-[128px]" />
+        <div className="absolute top-0 left-1/4 w-64 sm:w-96 h-64 sm:h-96 bg-red-500/20 rounded-full blur-[128px]" />
+        <div className="absolute bottom-0 right-1/4 w-64 sm:w-96 h-64 sm:h-96 bg-purple-500/20 rounded-full blur-[128px]" />
       </div>
       
       <Card className="max-w-md w-full glass-elevated relative z-10" padding="lg">
         <div className="text-center space-y-4">
-          <div className="text-6xl">{errorInfo.icon}</div>
-          <h1 className="text-3xl font-bold text-slate-100 font-display">
+          <div className="text-5xl sm:text-6xl">{errorInfo.icon}</div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-100 font-display">
             {errorInfo.title}
           </h1>
           <p className="text-slate-400">

@@ -449,7 +449,7 @@ function YearPicker({
 
       {/* Selected year display */}
       <div className="text-center py-2">
-        <p className="text-5xl font-black text-white tabular-nums">{selectedYear}</p>
+        <p className="text-4xl md:text-5xl font-black text-white tabular-nums">{selectedYear}</p>
       </div>
 
       {/* Fine-tune slider */}

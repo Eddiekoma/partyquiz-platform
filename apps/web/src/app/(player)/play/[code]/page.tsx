@@ -39,7 +39,7 @@ export default function PlayerNamePage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [takenAvatars, setTakenAvatars] = useState<string[]>([]);
-  
+
   // Join flow state
   const [mode, setMode] = useState<JoinMode>("loading");
   const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
@@ -107,7 +107,7 @@ export default function PlayerNamePage() {
       if (data.currentPlayer) {
         // Check if the matched player is a "left" player who needs to be reclaimed
         const matchedPlayer = data.players.find(p => p.id === data.currentPlayer!.id);
-        
+
         if (matchedPlayer?.isLeft) {
           // Player left but device recognized - need to reclaim first
           const claimRes = await fetch(`/api/sessions/code/${code.toUpperCase()}/claim`, {
@@ -115,14 +115,14 @@ export default function PlayerNamePage() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ playerId: data.currentPlayer.id, deviceIdHash: deviceId }),
           });
-          
+
           if (!claimRes.ok) {
             // Claim failed, show selection screen
             setMode("select-player");
             return;
           }
         }
-        
+
         // Auto-rejoin: device recognized (active or successfully reclaimed)
         sessionStorage.setItem("playerName", data.currentPlayer.name);
         sessionStorage.setItem("playerAvatar", data.players.find(p => p.id === data.currentPlayer!.id)?.avatar || "🎮");
@@ -138,7 +138,7 @@ export default function PlayerNamePage() {
       // 4. Check if there are claimable players (unclaimed OR left players who can rejoin)
       const availablePlayers = data.players.filter(p => p.isAvailable && !p.isYou);
       const leftPlayersWithAnswers = data.players.filter(p => p.isLeft && p.hasAnswers);
-      
+
       if ((availablePlayers.length > 0 || leftPlayersWithAnswers.length > 0) && data.status !== "LOBBY") {
         // Session already started, show player selection
         setMode("select-player");
@@ -155,7 +155,7 @@ export default function PlayerNamePage() {
 
   const handleSelectPlayer = async () => {
     if (!selectedPlayerId || !sessionInfo) return;
-    
+
     setLoading(true);
     setError("");
 
@@ -169,7 +169,7 @@ export default function PlayerNamePage() {
 
       // Get player's access token and claim with device
       const deviceId = getDeviceIdHash();
-      
+
       // Find the player's accessToken (need to fetch it)
       const res = await fetch(`/api/sessions/code/${code.toUpperCase()}/claim`, {
         method: "POST",
@@ -185,7 +185,7 @@ export default function PlayerNamePage() {
       }
 
       const data = await res.json();
-      
+
       // Store player info
       sessionStorage.setItem("playerName", player.name);
       sessionStorage.setItem("playerAvatar", player.avatar || "🎮");
@@ -232,8 +232,8 @@ export default function PlayerNamePage() {
     return (
       <div className="flex-1 flex items-center justify-center p-4">
         <div className="text-center">
-          <div className="text-6xl mb-4 animate-bounce">🎮</div>
-          <p className="text-xl text-white/90">Just a moment...</p>
+          <div className="text-5xl sm:text-6xl mb-4 animate-bounce">🎮</div>
+          <p className="text-lg sm:text-xl text-white/90">Just a moment...</p>
         </div>
       </div>
     );
@@ -243,13 +243,13 @@ export default function PlayerNamePage() {
   if (mode === "error") {
     return (
       <div className="flex-1 flex items-center justify-center p-4">
-        <div className="text-center">
-          <div className="text-6xl mb-4">❌</div>
-          <h1 className="text-3xl font-black text-white mb-2">Oops!</h1>
-          <p className="text-lg text-white/90 mb-6">{error}</p>
+        <div className="text-center px-4">
+          <div className="text-5xl sm:text-6xl mb-4">❌</div>
+          <h1 className="text-2xl sm:text-3xl font-black text-white mb-2">Oops!</h1>
+          <p className="text-base sm:text-lg text-white/90 mb-6">{error}</p>
           <button
             onClick={() => router.push("/join")}
-            className="px-6 py-3 text-lg font-bold text-white bg-white/20 backdrop-blur-sm rounded-xl hover:bg-white/30 transition-all"
+            className="px-6 py-3 text-base sm:text-lg font-bold text-white bg-white/20 backdrop-blur-sm rounded-xl hover:bg-white/30 transition-all"
           >
             Enter another code
           </button>
@@ -263,18 +263,18 @@ export default function PlayerNamePage() {
     // Separate active and left players
     const activePlayers = sessionInfo.players.filter(p => p.isAvailable && !p.isLeft);
     const leftPlayers = sessionInfo.players.filter(p => p.isLeft && p.hasAnswers);
-    
+
     return (
-      <div className="flex-1 flex items-center justify-center p-4">
+      <div className="flex-1 flex items-center justify-center px-4 py-6">
         <div className="w-full max-w-md">
-          <div className="text-center mb-6">
-            <div className="flex justify-center mb-2"><PlayerAvatar avatar={null} size={56} /></div>
-            <h1 className="text-3xl font-black text-white mb-1">Who are you?</h1>
-            <p className="text-lg text-white/80">Select your name to continue playing</p>
+          <div className="text-center mb-5 sm:mb-6">
+            <div className="flex justify-center mb-2"><PlayerAvatar avatar={null} size={48} /></div>
+            <h1 className="text-2xl sm:text-3xl font-black text-white mb-1">Who are you?</h1>
+            <p className="text-base sm:text-lg text-white/80">Select your name to continue playing</p>
           </div>
 
-          <div className="bg-white rounded-3xl shadow-2xl p-6">
-            <div className="space-y-3 max-h-80 overflow-y-auto mb-4">
+          <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-6">
+            <div className="space-y-2 sm:space-y-3 max-h-64 sm:max-h-80 overflow-y-auto mb-4 -mx-1 px-1">
               {/* Left players who can rejoin - shown first with special styling */}
               {leftPlayers.length > 0 && (
                 <>
@@ -283,25 +283,25 @@ export default function PlayerNamePage() {
                     <button
                       key={player.id}
                       onClick={() => setSelectedPlayerId(player.id)}
-                      className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all border-2 ${
+                      className={`w-full flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl transition-all border-2 ${
                         selectedPlayerId === player.id
                           ? "bg-orange-100 ring-4 ring-orange-500 border-orange-500"
                           : "bg-orange-50 hover:bg-orange-100 border-orange-200"
                       }`}
                     >
-                      <PlayerAvatar avatar={player.avatar} size={40} />
-                      <div className="flex flex-col items-start">
-                        <span className="text-lg font-bold text-gray-900">{player.name}</span>
+                      <PlayerAvatar avatar={player.avatar} size={36} />
+                      <div className="flex flex-col items-start min-w-0">
+                        <span className="text-base sm:text-lg font-bold text-gray-900 truncate w-full">{player.name}</span>
                         <span className="text-xs text-orange-600">Tap to rejoin</span>
                       </div>
                       {selectedPlayerId === player.id && (
-                        <span className="ml-auto text-orange-600">✓</span>
+                        <span className="ml-auto text-orange-600 flex-shrink-0">✓</span>
                       )}
                     </button>
                   ))}
                 </>
               )}
-              
+
               {/* Active unclaimed players */}
               {activePlayers.length > 0 && (
                 <>
@@ -312,16 +312,16 @@ export default function PlayerNamePage() {
                     <button
                       key={player.id}
                       onClick={() => setSelectedPlayerId(player.id)}
-                      className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all ${
+                      className={`w-full flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl transition-all ${
                         selectedPlayerId === player.id
                           ? "bg-purple-100 ring-4 ring-purple-500"
                           : "bg-gray-50 hover:bg-gray-100"
                       }`}
                     >
-                      <PlayerAvatar avatar={player.avatar} size={40} />
-                      <span className="text-lg font-bold text-gray-900">{player.name}</span>
+                      <PlayerAvatar avatar={player.avatar} size={36} />
+                      <span className="text-base sm:text-lg font-bold text-gray-900 truncate">{player.name}</span>
                       {selectedPlayerId === player.id && (
-                        <span className="ml-auto text-purple-600">✓</span>
+                        <span className="ml-auto text-purple-600 flex-shrink-0">✓</span>
                       )}
                     </button>
                   ))}
@@ -336,15 +336,15 @@ export default function PlayerNamePage() {
             <button
               onClick={handleSelectPlayer}
               disabled={!selectedPlayerId || loading}
-              className="w-full py-4 px-6 text-xl font-bold text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              className="w-full py-3 sm:py-4 px-6 text-lg sm:text-xl font-bold text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
             >
               {loading ? "One moment..." : "That's me! 👋"}
             </button>
 
-            <div className="text-center mt-4">
+            <div className="text-center mt-3 sm:mt-4">
               <button
                 onClick={() => setMode("new-player")}
-                className="text-gray-500 hover:text-gray-700 text-sm"
+                className="text-gray-500 hover:text-gray-700 text-sm py-2"
               >
                 I'm not listed → New player
               </button>
@@ -357,18 +357,18 @@ export default function PlayerNamePage() {
 
   // New player form (default)
   return (
-    <div className="flex-1 flex items-center justify-center p-4">
+    <div className="flex-1 flex items-center justify-center px-4 py-6">
       <div className="w-full max-w-md">
         {/* Header */}
-        <div className="text-center mb-6">
-          <div className="flex justify-center mb-2"><PlayerAvatar avatar={selectedAvatar} size={64} /></div>
-          <h1 className="text-4xl font-black text-white mb-1">Join Game</h1>
-          <p className="text-lg text-white/80">Code: {code.toUpperCase()}</p>
+        <div className="text-center mb-5 sm:mb-6">
+          <div className="flex justify-center mb-2"><PlayerAvatar avatar={selectedAvatar} size={56} /></div>
+          <h1 className="text-2xl sm:text-4xl font-black text-white mb-1">Join Game</h1>
+          <p className="text-base sm:text-lg text-white/80">Code: {code.toUpperCase()}</p>
         </div>
 
         {/* Form Card */}
-        <div className="bg-white rounded-3xl shadow-2xl p-8">
-          <form onSubmit={handleNewPlayer} className="space-y-6">
+        <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl p-5 sm:p-8">
+          <form onSubmit={handleNewPlayer} className="space-y-4 sm:space-y-6">
             {/* Name Input */}
             <div>
               <label htmlFor="name" className="block text-sm font-bold text-gray-700 mb-2">
@@ -383,7 +383,7 @@ export default function PlayerNamePage() {
                   setError("");
                 }}
                 placeholder="Enter your name"
-                className="w-full px-6 py-4 text-xl font-bold text-center border-4 border-gray-300 rounded-xl focus:border-purple-500 focus:ring-4 focus:ring-purple-200 outline-none transition-all"
+                className="w-full px-4 sm:px-6 py-3 sm:py-4 text-lg sm:text-xl font-bold text-center border-3 sm:border-4 border-gray-300 rounded-xl focus:border-purple-500 focus:ring-4 focus:ring-purple-200 outline-none transition-all text-gray-900"
                 maxLength={20}
                 autoComplete="off"
                 autoFocus
@@ -395,11 +395,11 @@ export default function PlayerNamePage() {
 
             {/* Avatar Selection */}
             <div>
-              <label className="block text-sm font-bold text-gray-700 mb-3">
+              <label className="block text-sm font-bold text-gray-700 mb-2 sm:mb-3">
                 Your avatar
               </label>
-              <AvatarPicker 
-                value={selectedAvatar} 
+              <AvatarPicker
+                value={selectedAvatar}
                 onChange={setSelectedAvatar}
                 takenAvatars={takenAvatars}
               />
@@ -409,7 +409,7 @@ export default function PlayerNamePage() {
             <button
               type="submit"
               disabled={loading || !name.trim()}
-              className="w-full py-4 px-6 text-xl font-bold text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 focus:outline-none focus:ring-4 focus:ring-purple-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform hover:scale-105 active:scale-95"
+              className="w-full py-3 sm:py-4 px-6 text-lg sm:text-xl font-bold text-white bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl hover:from-purple-700 hover:to-pink-700 focus:outline-none focus:ring-4 focus:ring-purple-300 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
             >
               {loading ? "Loading..." : "Play! 🎮"}
             </button>
@@ -417,10 +417,10 @@ export default function PlayerNamePage() {
 
           {/* Switch to select mode if players exist */}
           {sessionInfo && sessionInfo.players.filter(p => p.isAvailable).length > 0 && (
-            <div className="text-center mt-4">
+            <div className="text-center mt-3 sm:mt-4">
               <button
                 onClick={() => setMode("select-player")}
-                className="text-gray-500 hover:text-gray-700 text-sm"
+                className="text-gray-500 hover:text-gray-700 text-sm py-2"
               >
                 Already played? → Select your name
               </button>
@@ -431,7 +431,7 @@ export default function PlayerNamePage() {
         {/* Back Link */}
         <button
           onClick={() => router.push("/join")}
-          className="w-full mt-4 text-center text-white/80 hover:text-white transition-colors"
+          className="w-full mt-4 text-center text-white/80 hover:text-white transition-colors py-2"
         >
           ← Other code
         </button>

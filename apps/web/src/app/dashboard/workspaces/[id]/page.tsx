@@ -155,16 +155,16 @@ export default function WorkspaceDetailPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header */}
-      <div className="flex justify-between items-start">
-        <div>
-          <Link 
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
+        <div className="min-w-0">
+          <Link
             href="/dashboard/workspaces"
             className="text-slate-400 hover:text-white text-sm flex items-center gap-1 mb-2"
           >
             ← All workspaces
           </Link>
-          <div className="flex items-center gap-3">
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <h1 className="text-xl sm:text-3xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
               {workspace.name}
             </h1>
             <span className={`text-xs px-2 py-1 rounded-full text-white bg-gradient-to-r ${getRoleBadge(workspace.role)}`}>
@@ -181,14 +181,14 @@ export default function WorkspaceDetailPage() {
             )}
           </div>
           {workspace.description && (
-            <p className="mt-2 text-slate-400">{workspace.description}</p>
+            <p className="mt-2 text-slate-400 text-sm sm:text-base">{workspace.description}</p>
           )}
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 flex-shrink-0">
           {canDelete && (
             <button
               onClick={handleDelete}
-              className="px-4 py-2 text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl transition-all duration-200"
+              className="px-3 sm:px-4 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-xl transition-all duration-200"
             >
               Delete
             </button>
@@ -197,88 +197,91 @@ export default function WorkspaceDetailPage() {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex gap-2 flex-wrap">
-        <Link 
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+        <Link
           href={`/dashboard/workspaces/${workspace.id}/questions`}
-          className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-all duration-200 flex items-center gap-2"
+          className="px-3 sm:px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-all duration-200 flex items-center gap-1.5 sm:gap-2 text-sm sm:text-base whitespace-nowrap flex-shrink-0"
         >
           <span>📝</span> Questions
         </Link>
-        <Link 
+        <Link
           href={`/dashboard/workspaces/${workspace.id}/quizzes`}
-          className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-all duration-200 flex items-center gap-2"
+          className="px-3 sm:px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-all duration-200 flex items-center gap-1.5 sm:gap-2 text-sm sm:text-base whitespace-nowrap flex-shrink-0"
         >
           <span>🎯</span> Quizzes
         </Link>
-        <Link 
+        <Link
           href={`/dashboard/workspaces/${workspace.id}/members`}
-          className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-all duration-200 flex items-center gap-2"
+          className="px-3 sm:px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-all duration-200 flex items-center gap-1.5 sm:gap-2 text-sm sm:text-base whitespace-nowrap flex-shrink-0"
         >
           <span>👥</span> Team
         </Link>
-        <Link 
+        <Link
           href={`/dashboard/workspaces/${workspace.id}/media`}
-          className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-all duration-200 flex items-center gap-2"
+          className="px-3 sm:px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-all duration-200 flex items-center gap-1.5 sm:gap-2 text-sm sm:text-base whitespace-nowrap flex-shrink-0"
         >
           <span>🎵</span> Media
         </Link>
-        <Link 
+        <Link
           href={`/dashboard/workspaces/${workspace.id}/branding`}
-          className="px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-all duration-200 flex items-center gap-2"
+          className="px-3 sm:px-4 py-2 bg-white/5 hover:bg-white/10 text-white rounded-xl transition-all duration-200 flex items-center gap-1.5 sm:gap-2 text-sm sm:text-base whitespace-nowrap flex-shrink-0"
         >
           <span>🎨</span> Branding
         </Link>
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Link 
+      <div className="grid grid-cols-3 gap-3 sm:gap-6">
+        <Link
           href={`/dashboard/workspaces/${workspace.id}/questions`}
-          className="glass-card p-6 group hover:border-blue-500/30 transition-all duration-300 cursor-pointer"
+          className="glass-card p-3 sm:p-6 group hover:border-blue-500/30 transition-all duration-300 cursor-pointer"
         >
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
-              <span className="text-lg">📝</span>
+          <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center flex-shrink-0">
+              <span className="text-sm sm:text-lg">📝</span>
             </div>
-            <h3 className="text-sm font-medium text-slate-400">Questions</h3>
+            <h3 className="text-xs sm:text-sm font-medium text-slate-400 hidden sm:block">Questions</h3>
           </div>
-          <div className="text-4xl font-bold text-white">{workspace._count.questions}</div>
-          <p className="text-slate-500 text-sm mt-1">in the question bank</p>
+          <div className="text-2xl sm:text-4xl font-bold text-white">{workspace._count.questions}</div>
+          <p className="text-slate-500 text-xs sm:text-sm mt-0.5 sm:mt-1 hidden sm:block">in the question bank</p>
+          <p className="text-slate-500 text-xs mt-0.5 sm:hidden">Questions</p>
         </Link>
 
-        <Link 
+        <Link
           href={`/dashboard/workspaces/${workspace.id}/quizzes`}
-          className="glass-card p-6 group hover:border-purple-500/30 transition-all duration-300 cursor-pointer"
+          className="glass-card p-3 sm:p-6 group hover:border-purple-500/30 transition-all duration-300 cursor-pointer"
         >
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
-              <span className="text-lg">🎯</span>
+          <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center flex-shrink-0">
+              <span className="text-sm sm:text-lg">🎯</span>
             </div>
-            <h3 className="text-sm font-medium text-slate-400">Quizzes</h3>
+            <h3 className="text-xs sm:text-sm font-medium text-slate-400 hidden sm:block">Quizzes</h3>
           </div>
-          <div className="text-4xl font-bold text-white">{workspace._count.quizzes}</div>
-          <p className="text-slate-500 text-sm mt-1">ready to play</p>
+          <div className="text-2xl sm:text-4xl font-bold text-white">{workspace._count.quizzes}</div>
+          <p className="text-slate-500 text-xs sm:text-sm mt-0.5 sm:mt-1 hidden sm:block">ready to play</p>
+          <p className="text-slate-500 text-xs mt-0.5 sm:hidden">Quizzes</p>
         </Link>
 
-        <Link 
+        <Link
           href={`/dashboard/workspaces/${workspace.id}/members`}
-          className="glass-card p-6 group hover:border-green-500/30 transition-all duration-300 cursor-pointer"
+          className="glass-card p-3 sm:p-6 group hover:border-green-500/30 transition-all duration-300 cursor-pointer"
         >
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center">
-              <span className="text-lg">👥</span>
+          <div className="flex items-center gap-2 sm:gap-3 mb-1 sm:mb-2">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center flex-shrink-0">
+              <span className="text-sm sm:text-lg">👥</span>
             </div>
-            <h3 className="text-sm font-medium text-slate-400">Team</h3>
+            <h3 className="text-xs sm:text-sm font-medium text-slate-400 hidden sm:block">Team</h3>
           </div>
-          <div className="text-4xl font-bold text-white">{workspace.members.length}</div>
-          <p className="text-slate-500 text-sm mt-1">team members</p>
+          <div className="text-2xl sm:text-4xl font-bold text-white">{workspace.members.length}</div>
+          <p className="text-slate-500 text-xs sm:text-sm mt-0.5 sm:mt-1 hidden sm:block">team members</p>
+          <p className="text-slate-500 text-xs mt-0.5 sm:hidden">Team</p>
         </Link>
       </div>
 
       {/* Team Members Preview */}
-      <div className="glass-card p-6">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold text-white flex items-center gap-2">
+      <div className="glass-card p-4 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 sm:gap-0 mb-3 sm:mb-4">
+          <h3 className="text-base sm:text-lg font-semibold text-white flex items-center gap-2">
             <span>👥</span> Team Members
           </h3>
           <div className="flex gap-2">
@@ -290,7 +293,7 @@ export default function WorkspaceDetailPage() {
                 + Invite
               </button>
             )}
-            <Link 
+            <Link
               href={`/dashboard/workspaces/${workspace.id}/members`}
               className="px-3 py-1.5 text-sm text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-all duration-200"
             >
@@ -332,11 +335,11 @@ export default function WorkspaceDetailPage() {
       </div>
 
       {/* Quick Actions */}
-      <div className="glass-card p-6">
-        <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+      <div className="glass-card p-4 sm:p-6">
+        <h3 className="text-base sm:text-lg font-semibold text-white mb-3 sm:mb-4 flex items-center gap-2">
           <span>⚡</span> Quick Actions
         </h3>
-        <div className="grid md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
           <Link 
             href={`/dashboard/workspaces/${workspace.id}/questions/new`}
             className="p-4 rounded-xl bg-white/5 hover:bg-white/10 transition-colors group"
