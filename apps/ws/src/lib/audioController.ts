@@ -854,6 +854,11 @@ export async function executeAudioCommand(
         }
       }
     } catch (err: any) {
+      // "Session commands cleared" is expected during takeover/reconnection — not a user error
+      if (err?.message?.includes("Session commands cleared")) {
+        logger.debug({ sessionCode, action: command.action }, "Command cancelled (session takeover/reconnect)");
+        return;
+      }
       logger.error({ err, sessionCode, action: command.action }, "Audio command execution error");
       io.to(sessionCode).emit(AudioWSEvent.AUDIO_ERROR, {
         code: "COMMAND_FAILED",
