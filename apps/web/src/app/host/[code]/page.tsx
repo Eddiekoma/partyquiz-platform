@@ -198,6 +198,8 @@ export default function HostControlPage() {
     const handleAudioError = (data: { code: string; message: string; needsActivation?: boolean }) => {
       // Ignore NO_AUDIO_TARGET during initial setup — not a user-visible error
       if (data.code === "NO_AUDIO_TARGET") return;
+      // Ignore "Session commands cleared" — normal during reconnection/takeover
+      if (data.message?.includes("Session commands cleared")) return;
       console.warn("[Host] Audio error:", data.code, data.message);
       setAudioError(data.message);
       // Auto-dismiss after 6 seconds
@@ -1086,32 +1088,32 @@ export default function HostControlPage() {
 
       {/* Audio Activation Button for Mobile/Autoplay Browsers */}
       {needsAudioActivation && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] max-w-sm animate-in slide-in-from-top">
-          <div className="bg-green-900/90 border border-green-600/50 rounded-lg px-6 py-4 shadow-xl">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 md:bg-transparent md:backdrop-blur-none md:inset-auto md:top-4 md:left-1/2 md:-translate-x-1/2 md:max-w-sm animate-in slide-in-from-top">
+          <div className="bg-green-900/95 border border-green-600/50 rounded-2xl md:rounded-lg px-8 py-6 md:px-6 md:py-4 shadow-xl w-full max-w-sm">
             <div className="text-center">
-              <p className="text-sm font-semibold text-green-300 mb-2">🔊 Audio Activeren</p>
-              <p className="text-xs text-green-200/80 mb-3">
-                Klik om muziek af te spelen (vereist voor mobiel)
+              <p className="text-base md:text-sm font-semibold text-green-300 mb-2">Audio Activeren</p>
+              <p className="text-sm md:text-xs text-green-200/80 mb-4 md:mb-3">
+                Tik om Spotify muziek te activeren op dit apparaat
               </p>
               <button
-                onClick={async () => {
+                onClick={() => {
                   try {
-                    // This must be called from within a user gesture handler
-                    if (window.Spotify?.Player) {
-                      // Find any existing player instance and activate it
-                      // The SpotifyAudioTarget component manages the player instance
-                      const event = new CustomEvent('spotifyActivateRequest');
-                      window.dispatchEvent(event);
-                    }
-                    setNeedsAudioActivation(false);
+                    // Dispatch event to SpotifyAudioTarget — MUST be synchronous
+                    // from this click handler to preserve user gesture context.
+                    // On mobile, SpotifyAudioTarget will do full SDK init from this gesture.
+                    // On desktop, it will call activateElement() to unblock autoplay.
+                    const event = new CustomEvent('spotifyActivateRequest');
+                    window.dispatchEvent(event);
+                    // Don't dismiss yet — SpotifyAudioTarget will call
+                    // onNeedsActivation(false) after successful init
                   } catch (err) {
                     console.error('[Host] Audio activation error:', err);
                   }
                 }}
-                className="w-full px-6 py-3 bg-green-600 hover:bg-green-500 rounded-lg text-white font-semibold transition-colors min-h-[44px] flex items-center justify-center gap-2"
+                className="w-full px-6 py-4 md:py-3 bg-green-600 hover:bg-green-500 active:scale-95 rounded-xl md:rounded-lg text-white font-semibold transition-all min-h-[56px] md:min-h-[44px] flex items-center justify-center gap-3 md:gap-2 touch-manipulation"
               >
-                <span className="text-xl">🔊</span>
-                <span>Activeer Audio</span>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <span className="text-lg md:text-base">Activeer Audio</span>
               </button>
             </div>
           </div>

@@ -13,6 +13,13 @@
  * so we call the Spotify Web API from the CLIENT side using the SDK's own
  * device_id. This works reliably because the device is local to this browser.
  *
+ * Mobile support:
+ *   Mobile browsers require a user gesture before audio can play. The SDK's
+ *   activateElement() must be called from a click handler. On mobile we:
+ *   1. Preload the SDK script and token on mount
+ *   2. Show an activation button (onNeedsActivation) instead of auto-init
+ *   3. When the user clicks, init the SDK from the gesture context
+ *
  * State machine:
  *   DISCONNECTED → SDK_READY → ACTIVATED → IDLE
  *        ↑                                  ↕
@@ -36,7 +43,7 @@ import {
   releaseSpotifyLock,
   destroySpotifyLock,
 } from "@/lib/spotifyTabLock";
-import { isIOSSafari } from "@/lib/browserDetection";
+import { isIOSSafari, isMobile } from "@/lib/browserDetection";
 
 // Spotify SDK Player type (avoids global declaration conflicts)
 type SpotifySDKPlayer = {
@@ -116,6 +123,11 @@ export function SpotifyAudioTarget({
   const autoPauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const tokenRef = useRef<string | null>(null);
   const [, setIsActive] = useState(false);
+
+  // Mobile: track whether we're waiting for a user gesture to init SDK
+  const mobileInitPendingRef = useRef(false);
+  // Mobile: track whether SDK + token are preloaded and ready
+  const sdkPreloadedRef = useRef(false);
 
   // ============================================================================
   // HELPERS
@@ -450,28 +462,46 @@ export function SpotifyAudioTarget({
   // INITIALIZE SDK PLAYER
   // ============================================================================
 
-  const initPlayer = useCallback(async () => {
+  /**
+   * Core SDK initialization logic. On mobile, this MUST be called from within
+   * a user gesture context (click handler) so that activateElement() works.
+   *
+   * @param fromUserGesture - true when called from a click/tap handler
+   */
+  const initPlayer = useCallback(async (fromUserGesture = false) => {
     if (!socket) return;
 
-    // Tab lock: only one tab per device should run SDK
-    const hasLock = await acquireSpotifyLock(sessionCode, () => {
-      console.log("[SpotifyAudioTarget] Lock revoked, tearing down SDK");
-      teardownPlayer();
-    });
+    // On mobile, require a user gesture before initializing the SDK.
+    // Without a gesture, activateElement() silently fails and audio won't play.
+    if (isMobile() && !fromUserGesture) {
+      console.log("[SpotifyAudioTarget] Mobile detected — deferring SDK init until user gesture");
+      mobileInitPendingRef.current = true;
 
-    if (!hasLock) {
-      console.log("[SpotifyAudioTarget] Could not acquire tab lock, skipping SDK init");
+      // Preload SDK script and token so they're instant when user clicks
+      ensureSDKScript().then(() => {
+        sdkPreloadedRef.current = true;
+        console.log("[SpotifyAudioTarget] SDK script preloaded for mobile");
+      });
+      getToken().then(() => {
+        console.log("[SpotifyAudioTarget] Token preloaded for mobile");
+      });
+
+      // Signal parent to show activation button
+      onNeedsActivation?.(true);
       return;
     }
 
+    // Ensure SDK script is loaded (instant if preloaded on mobile)
     await ensureSDKScript();
 
-    const token = await getToken();
+    // Get token (uses cached value from preload if available)
+    const token = tokenRef.current || await getToken();
     if (!token) {
       onError?.("No Spotify token available");
       return;
     }
 
+    // Create the Spotify Player instance
     const player = new window.Spotify.Player({
       name: `PartyQuiz ${kind === "DISPLAY" ? "Display" : "Host"} - ${sessionCode}`,
       getOAuthToken: async (cb: (token: string) => void) => {
@@ -489,12 +519,8 @@ export function SpotifyAudioTarget({
       setSdkState(AudioSDKState.SDK_READY);
       onDeviceReady?.(device_id);
 
-      // Warm-up: Register IMMEDIATELY — don't bother with transfer here.
-      // The `play: false` transfer expires after a few seconds anyway,
-      // so it's pointless. Instead, playTrackViaAPI handles transfer + play
-      // in one atomic step when an actual play command arrives.
+      // Register with server right away
       (async () => {
-        // Register with server right away
         socket.emit(AudioWSEvent.REGISTER_AUDIO_PLAYER, {
           sessionCode,
           deviceId: device_id,
@@ -550,8 +576,7 @@ export function SpotifyAudioTarget({
     player.addListener("initialization_error", ({ message }: { message: string }) => {
       console.error("[SpotifyAudioTarget] Init error:", message);
       setSdkState(AudioSDKState.ERROR_RECOVERY);
-      
-      // Add iOS Safari specific guidance
+
       if (isIOSSafari()) {
         onError?.("Spotify SDK wordt niet volledig ondersteund op iOS Safari. Gebruik Chrome of de Spotify app voor de beste ervaring.");
       } else {
@@ -566,8 +591,7 @@ export function SpotifyAudioTarget({
     player.addListener("account_error", ({ message }: { message: string }) => {
       console.error("[SpotifyAudioTarget] Account error:", message);
       setSdkState(AudioSDKState.ERROR_RECOVERY);
-      
-      // Add clear message about Premium requirement
+
       if (isIOSSafari()) {
         onError?.("Spotify Premium is vereist. Let op: Spotify SDK werkt mogelijk niet correct op iOS Safari.");
       } else {
@@ -579,9 +603,25 @@ export function SpotifyAudioTarget({
       // Don't change state for playback errors — they might be transient
     });
 
-    // Activate element for mobile/autoplay browsers (must be called before connect)
+    // CRITICAL: activateElement() must be called within a user gesture context
+    // on mobile browsers. On desktop this also works (more lenient autoplay policy).
+    // We call it BEFORE acquireSpotifyLock because the lock has a 200ms setTimeout
+    // that would lose the user gesture context.
     await player.activateElement();
     setSdkState(AudioSDKState.ACTIVATED);
+
+    // Tab lock: only one tab per device should run SDK
+    // (placed after activateElement to preserve user gesture context)
+    const hasLock = await acquireSpotifyLock(sessionCode, () => {
+      console.log("[SpotifyAudioTarget] Lock revoked, tearing down SDK");
+      teardownPlayer();
+    });
+
+    if (!hasLock) {
+      console.log("[SpotifyAudioTarget] Could not acquire tab lock, skipping SDK init");
+      player.disconnect();
+      return;
+    }
 
     const connected = await player.connect();
     if (!connected) {
@@ -592,6 +632,7 @@ export function SpotifyAudioTarget({
     }
 
     playerRef.current = player;
+    mobileInitPendingRef.current = false;
     onNeedsActivation?.(false);
     console.log("[SpotifyAudioTarget] SDK connected, waiting for 'ready' event");
   }, [socket, sessionCode, kind, getToken, setSdkState, onDeviceReady, onStatusChange, onError, onNeedsActivation]);
@@ -645,6 +686,7 @@ export function SpotifyAudioTarget({
       onTargetChanged?.(thisIsTarget);
 
       // If we became the target and don't have SDK yet, initialize
+      // On mobile, initPlayer will defer and show activation button
       if (thisIsTarget && !playerRef.current) {
         initPlayer();
       }
@@ -705,9 +747,17 @@ export function SpotifyAudioTarget({
     };
   }, [teardownPlayer]);
 
-  // Handle manual audio activation request from UI (mobile browsers)
+  // Handle manual audio activation request from UI (mobile/autoplay browsers)
   useEffect(() => {
     const handleActivationRequest = async () => {
+      // Mobile: SDK hasn't been initialized yet — do full init from user gesture
+      if (mobileInitPendingRef.current && !playerRef.current) {
+        console.log("[SpotifyAudioTarget] User gesture received — initializing SDK for mobile");
+        await initPlayer(true); // true = called from user gesture
+        return;
+      }
+
+      // Desktop: SDK exists but autoplay was blocked — just re-activate
       const player = playerRef.current;
       if (player && sdkStateRef.current !== AudioSDKState.DISCONNECTED) {
         try {
@@ -728,7 +778,7 @@ export function SpotifyAudioTarget({
         window.removeEventListener('spotifyActivateRequest', handleActivationRequest);
       };
     }
-  }, [onNeedsActivation, setSdkState]);
+  }, [initPlayer, onNeedsActivation, setSdkState]);
 
   // Headless component — renders nothing
   return null;
