@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useWebSocket } from "@/hooks/useWebSocket";
+import type { Socket } from "socket.io-client";
 
 interface SwanRaceDisplayProps {
   sessionCode: string;
+  socket: Socket | null;
 }
 
 interface Swan {
@@ -30,17 +31,16 @@ const FINISH_LINE = TRACK_LENGTH - 80;
  * Shows the race canvas without any player controls.
  * Designed for big screen / projector display.
  */
-export function SwanRaceDisplay({ sessionCode }: SwanRaceDisplayProps) {
+export function SwanRaceDisplay({ sessionCode, socket }: SwanRaceDisplayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [swans, setSwans] = useState<Swan[]>([]);
   const [raceFinished, setRaceFinished] = useState(false);
   const [finalPositions, setFinalPositions] = useState<string[]>([]);
   const animationFrameRef = useRef<number | undefined>(undefined);
   const waveOffset = useRef(0);
-  const { socket, isConnected } = useWebSocket();
 
   useEffect(() => {
-    if (!socket || !isConnected) return;
+    if (!socket || !socket.connected) return;
 
     // Listen for game state updates (race positions)
     const handleGameState = (data: any) => {
@@ -69,7 +69,7 @@ export function SwanRaceDisplay({ sessionCode }: SwanRaceDisplayProps) {
     return () => {
       socket.off("GAME_STATE", handleGameState);
     };
-  }, [socket, isConnected]);
+  }, [socket]);
 
   // Canvas animation loop
   useEffect(() => {

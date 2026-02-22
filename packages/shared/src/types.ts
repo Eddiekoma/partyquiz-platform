@@ -489,6 +489,7 @@ export enum SwanChaseMode {
   ROUNDS = "ROUNDS",                    // 2 rounds with team swap
   KING_OF_LAKE = "KING_OF_LAKE",        // Free-for-all: everyone can tag & be tagged, last one standing wins
   SWAN_SWARM = "SWAN_SWARM",            // Co-op survival: all players vs AI swans
+  RACE = "RACE",                        // Linear race: first to finish wins
 }
 
 /**

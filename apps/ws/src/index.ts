@@ -671,8 +671,10 @@ const swanRaceGames = new Map<string, SwanRaceState>();
 // SWAN CHASE GAME (New game mode)
 // =============================================================================
 import { SwanChaseGameEngine } from "./lib/swan-chase-engine";
+import { SwanRaceEngine } from "./lib/swan-race-engine";
 
 const swanChaseGames = new Map<string, SwanChaseGameEngine>();
+const swanRaceEngines = new Map<string, SwanRaceEngine>();
 
 
 // Connection Status Tracking
@@ -2142,6 +2144,36 @@ io.on("connection", (socket: Socket) => {
           logger.info({ playerId, sessionCode }, "Sent active scoreboard to rejoining player");
         }
 
+        // Check if Swan Chase is currently active and send state to rejoining player
+        const activeSwanChase = swanChaseGames.get(sessionCode);
+        if (activeSwanChase) {
+          const gameState = activeSwanChase.getState();
+          socket.emit(WSMessageType.SWAN_CHASE_STARTED, {
+            mode: gameState.mode,
+            playerCount: gameState.players.length,
+            settings: gameState.settings,
+            players: gameState.players.map(p => ({
+              id: p.id,
+              name: p.name,
+              team: p.team,
+              type: p.type,
+            })),
+          });
+          // Also send current game state so controls render correctly
+          socket.emit(WSMessageType.SWAN_CHASE_STATE, gameState);
+          logger.info({ playerId, sessionCode }, "Sent active Swan Chase state to rejoining player");
+        }
+
+        // Check if Swan Race is currently active and send state to rejoining player
+        const activeSwanRace = swanRaceGames.get(sessionCode);
+        if (activeSwanRace && activeSwanRace.isActive) {
+          socket.emit(WSMessageType.SWAN_RACE_STARTED, {
+            sessionCode,
+            players: Array.from(activeSwanRace.players.values()),
+          });
+          logger.info({ playerId, sessionCode }, "Sent active Swan Race state to rejoining player");
+        }
+
         logger.info({ playerId, sessionCode }, "Player rejoined session successfully");
       } catch (error) {
         logger.error({ error }, "Error rejoining session");
@@ -3471,17 +3503,23 @@ io.on("connection", (socket: Socket) => {
       const { sessionCode, playerId, input } = data;
       logger.debug({ playerId, sessionCode, input }, "Game input received");
 
-      // Handle Swan Race input
+      // Handle Swan Race input (new engine)
       if (input.action === "STROKE") {
+        // Check new race engine first
+        const raceEngine = swanRaceEngines.get(sessionCode);
+        if (raceEngine) {
+          raceEngine.handleStroke(playerId, input.duration || 0);
+          return;
+        }
+
+        // Fall back to legacy race system
         const gameState = updateSwanRace(sessionCode, playerId, input.duration || 0);
         if (gameState) {
-          // Broadcast updated game state to all players
           io.to(sessionCode).emit("GAME_STATE", gameState);
 
-          // Award points if race finished
           if (gameState.raceFinished && gameState.finalPositions) {
-            gameState.finalPositions.forEach(async (pid, index) => {
-              const points = Math.max(10 - index * 2, 1); // 1st: 10pts, 2nd: 8pts, 3rd: 6pts, etc.
+            gameState.finalPositions.forEach(async (pid: string, index: number) => {
+              const points = Math.max(10 - index * 2, 1);
               try {
                 await updateLeaderboard(sessionCode, pid, points);
                 logger.info({ sessionCode, playerId: pid, position: index + 1, points }, "Swan Race points awarded");
@@ -3490,9 +3528,15 @@ io.on("connection", (socket: Socket) => {
               }
             });
 
-            // Stop the race
-            setTimeout(() => stopSwanRace(sessionCode), 3000); // 3 second delay for celebration
+            setTimeout(() => stopSwanRace(sessionCode), 3000);
           }
+        }
+      } else if (input.action === "SPRINT") {
+        // Handle sprint for race mode
+        const raceEngine = swanRaceEngines.get(sessionCode);
+        if (raceEngine) {
+          raceEngine.handleSprint(playerId);
+          return;
         }
       } else {
         // Fallback: broadcast input to all players in session
@@ -3594,15 +3638,90 @@ io.on("connection", (socket: Socket) => {
         return;
       }
 
-      // Stop any existing Swan Chase game
+      // Stop any existing games
       const existingGame = swanChaseGames.get(sessionCode);
       if (existingGame) {
         existingGame.stop();
         swanChaseGames.delete(sessionCode);
       }
+      const existingRace = swanRaceEngines.get(sessionCode);
+      if (existingRace) {
+        existingRace.stop();
+        swanRaceEngines.delete(sessionCode);
+      }
 
-      // Create and start new game
       const selectedMode = (mode ?? SwanChaseMode.CLASSIC) as SwanChaseMode;
+
+      // === RACE MODE: Use SwanRaceEngine ===
+      if (selectedMode === SwanChaseMode.RACE) {
+        const playerAvatars = playerIds.map((id) => {
+          const p = validPlayers.find((vp) => vp.id === id);
+          return p?.avatar || null;
+        });
+
+        const raceEngine = new SwanRaceEngine(
+          sessionCode,
+          playerIds,
+          Array.from(playerNames.entries()).sort((a, b) => {
+            return playerIds.indexOf(a[0]) - playerIds.indexOf(b[0]);
+          }).map(([, name]) => name),
+          playerAvatars,
+          duration || 60,
+        );
+
+        swanRaceEngines.set(sessionCode, raceEngine);
+
+        raceEngine.start(
+          // Broadcast state
+          (gameState) => {
+            io.to(sessionCode).emit(WSMessageType.SWAN_CHASE_STATE, gameState);
+
+            if (gameState.status === 'ENDED') {
+              io.to(sessionCode).emit(WSMessageType.SWAN_CHASE_ENDED, {
+                winner: gameState.winner,
+                winnerId: gameState.winnerId,
+                players: gameState.players,
+                duration: gameState.settings.duration - gameState.timeRemaining,
+                mode: gameState.mode,
+              });
+            }
+          },
+          // On race end
+          async (results) => {
+            for (const player of results.players) {
+              const points = Math.max(10 - (player.finishOrder - 1) * 2, 1);
+              try {
+                await updateLeaderboard(sessionCode, player.id, points);
+                logger.info({ sessionCode, playerId: player.id, points, position: player.finishOrder }, "Swan Race points awarded");
+              } catch (error) {
+                logger.error({ error, playerId: player.id }, "Failed to award Swan Race points");
+              }
+            }
+
+            setTimeout(() => {
+              swanRaceEngines.delete(sessionCode);
+              logger.info({ sessionCode }, "Swan Race cleaned up");
+            }, 3000);
+          },
+        );
+
+        io.to(sessionCode).emit(WSMessageType.SWAN_CHASE_STARTED, {
+          mode: SwanChaseMode.RACE,
+          playerCount: playerIds.length,
+          settings: raceEngine.getState().settings,
+          players: raceEngine.getState().players.map(p => ({
+            id: p.id,
+            name: p.name,
+            team: p.team,
+            type: p.type,
+          })),
+        });
+
+        logger.info({ sessionCode, playerCount: playerIds.length, mode: "RACE" }, "Swan Race started successfully");
+        return;
+      }
+
+      // === OTHER MODES: Use SwanChaseGameEngine ===
       const gameEngine = new SwanChaseGameEngine(
         sessionCode,
         selectedMode,
@@ -3643,7 +3762,7 @@ io.on("connection", (socket: Socket) => {
                 logger.error({ error, playerId: player.id }, "Failed to award Swan Chase points");
               }
             }
-            
+
             // Clean up
             swanChaseGames.delete(sessionCode);
             logger.info({ sessionCode, winner: gameState.winner }, "Swan Chase game cleaned up");
@@ -3698,14 +3817,16 @@ io.on("connection", (socket: Socket) => {
 
       const gameEngine = swanChaseGames.get(sessionCode);
       if (!gameEngine) {
+        logger.warn({ sessionCode, playerId }, "BOAT_MOVE: No game engine found");
         return; // Game not active
       }
 
       // Convert angle/speed to direction vector
+      // Joystick sends 0°=up (navigation convention), convert to screen coordinates
       const radians = (angle * Math.PI) / 180;
       const direction = {
-        x: Math.cos(radians) * speed,
-        y: Math.sin(radians) * speed,
+        x: Math.sin(radians) * speed,
+        y: -Math.cos(radians) * speed,
       };
 
       // Handle boat movement
@@ -3714,7 +3835,7 @@ io.on("connection", (socket: Socket) => {
         sprint: false,
       });
     } catch (error) {
-      logger.error({ error }, "Error handling boat movement");
+      logger.error({ error, data }, "Error handling boat movement");
     }
   });
 
@@ -3723,6 +3844,13 @@ io.on("connection", (socket: Socket) => {
     try {
       const command = swanChaseBoatSprintSchema.parse(data);
       const { sessionCode, playerId } = command;
+
+      // Check race engine first
+      const raceEngineForSprint = swanRaceEngines.get(sessionCode);
+      if (raceEngineForSprint) {
+        raceEngineForSprint.handleSprint(playerId);
+        return;
+      }
 
       const gameEngine = swanChaseGames.get(sessionCode);
       if (!gameEngine) {
@@ -3734,7 +3862,7 @@ io.on("connection", (socket: Socket) => {
         direction: { x: 0, y: 0 }, // Will use existing direction
         sprint: true,
       });
-      
+
       logger.info({ sessionCode, playerId }, "Boat sprint activated");
     } catch (error) {
       logger.error({ error }, "Error handling boat sprint");
@@ -3749,14 +3877,16 @@ io.on("connection", (socket: Socket) => {
 
       const gameEngine = swanChaseGames.get(sessionCode);
       if (!gameEngine) {
+        logger.warn({ sessionCode, playerId }, "SWAN_MOVE: No game engine found");
         return; // Game not active
       }
 
       // Convert angle/speed to direction vector
+      // Joystick sends 0°=up (navigation convention), convert to screen coordinates
       const radians = (angle * Math.PI) / 180;
       const direction = {
-        x: Math.cos(radians) * speed,
-        y: Math.sin(radians) * speed,
+        x: Math.sin(radians) * speed,
+        y: -Math.cos(radians) * speed,
       };
 
       // Handle swan movement
@@ -3765,7 +3895,7 @@ io.on("connection", (socket: Socket) => {
         dash: false,
       });
     } catch (error) {
-      logger.error({ error }, "Error handling swan movement");
+      logger.error({ error, data }, "Error handling swan movement");
     }
   });
 

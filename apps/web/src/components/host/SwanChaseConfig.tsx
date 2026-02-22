@@ -33,7 +33,7 @@ export function SwanChaseConfig({
 }: SwanChaseConfigProps) {
   const [teamAssignments, setTeamAssignments] = useState<TeamAssignment[]>([]);
   const [duration, setDuration] = useState(180); // 3 minutes default
-  const [mode, setMode] = useState<"CLASSIC" | "ROUNDS" | "KING_OF_LAKE" | "SWAN_SWARM">("CLASSIC");
+  const [mode, setMode] = useState<"CLASSIC" | "ROUNDS" | "KING_OF_LAKE" | "SWAN_SWARM" | "RACE">("CLASSIC");
   const [isConfiguring, setIsConfiguring] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -148,6 +148,7 @@ export function SwanChaseConfig({
             <p className="text-sm text-slate-400">
               {gameState.mode === "KING_OF_LAKE" ? "👑 King of the Lake" :
                gameState.mode === "SWAN_SWARM" ? `🌊 Swan Swarm - Wave ${gameState.currentWave || 1}` :
+               (gameState.mode as string) === "RACE" ? "🏁 Swan Race" :
                `Round ${gameState.round} of 2`}
             </p>
           </div>
@@ -164,7 +165,7 @@ export function SwanChaseConfig({
           <div className="bg-slate-800/50 rounded-lg p-4">
             <div className="text-sm text-slate-400 mb-1">Time Remaining</div>
             <div className="text-3xl font-bold text-white">
-              {Math.ceil((gameState.timeRemaining || 0) / 1000)}s
+              {Math.ceil(gameState.timeRemaining || 0)}s
             </div>
           </div>
 
@@ -386,6 +387,17 @@ export function SwanChaseConfig({
               <div className="font-bold">🌊 Swan Swarm</div>
               <div className="text-xs opacity-80">Co-op survival vs AI swans</div>
             </button>
+            <button
+              onClick={() => setMode("RACE")}
+              className={`p-3 rounded-lg border transition-all col-span-2 ${
+                mode === "RACE"
+                  ? "bg-cyan-600 border-cyan-500 text-white"
+                  : "bg-slate-800 border-slate-600 text-slate-300 hover:border-slate-500"
+              }`}
+            >
+              <div className="font-bold">🏁 Swan Race</div>
+              <div className="text-xs opacity-80">Paddling race, first to finish wins</div>
+            </button>
           </div>
         </div>
 
@@ -490,6 +502,8 @@ export function SwanChaseConfig({
           <p className="text-slate-300">
             {mode === "KING_OF_LAKE"
               ? "👑 All players compete individually. No team assignment needed."
+              : mode === "RACE"
+              ? "🏁 All players race individually. First to finish wins!"
               : "🌊 All players cooperate against AI swans. No team assignment needed."}
           </p>
           <p className="text-sm text-slate-400 mt-2">
@@ -517,7 +531,7 @@ export function SwanChaseConfig({
         ) : !isConnected ? (
           "❌ Not Connected"
         ) : (
-          `🚀 Start ${mode === "KING_OF_LAKE" ? "King of the Lake" : mode === "SWAN_SWARM" ? "Swan Swarm" : "Swan Chase"}`
+          `🚀 Start ${mode === "KING_OF_LAKE" ? "King of the Lake" : mode === "SWAN_SWARM" ? "Swan Swarm" : mode === "RACE" ? "Swan Race" : "Swan Chase"}`
         )}
       </button>
     </div>

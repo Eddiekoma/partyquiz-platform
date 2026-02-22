@@ -435,7 +435,12 @@ export class SwanChaseGameEngine {
     dash?: boolean;
   }): void {
     const player = this.gameState.players.find(p => p.id === playerId);
-    if (!player || this.gameState.status !== 'ACTIVE') return;
+    if (!player) {
+      return;
+    }
+    if (this.gameState.status !== 'ACTIVE') {
+      return;
+    }
 
     // Ignore input from eliminated/tagged/safe players
     if (player.status === SwanChasePlayerStatus.TAGGED || 
@@ -607,7 +612,7 @@ export class SwanChaseGameEngine {
 
     this.aiSwans.forEach((ai) => {
       // Find nearest active player or chase assigned target
-      let target = activePlayers.find(p => p.id === ai.targetPlayerId);
+      let target: SwanChasePlayer | undefined = activePlayers.find(p => p.id === ai.targetPlayerId);
       if (!target) {
         // Reassign to nearest player
         let minDist = Infinity;
@@ -619,7 +624,7 @@ export class SwanChaseGameEngine {
           }
         });
         if (target) {
-          ai.targetPlayerId = target.id;
+          ai.targetPlayerId = (target as SwanChasePlayer).id;
         }
       }
 

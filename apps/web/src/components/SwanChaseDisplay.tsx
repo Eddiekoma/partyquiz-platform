@@ -1,107 +1,148 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useWebSocket } from "@/hooks/useWebSocket";
-import { 
-  WSMessageType, 
-  SwanChaseGameState, 
-  SwanChasePlayer,
+import type { Socket } from "socket.io-client";
+import {
+  WSMessageType,
+  SwanChaseGameState,
   SwanChasePlayerStatus,
   SwanChaseTeam,
-  Vector2D,
+  type Vector2D,
 } from "@partyquiz/shared";
+import { ParticleSystem } from "@/lib/swan-chase/particles";
+import {
+  drawWater,
+  drawBoatSprite,
+  drawSwanSprite,
+  drawAISwanSprite,
+  drawObstacles,
+  drawSafeZone,
+  drawRaceLanes,
+  drawPlayerLabel,
+  drawHUD,
+  drawMiniMap,
+  drawCountdown,
+  drawEndScreen,
+  applyScreenShake,
+  createShake,
+  type ScreenShake,
+} from "@/lib/swan-chase/rendering";
+
+// Adaptive quality levels based on FPS
+type QualityLevel = 'HIGH' | 'MEDIUM' | 'LOW';
+
+interface QualitySettings {
+  level: QualityLevel;
+  waveAnimations: boolean;       // Disable at LOW
+  waveLayers: number;            // 4 at HIGH, 2 at MEDIUM, 0 at LOW
+  ambientParticles: boolean;     // Disable at MEDIUM/LOW
+  trailParticles: boolean;       // Disable at LOW
+  confettiRate: number;          // 0.3 at HIGH, 0.1 at MEDIUM, 0 at LOW
+  foamHighlights: boolean;       // Disable at LOW
+}
+
+const QUALITY_PRESETS: Record<QualityLevel, QualitySettings> = {
+  HIGH:   { level: 'HIGH',   waveAnimations: true,  waveLayers: 4, ambientParticles: true,  trailParticles: true,  confettiRate: 0.3,  foamHighlights: true  },
+  MEDIUM: { level: 'MEDIUM', waveAnimations: true,  waveLayers: 2, ambientParticles: false, trailParticles: true,  confettiRate: 0.1,  foamHighlights: false },
+  LOW:    { level: 'LOW',    waveAnimations: false, waveLayers: 0, ambientParticles: false, trailParticles: false, confettiRate: 0,    foamHighlights: false },
+};
 
 interface SwanChaseDisplayProps {
   sessionCode: string;
+  socket: Socket | null;
 }
 
-interface Particle {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  life: number;
-  maxLife: number;
-  color: string;
-  size: number;
-}
-
-export function SwanChaseDisplay({ sessionCode }: SwanChaseDisplayProps) {
+export function SwanChaseDisplay({ sessionCode, socket }: SwanChaseDisplayProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [gameState, setGameState] = useState<SwanChaseGameState | null>(null);
-  const [particles, setParticles] = useState<Particle[]>([]);
+  const gameStateRef = useRef<SwanChaseGameState | null>(null);
+  const particlesRef = useRef<ParticleSystem>(new ParticleSystem(200));
   const animationFrameRef = useRef<number | undefined>(undefined);
-  const { socket, isConnected } = useWebSocket();
+  const shakeRef = useRef<ScreenShake | null>(null);
+  const lastFrameTimeRef = useRef(0);
+  const prevPlayerStatusRef = useRef<Map<string, string>>(new Map());
 
-  // Water animation parameters
-  const waveOffset = useRef(0);
+  // Performance monitoring & adaptive quality
+  const fpsRef = useRef({ frameCount: 0, lastCheck: 0, fps: 60 });
+  const qualityRef = useRef<QualitySettings>(QUALITY_PRESETS.HIGH);
+  const lowFpsCountRef = useRef(0); // consecutive low-FPS checks before downgrading
+  const highFpsCountRef = useRef(0); // consecutive high-FPS checks before upgrading
 
   useEffect(() => {
-    if (!socket || !isConnected) return;
+    if (!socket || !socket.connected) return;
 
-    // Listen for game state updates
     socket.on(WSMessageType.SWAN_CHASE_STATE, (state: SwanChaseGameState) => {
+      const prevState = gameStateRef.current;
+      gameStateRef.current = state;
       setGameState(state);
+
+      // Detect status changes for particle effects and screen shake
+      if (prevState) {
+        const prevStatuses = prevPlayerStatusRef.current;
+
+        for (const player of state.players) {
+          const prevStatus = prevStatuses.get(player.id);
+
+          if (prevStatus && prevStatus !== player.status) {
+            // Player was tagged
+            if (player.status === SwanChasePlayerStatus.TAGGED) {
+              particlesRef.current.emit('SPLASH', player.position.x, player.position.y, 15, {
+                colors: ['#ef4444', '#dc2626', '#fca5a5'],
+                minSpeed: 2,
+                maxSpeed: 5,
+              });
+              shakeRef.current = createShake(8, 300);
+            }
+
+            // Player eliminated (stronger shake)
+            if (player.status === SwanChasePlayerStatus.ELIMINATED) {
+              particlesRef.current.emit('SPLASH', player.position.x, player.position.y, 20, {
+                colors: ['#ef4444', '#dc2626', '#7f1d1d', '#fca5a5'],
+                minSpeed: 3,
+                maxSpeed: 6,
+              });
+              shakeRef.current = createShake(12, 500);
+            }
+
+            // Player reached safe zone
+            if (player.status === SwanChasePlayerStatus.SAFE) {
+              particlesRef.current.emit('SPARKLE', player.position.x, player.position.y, 20, {
+                colors: ['#fbbf24', '#f59e0b', '#fde68a', '#ffffff'],
+                minSpeed: 1,
+                maxSpeed: 3,
+                gravity: -20,
+              });
+            }
+
+            // Crown stolen
+            if (player.status === SwanChasePlayerStatus.KING) {
+              particlesRef.current.emit('SPARKLE', player.position.x, player.position.y, 25, {
+                colors: ['#fbbf24', '#f59e0b', '#fde68a'],
+                minSpeed: 2,
+                maxSpeed: 4,
+              });
+              shakeRef.current = createShake(6, 400);
+            }
+          }
+        }
+
+        // Update previous statuses
+        const newStatuses = new Map<string, string>();
+        for (const p of state.players) {
+          newStatuses.set(p.id, p.status);
+        }
+        prevPlayerStatusRef.current = newStatuses;
+      }
     });
 
-    socket.on(WSMessageType.BOAT_TAGGED, (data: { playerId: string; position: Vector2D }) => {
-      // Create explosion particles
-      createExplosion(data.position.x, data.position.y, "#FF4444");
-    });
-
-    socket.on(WSMessageType.BOAT_SAFE, (data: { playerId: string; position: Vector2D }) => {
-      // Create sparkle particles
-      createSparkles(data.position.x, data.position.y, "#FFD700");
-    });
+    socket.emit("GET_SESSION_STATE", { sessionCode });
 
     return () => {
       socket.off(WSMessageType.SWAN_CHASE_STATE);
-      socket.off(WSMessageType.BOAT_TAGGED);
-      socket.off(WSMessageType.BOAT_SAFE);
     };
-  }, [socket, isConnected]);
+  }, [socket, sessionCode]);
 
-  // Create explosion particles
-  const createExplosion = (x: number, y: number, color: string) => {
-    const newParticles: Particle[] = [];
-    for (let i = 0; i < 20; i++) {
-      const angle = (Math.PI * 2 * i) / 20;
-      const speed = 3 + Math.random() * 2;
-      newParticles.push({
-        x,
-        y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed,
-        life: 1,
-        maxLife: 1,
-        color,
-        size: 3 + Math.random() * 3,
-      });
-    }
-    setParticles(prev => [...prev, ...newParticles]);
-  };
-
-  // Create sparkle particles
-  const createSparkles = (x: number, y: number, color: string) => {
-    const newParticles: Particle[] = [];
-    for (let i = 0; i < 30; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 1 + Math.random() * 2;
-      newParticles.push({
-        x,
-        y,
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed - 1,
-        life: 1,
-        maxLife: 1,
-        color,
-        size: 2 + Math.random() * 2,
-      });
-    }
-    setParticles(prev => [...prev, ...newParticles]);
-  };
-
-  // Animation loop
+  // Main animation loop
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !gameState) return;
@@ -109,680 +150,225 @@ export function SwanChaseDisplay({ sessionCode }: SwanChaseDisplayProps) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const animate = () => {
-      // Clear canvas
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const animate = (timestamp: number) => {
+      const currentState = gameStateRef.current;
+      if (!currentState) {
+        animationFrameRef.current = requestAnimationFrame(animate);
+        return;
+      }
 
-      // Draw water background with animated waves
-      drawWater(ctx, canvas.width, canvas.height);
+      // Calculate delta time
+      const dt = lastFrameTimeRef.current ? (timestamp - lastFrameTimeRef.current) / 1000 : 1 / 60;
+      lastFrameTimeRef.current = timestamp;
+      const time = timestamp / 1000;
 
-      // Draw obstacles
-      gameState.settings.obstacles.forEach(obstacle => {
-        drawObstacle(ctx, obstacle);
-      });
+      // FPS tracking + adaptive quality
+      fpsRef.current.frameCount++;
+      if (timestamp - fpsRef.current.lastCheck > 1000) {
+        fpsRef.current.fps = fpsRef.current.frameCount;
+        fpsRef.current.frameCount = 0;
+        fpsRef.current.lastCheck = timestamp;
 
-      // Draw safe zone
-      drawSafeZone(ctx, gameState.settings.safeZone, gameState.timeRemaining);
+        const fps = fpsRef.current.fps;
+        const currentLevel = qualityRef.current.level;
 
-      // Draw players (boats and swans)
-      gameState.players.forEach(player => {
-        if (player.team === SwanChaseTeam.WHITE) {
-          drawSwan(ctx, player);
-        } else {
-          drawBoat(ctx, player);
+        // Downgrade: 3 consecutive seconds below threshold
+        if (fps < 30 && currentLevel !== 'LOW') {
+          lowFpsCountRef.current++;
+          highFpsCountRef.current = 0;
+          if (lowFpsCountRef.current >= 3) {
+            qualityRef.current = QUALITY_PRESETS.LOW;
+            lowFpsCountRef.current = 0;
+          }
+        } else if (fps < 50 && currentLevel === 'HIGH') {
+          lowFpsCountRef.current++;
+          highFpsCountRef.current = 0;
+          if (lowFpsCountRef.current >= 3) {
+            qualityRef.current = QUALITY_PRESETS.MEDIUM;
+            lowFpsCountRef.current = 0;
+          }
         }
-        drawPlayerLabel(ctx, player, gameState);
-      });
-
-      // Draw AI swans (SWAN_SWARM mode)
-      if (gameState.aiSwans) {
-        gameState.aiSwans.forEach(ai => {
-          drawAISwan(ctx, ai);
-        });
+        // Upgrade: 5 consecutive seconds above threshold (slower to recover)
+        else if (fps >= 55 && currentLevel !== 'HIGH') {
+          highFpsCountRef.current++;
+          lowFpsCountRef.current = 0;
+          if (highFpsCountRef.current >= 5) {
+            qualityRef.current = currentLevel === 'LOW' ? QUALITY_PRESETS.MEDIUM : QUALITY_PRESETS.HIGH;
+            highFpsCountRef.current = 0;
+          }
+        } else {
+          // Stable - reset counters
+          lowFpsCountRef.current = 0;
+          highFpsCountRef.current = 0;
+        }
       }
 
-      // Update and draw particles
-      updateAndDrawParticles(ctx);
+      const quality = qualityRef.current;
 
-      // Draw HUD
-      drawHUD(ctx, canvas.width, canvas.height, gameState);
+      const width = canvas.width;
+      const height = canvas.height;
 
-      // Draw game status overlay
-      if (gameState.status === 'COUNTDOWN') {
-        drawCountdown(ctx, canvas.width, canvas.height);
-      } else if (gameState.status === 'ENDED') {
-        drawEndOverlay(ctx, canvas.width, canvas.height, gameState);
+      // Clear
+      ctx.clearRect(0, 0, width, height);
+
+      // Apply screen shake
+      ctx.save();
+      applyScreenShake(ctx, shakeRef.current, Date.now());
+
+      // === LAYER 1: Water background ===
+      drawWater(ctx, width, height, time, quality.waveLayers, quality.foamHighlights);
+
+      const isRaceMode = (currentState.mode as string) === 'RACE';
+
+      // === LAYER 2: Obstacles / Race lanes ===
+      if (isRaceMode) {
+        drawRaceLanes(ctx, currentState, width, height, time);
+      } else {
+        drawObstacles(ctx, currentState.settings.obstacles, width, height, time);
       }
 
-      waveOffset.current += 0.02;
+      // === LAYER 3: Safe zone (skip for RACE) ===
+      if (!isRaceMode) {
+        drawSafeZone(ctx, currentState.settings.safeZone, time);
+      }
+
+      // === LAYER 4: AI Swans (SWAN_SWARM) ===
+      if (currentState.aiSwans) {
+        for (const ai of currentState.aiSwans) {
+          drawAISwanSprite(ctx, ai, time);
+        }
+      }
+
+      // === LAYER 5: Players ===
+      // Draw swans first (behind boats visually)
+      const swans = currentState.players.filter(p => p.team === SwanChaseTeam.WHITE);
+      const boats = currentState.players.filter(p => p.team !== SwanChaseTeam.WHITE);
+
+      for (const player of swans) {
+        drawSwanSprite(ctx, player, time);
+      }
+
+      for (const player of boats) {
+        drawBoatSprite(ctx, player, time);
+      }
+
+      // Player labels (drawn after all sprites so labels are on top)
+      for (const player of currentState.players) {
+        drawPlayerLabel(ctx, player, currentState);
+      }
+
+      // === LAYER 6: Particles (adaptive) ===
+      // Emit ambient water bubbles occasionally (skip at MEDIUM/LOW)
+      if (quality.ambientParticles && Math.random() < 0.05) {
+        particlesRef.current.emit('BUBBLE',
+          Math.random() * width,
+          height - 10,
+          1,
+          { minLife: 1, maxLife: 2, gravity: -40 }
+        );
+      }
+
+      // Emit speed trails for sprinting/dashing players (skip at LOW)
+      if (quality.trailParticles) {
+        for (const player of currentState.players) {
+          const speed = Math.sqrt(player.velocity.x ** 2 + player.velocity.y ** 2);
+          if (player.abilities.sprint.active && speed > 1) {
+            particlesRef.current.emit('TRAIL', player.position.x, player.position.y, 1, {
+              colors: ['#60a5fa', '#93c5fd'],
+              minSize: 2,
+              maxSize: 4,
+              minLife: 0.2,
+              maxLife: 0.4,
+              minSpeed: 0.2,
+              maxSpeed: 0.5,
+              direction: Math.atan2(-player.velocity.y, -player.velocity.x),
+              spread: 0.5,
+            });
+          }
+          if (player.abilities.dash?.active && speed > 1) {
+            particlesRef.current.emit('TRAIL', player.position.x, player.position.y, 2, {
+              colors: ['#f97316', '#fb923c', '#fdba74'],
+              minSize: 3,
+              maxSize: 5,
+              minLife: 0.2,
+              maxLife: 0.5,
+              minSpeed: 0.3,
+              maxSpeed: 0.8,
+              direction: Math.atan2(-player.velocity.y, -player.velocity.x),
+              spread: 0.4,
+            });
+          }
+        }
+      }
+
+      particlesRef.current.update(dt);
+      particlesRef.current.draw(ctx);
+
+      // === LAYER 7: HUD ===
+      drawHUD(ctx, currentState, width, height, time);
+
+      // === LAYER 8: Mini-map ===
+      drawMiniMap(ctx, currentState, width, height);
+
+      // === LAYER 9: Overlays ===
+      if (currentState.status === 'COUNTDOWN') {
+        drawCountdown(ctx, width, height, currentState, time);
+      } else if (currentState.status === 'ENDED') {
+        drawEndScreen(ctx, currentState, width, height, time);
+
+        // Emit confetti for winners (adaptive rate)
+        if (quality.confettiRate > 0 && Math.random() < quality.confettiRate) {
+          particlesRef.current.emit('CONFETTI',
+            Math.random() * width,
+            -10,
+            2,
+            { minLife: 2, maxLife: 4, gravity: 80 }
+          );
+        }
+      }
+
+      // Restore from screen shake
+      ctx.restore();
+
+      // Debug FPS (enable with ?debug=1)
+      if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('debug')) {
+        const debugText = `${fpsRef.current.fps} FPS | ${particlesRef.current.activeCount}P | Q:${quality.level}`;
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(4, height - 22, debugText.length * 7 + 8, 18);
+        ctx.fillStyle = fpsRef.current.fps < 30 ? '#ef4444' : fpsRef.current.fps < 50 ? '#f59e0b' : '#22c55e';
+        ctx.font = '12px monospace';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(debugText, 8, height - 20);
+      }
+
       animationFrameRef.current = requestAnimationFrame(animate);
     };
 
-    animate();
+    animationFrameRef.current = requestAnimationFrame(animate);
 
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [gameState, particles]);
-
-  // Draw animated water background
-  const drawWater = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
-    // Base water color
-    const gradient = ctx.createLinearGradient(0, 0, 0, height);
-    gradient.addColorStop(0, "#1e3a8a");
-    gradient.addColorStop(1, "#0c4a6e");
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, width, height);
-
-    // Draw animated waves
-    ctx.save();
-    ctx.globalAlpha = 0.1;
-    ctx.strokeStyle = "#60a5fa";
-    ctx.lineWidth = 2;
-
-    for (let i = 0; i < 5; i++) {
-      ctx.beginPath();
-      for (let x = 0; x < width; x += 10) {
-        const y = Math.sin((x + waveOffset.current * 100 + i * 50) * 0.01) * 10 + height / 2 + i * 40;
-        if (x === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          ctx.lineTo(x, y);
-        }
-      }
-      ctx.stroke();
-    }
-    ctx.restore();
-  };
-
-  // Draw obstacle (island or rock)
-  const drawObstacle = (ctx: CanvasRenderingContext2D, obstacle: any) => {
-    ctx.save();
-    if (obstacle.type === 'ISLAND') {
-      // Draw island with palm tree
-      ctx.fillStyle = "#22c55e";
-      ctx.beginPath();
-      ctx.arc(obstacle.position.x, obstacle.position.y, obstacle.radius, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Palm tree trunk
-      ctx.fillStyle = "#92400e";
-      ctx.fillRect(
-        obstacle.position.x - 3,
-        obstacle.position.y - obstacle.radius,
-        6,
-        obstacle.radius * 0.8
-      );
-
-      // Palm leaves
-      ctx.fillStyle = "#16a34a";
-      for (let i = 0; i < 5; i++) {
-        const angle = (Math.PI * 2 * i) / 5;
-        ctx.beginPath();
-        ctx.ellipse(
-          obstacle.position.x + Math.cos(angle) * 15,
-          obstacle.position.y - obstacle.radius,
-          8,
-          15,
-          angle,
-          0,
-          Math.PI * 2
-        );
-        ctx.fill();
-      }
-    } else {
-      // Draw rock
-      ctx.fillStyle = "#64748b";
-      ctx.strokeStyle = "#475569";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      // Irregular rock shape
-      for (let i = 0; i < 8; i++) {
-        const angle = (Math.PI * 2 * i) / 8;
-        const radius = obstacle.radius * (0.8 + Math.random() * 0.4);
-        const x = obstacle.position.x + Math.cos(angle) * radius;
-        const y = obstacle.position.y + Math.sin(angle) * radius;
-        if (i === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          ctx.lineTo(x, y);
-        }
-      }
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-    }
-    ctx.restore();
-  };
-
-  // Draw safe zone with pulsing effect
-  const drawSafeZone = (ctx: CanvasRenderingContext2D, safeZone: any, timeRemaining: number) => {
-    ctx.save();
-    const pulse = Math.sin(Date.now() * 0.003) * 0.3 + 0.7;
-
-    // Outer glow
-    const gradient = ctx.createRadialGradient(
-      safeZone.position.x,
-      safeZone.position.y,
-      0,
-      safeZone.position.x,
-      safeZone.position.y,
-      safeZone.radius
-    );
-    gradient.addColorStop(0, `rgba(34, 197, 94, ${0.3 * pulse})`);
-    gradient.addColorStop(0.7, `rgba(34, 197, 94, ${0.2 * pulse})`);
-    gradient.addColorStop(1, "rgba(34, 197, 94, 0)");
-    ctx.fillStyle = gradient;
-    ctx.beginPath();
-    ctx.arc(safeZone.position.x, safeZone.position.y, safeZone.radius, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Border
-    ctx.strokeStyle = `rgba(34, 197, 94, ${pulse})`;
-    ctx.lineWidth = 3;
-    ctx.setLineDash([10, 5]);
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    // "SAFE ZONE" text
-    ctx.fillStyle = "#22c55e";
-    ctx.font = "bold 24px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText("SAFE ZONE", safeZone.position.x, safeZone.position.y);
-
-    ctx.restore();
-  };
-
-  // Draw boat player
-  const drawBoat = (ctx: CanvasRenderingContext2D, player: SwanChasePlayer) => {
-    ctx.save();
-    ctx.translate(player.position.x, player.position.y);
-    ctx.rotate(player.rotation);
-
-    // Status effects
-    if (player.status === SwanChasePlayerStatus.TAGGED || player.status === ("ELIMINATED" as any)) {
-      ctx.globalAlpha = 0.4;
-      ctx.filter = "grayscale(1)";
-    } else if (player.status === SwanChasePlayerStatus.SAFE) {
-      ctx.filter = "drop-shadow(0 0 10px #22c55e)";
-    } else if (player.status === ("KING" as any)) {
-      ctx.filter = "drop-shadow(0 0 15px #fbbf24)";
-    }
-
-    // Sprint effect
-    if (player.abilities.sprint.active) {
-      ctx.filter = "drop-shadow(0 0 15px #3b82f6)";
-    }
-
-    // Boat body - color based on mode
-    const boatColor = player.team === SwanChaseTeam.SOLO || player.team === SwanChaseTeam.COOP
-      ? "#6366f1" // Indigo for solo/coop modes
-      : "#3b82f6"; // Blue for classic
-    ctx.fillStyle = boatColor;
-    ctx.beginPath();
-    ctx.moveTo(20, 0);
-    ctx.lineTo(-15, -10);
-    ctx.lineTo(-20, 0);
-    ctx.lineTo(-15, 10);
-    ctx.closePath();
-    ctx.fill();
-
-    // Boat outline
-    ctx.strokeStyle = "#1e40af";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    // Player icon/emoji in boat
-    ctx.fillStyle = "white";
-    ctx.font = "20px Arial";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText("🚣", 0, 0);
-
-    // Crown for KING_OF_LAKE king
-    if (player.status === ("KING" as any)) {
-      ctx.font = "24px Arial";
-      ctx.fillText("👑", 0, -25);
-    }
-
-    ctx.restore();
-
-    // Draw wake trail if moving
-    if (player.velocity.x !== 0 || player.velocity.y !== 0) {
-      ctx.save();
-      ctx.globalAlpha = 0.3;
-      ctx.strokeStyle = "#60a5fa";
-      ctx.lineWidth = 2;
-      const trailX = player.position.x - Math.cos(player.rotation) * 25;
-      const trailY = player.position.y - Math.sin(player.rotation) * 25;
-      ctx.beginPath();
-      ctx.moveTo(player.position.x, player.position.y);
-      ctx.lineTo(trailX, trailY);
-      ctx.stroke();
-      ctx.restore();
-    }
-  };
-
-  // Draw swan player
-  const drawSwan = (ctx: CanvasRenderingContext2D, player: SwanChasePlayer) => {
-    ctx.save();
-    ctx.translate(player.position.x, player.position.y);
-    ctx.rotate(player.rotation);
-
-    // Dash effect
-    if (player.status === SwanChasePlayerStatus.DASHING) {
-      ctx.filter = "drop-shadow(0 0 20px #ef4444)";
-      
-      // Dash trail
-      for (let i = 1; i <= 3; i++) {
-        ctx.globalAlpha = 0.3 / i;
-        ctx.fillStyle = "#ef4444";
-        ctx.beginPath();
-        ctx.ellipse(-i * 15, 0, 18, 15, 0, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.globalAlpha = 1;
-    }
-
-    // Swan body (white with elegant curves)
-    ctx.fillStyle = "white";
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 20, 15, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Swan neck
-    ctx.strokeStyle = "white";
-    ctx.lineWidth = 8;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(15, -5);
-    ctx.quadraticCurveTo(25, -15, 28, -8);
-    ctx.stroke();
-
-    // Swan head
-    ctx.fillStyle = "white";
-    ctx.beginPath();
-    ctx.arc(28, -8, 5, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Swan beak
-    ctx.fillStyle = "#f97316";
-    ctx.beginPath();
-    ctx.moveTo(33, -8);
-    ctx.lineTo(28, -10);
-    ctx.lineTo(28, -6);
-    ctx.closePath();
-    ctx.fill();
-
-    // Swan eye
-    ctx.fillStyle = "black";
-    ctx.beginPath();
-    ctx.arc(30, -9, 1.5, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Swan wings (when dashing)
-    if (player.status === SwanChasePlayerStatus.DASHING) {
-      ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
-      ctx.beginPath();
-      ctx.ellipse(0, -12, 15, 8, -Math.PI / 4, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.beginPath();
-      ctx.ellipse(0, 12, 15, 8, Math.PI / 4, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    ctx.restore();
-  };
-
-  // Draw player name label
-  const drawPlayerLabel = (ctx: CanvasRenderingContext2D, player: SwanChasePlayer, state: SwanChaseGameState) => {
-    ctx.save();
-    ctx.font = "bold 12px Arial";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-
-    // Background
-    const text = player.name;
-    const metrics = ctx.measureText(text);
-    const padding = 4;
-    const bgWidth = metrics.width + padding * 2;
-    const bgHeight = 16;
-
-    // Label color based on mode/team
-    const isKing = state.currentKingId === player.id;
-    const bgColor = isKing
-      ? "rgba(251, 191, 36, 0.9)" // Gold for king
-      : player.team === SwanChaseTeam.BLUE ? "rgba(59, 130, 246, 0.9)" 
-      : player.team === ("SOLO" as any) ? "rgba(99, 102, 241, 0.9)"
-      : player.team === ("COOP" as any) ? "rgba(99, 102, 241, 0.9)"
-      : "rgba(255, 255, 255, 0.9)";
-    
-    ctx.fillStyle = bgColor;
-    ctx.fillRect(
-      player.position.x - bgWidth / 2,
-      player.position.y - 40,
-      bgWidth,
-      bgHeight
-    );
-
-    // Text
-    ctx.fillStyle = player.team === SwanChaseTeam.WHITE ? "black" : "white";
-    ctx.fillText(text, player.position.x, player.position.y - 38);
-
-    // Status badge
-    if (player.status === SwanChasePlayerStatus.TAGGED) {
-      ctx.fillStyle = "red";
-      ctx.font = "10px Arial";
-      ctx.fillText("TAGGED", player.position.x, player.position.y - 55);
-    } else if (player.status === SwanChasePlayerStatus.SAFE) {
-      ctx.fillStyle = "#22c55e";
-      ctx.font = "10px Arial";
-      ctx.fillText("SAFE!", player.position.x, player.position.y - 55);
-    } else if (player.status === ("ELIMINATED" as any)) {
-      ctx.fillStyle = "#ef4444";
-      ctx.font = "10px Arial";
-      ctx.fillText("💀 OUT", player.position.x, player.position.y - 55);
-    } else if (player.status === ("KING" as any)) {
-      ctx.fillStyle = "#fbbf24";
-      ctx.font = "bold 10px Arial";
-      ctx.fillText("👑 KING", player.position.x, player.position.y - 55);
-    }
-
-    ctx.restore();
-  };
-
-  // Draw AI swan (SWAN_SWARM mode)
-  const drawAISwan = (ctx: CanvasRenderingContext2D, ai: { position: Vector2D; rotation: number }) => {
-    ctx.save();
-    ctx.translate(ai.position.x, ai.position.y);
-    ctx.rotate(ai.rotation);
-
-    // Menacing red glow
-    ctx.filter = "drop-shadow(0 0 10px #dc2626)";
-
-    // AI Swan body (red-tinted)
-    ctx.fillStyle = "#fca5a5";
-    ctx.beginPath();
-    ctx.ellipse(0, 0, 18, 13, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Neck
-    ctx.strokeStyle = "#fca5a5";
-    ctx.lineWidth = 6;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(12, -4);
-    ctx.quadraticCurveTo(20, -12, 22, -6);
-    ctx.stroke();
-
-    // Head
-    ctx.fillStyle = "#fca5a5";
-    ctx.beginPath();
-    ctx.arc(22, -6, 4, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Red beak
-    ctx.fillStyle = "#dc2626";
-    ctx.beginPath();
-    ctx.moveTo(26, -6);
-    ctx.lineTo(22, -8);
-    ctx.lineTo(22, -4);
-    ctx.closePath();
-    ctx.fill();
-
-    // Angry red eye
-    ctx.fillStyle = "#dc2626";
-    ctx.beginPath();
-    ctx.arc(24, -7, 2, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.restore();
-  };
-
-  // Update and draw particles
-  const updateAndDrawParticles = (ctx: CanvasRenderingContext2D) => {
-    setParticles(prev => {
-      const updated = prev
-        .map(p => ({
-          ...p,
-          x: p.x + p.vx,
-          y: p.y + p.vy,
-          vy: p.vy + 0.1, // Gravity
-          life: p.life - 0.02,
-        }))
-        .filter(p => p.life > 0);
-
-      // Draw
-      updated.forEach(p => {
-        ctx.save();
-        ctx.globalAlpha = p.life;
-        ctx.fillStyle = p.color;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      });
-
-      return updated;
-    });
-  };
-
-  // Draw HUD (timer, score, team stats)
-  const drawHUD = (
-    ctx: CanvasRenderingContext2D,
-    width: number,
-    height: number,
-    state: SwanChaseGameState
-  ) => {
-    ctx.save();
-
-    // Timer (top center)
-    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-    ctx.fillRect(width / 2 - 100, 10, 200, 50);
-    ctx.fillStyle = state.timeRemaining <= 10 ? "#ef4444" : "white";
-    ctx.font = "bold 32px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText(
-      `${Math.floor(state.timeRemaining / 60)}:${(state.timeRemaining % 60).toString().padStart(2, '0')}`,
-      width / 2,
-      45
-    );
-
-    if (state.mode === "KING_OF_LAKE") {
-      // KING_OF_LAKE HUD
-      const alive = state.players.filter(p => (p.status as string) !== "ELIMINATED").length;
-      const kingPlayer = state.players.find(p => p.id === (state as any).currentKingId);
-
-      // Left: King info
-      ctx.fillStyle = "rgba(251, 191, 36, 0.9)";
-      ctx.fillRect(10, 10, 220, 80);
-      ctx.fillStyle = "black";
-      ctx.font = "bold 18px Arial";
-      ctx.textAlign = "left";
-      ctx.fillText("👑 KING OF THE LAKE", 20, 35);
-      ctx.font = "14px Arial";
-      ctx.fillText(`King: ${kingPlayer?.name || "—"}`, 20, 55);
-      ctx.fillText(`Tags: ${kingPlayer?.tagsCount || 0}`, 20, 73);
-
-      // Right: Alive count
-      ctx.fillStyle = "rgba(99, 102, 241, 0.9)";
-      ctx.fillRect(width - 180, 10, 170, 80);
-      ctx.fillStyle = "white";
-      ctx.font = "bold 18px Arial";
-      ctx.textAlign = "right";
-      ctx.fillText("PLAYERS", width - 20, 35);
-      ctx.font = "bold 36px Arial";
-      ctx.fillText(`${alive}`, width - 20, 73);
-
-    } else if (state.mode === "SWAN_SWARM") {
-      // SWAN_SWARM HUD
-      const alive = state.players.filter(p => p.status === SwanChasePlayerStatus.ACTIVE || (p.status as string) === "DASHING").length;
-      const aiCount = (state as any).aiSwans?.length || 0;
-      const wave = (state as any).currentWave || 1;
-
-      // Left: Team info
-      ctx.fillStyle = "rgba(99, 102, 241, 0.9)";
-      ctx.fillRect(10, 10, 200, 80);
-      ctx.fillStyle = "white";
-      ctx.font = "bold 18px Arial";
-      ctx.textAlign = "left";
-      ctx.fillText("🌊 SWAN SWARM", 20, 35);
-      ctx.font = "14px Arial";
-      ctx.fillText(`Crew Alive: ${alive} / ${state.players.length}`, 20, 55);
-      ctx.fillText(`Wave: ${wave}`, 20, 73);
-
-      // Right: AI swans count
-      ctx.fillStyle = "rgba(220, 38, 38, 0.9)";
-      ctx.fillRect(width - 180, 10, 170, 80);
-      ctx.fillStyle = "white";
-      ctx.font = "bold 18px Arial";
-      ctx.textAlign = "right";
-      ctx.fillText("🦢 AI SWANS", width - 20, 35);
-      ctx.font = "bold 36px Arial";
-      ctx.fillText(`${aiCount}`, width - 20, 73);
-
-    } else {
-      // CLASSIC / ROUNDS HUD
-      const boatsAlive = state.players.filter(
-        p => p.team === SwanChaseTeam.BLUE && p.status === SwanChasePlayerStatus.ACTIVE
-      ).length;
-      const boatsSafe = state.players.filter(
-        p => p.team === SwanChaseTeam.BLUE && p.status === SwanChasePlayerStatus.SAFE
-      ).length;
-      const boatsTagged = state.players.filter(
-        p => p.team === SwanChaseTeam.BLUE && p.status === SwanChasePlayerStatus.TAGGED
-      ).length;
-      const swanTags = state.players
-        .filter(p => p.team === SwanChaseTeam.WHITE)
-        .reduce((sum, p) => sum + (p.tagsCount || 0), 0);
-
-      // Boats team (left)
-      ctx.fillStyle = "rgba(59, 130, 246, 0.9)";
-      ctx.fillRect(10, 10, 200, 80);
-      ctx.fillStyle = "white";
-      ctx.font = "bold 18px Arial";
-      ctx.textAlign = "left";
-      ctx.fillText("🚣 BOATS TEAM", 20, 35);
-      ctx.font = "14px Arial";
-      ctx.fillText(`Active: ${boatsAlive}`, 20, 55);
-      ctx.fillText(`Safe: ${boatsSafe}`, 20, 73);
-      ctx.fillText(`Tagged: ${boatsTagged}`, 120, 73);
-
-      // Swans team (right)
-      ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-      ctx.fillRect(width - 210, 10, 200, 80);
-      ctx.fillStyle = "black";
-      ctx.textAlign = "right";
-      ctx.fillText("🦢 SWANS TEAM", width - 20, 35);
-      ctx.font = "14px Arial";
-      ctx.fillText(`Hunters: ${state.settings.swansCount}`, width - 20, 55);
-      ctx.fillText(`Tags: ${swanTags}`, width - 20, 73);
-    }
-
-    ctx.restore();
-  };
-
-  // Draw countdown
-  const drawCountdown = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
-    const elapsed = Date.now() - gameState!.startTime;
-    const countdown = Math.max(0, 3 - Math.floor(elapsed / 1000));
-
-    ctx.save();
-    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-    ctx.fillRect(0, 0, width, height);
-
-    ctx.fillStyle = "white";
-    ctx.font = "bold 120px Arial";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(countdown > 0 ? countdown.toString() : "GO!", width / 2, height / 2);
-
-    ctx.restore();
-  };
-
-  // Draw end game overlay
-  const drawEndOverlay = (
-    ctx: CanvasRenderingContext2D,
-    width: number,
-    height: number,
-    state: SwanChaseGameState
-  ) => {
-    ctx.save();
-    ctx.fillStyle = "rgba(0, 0, 0, 0.8)";
-    ctx.fillRect(0, 0, width, height);
-
-    if (state.mode === "KING_OF_LAKE") {
-      // KING_OF_LAKE end
-      const winnerId = (state as any).winnerId;
-      const winner = winnerId ? state.players.find(p => p.id === winnerId) : null;
-      ctx.fillStyle = "#fbbf24";
-      ctx.font = "bold 80px Arial";
-      ctx.textAlign = "center";
-      ctx.fillText("👑", width / 2, height / 2 - 80);
-      ctx.fillText(winner?.name || "No one", width / 2, height / 2);
-      ctx.fillStyle = "white";
-      ctx.font = "bold 36px Arial";
-      ctx.fillText("KING OF THE LAKE!", width / 2, height / 2 + 60);
-
-      // Stats
-      ctx.font = "20px Arial";
-      const eliminated = state.players.filter(p => (p.status as string) === "ELIMINATED").length;
-      ctx.fillText(`Eliminated: ${eliminated} / ${state.players.length}`, width / 2, height / 2 + 110);
-
-    } else if (state.mode === "SWAN_SWARM") {
-      // SWAN_SWARM end
-      const survived = state.players.filter(p => p.status === SwanChasePlayerStatus.ACTIVE).length;
-      const allCaught = survived === 0;
-
-      ctx.fillStyle = allCaught ? "#ef4444" : "#22c55e";
-      ctx.font = "bold 80px Arial";
-      ctx.textAlign = "center";
-      ctx.fillText(allCaught ? "💀" : "🎉", width / 2, height / 2 - 80);
-      ctx.fillText(allCaught ? "SWARM WINS!" : "CREW SURVIVES!", width / 2, height / 2);
-      ctx.fillStyle = "white";
-      ctx.font = "24px Arial";
-      ctx.fillText(
-        `Survived: ${survived} / ${state.players.length} | Waves: ${(state as any).currentWave || 1}`,
-        width / 2, height / 2 + 60
-      );
-
-    } else {
-      // CLASSIC / ROUNDS end
-      const winnerTeam = state.winner === SwanChaseTeam.BLUE ? "BOATS" : "SWANS";
-      const winnerEmoji = state.winner === SwanChaseTeam.BLUE ? "🚣" : "🦢";
-      const winnerColor = state.winner === SwanChaseTeam.BLUE ? "#3b82f6" : "#ffffff";
-
-      ctx.fillStyle = winnerColor;
-      ctx.font = "bold 80px Arial";
-      ctx.textAlign = "center";
-      ctx.fillText(`${winnerEmoji} ${winnerTeam} WIN! ${winnerEmoji}`, width / 2, height / 2 - 50);
-
-      // Stats
-      ctx.fillStyle = "white";
-      ctx.font = "24px Arial";
-      const boatsSaved = state.players.filter(
-        p => p.team === SwanChaseTeam.BLUE && p.status === SwanChasePlayerStatus.SAFE
-      ).length;
-      const boatsTagged = state.players.filter(
-        p => p.team === SwanChaseTeam.BLUE && p.status === SwanChasePlayerStatus.TAGGED
-      ).length;
-
-      ctx.fillText(`Boats Saved: ${boatsSaved}`, width / 2, height / 2 + 50);
-      ctx.fillText(`Boats Tagged: ${boatsTagged}`, width / 2, height / 2 + 85);
-    }
-
-    ctx.restore();
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!gameState]);
 
   return (
     <div className="flex flex-col items-center justify-center w-full h-full bg-slate-900">
+      {!gameState && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
+          <div className="text-8xl mb-6 animate-bounce">🦢</div>
+          <h2 className="text-4xl font-bold text-white mb-2">Swan Chase</h2>
+          <p className="text-xl text-slate-400 animate-pulse">Loading game...</p>
+        </div>
+      )}
       <canvas
         ref={canvasRef}
         width={1600}
         height={900}
-        className="border-4 border-slate-700 rounded-lg shadow-2xl"
+        className="border-2 border-slate-700/50 rounded-xl shadow-2xl"
         style={{ maxWidth: "100%", height: "auto" }}
       />
     </div>

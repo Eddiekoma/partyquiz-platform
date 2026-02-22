@@ -192,6 +192,20 @@ export default function LobbyPage() {
       setNewPlayerName(data.newPlayerName);
     };
 
+    // Listen for Swan Chase started (minigame starts without a question)
+    const handleSwanChaseStarted = (data: any) => {
+      console.log("[Lobby] SWAN_CHASE_STARTED received:", data);
+      setSessionState("playing");
+      router.push(`/play/${code}/game`);
+    };
+
+    // Listen for Swan Race started (minigame starts without a question)
+    const handleSwanRaceStarted = (data: any) => {
+      console.log("[Lobby] SWAN_RACE_STARTED received:", data);
+      setSessionState("playing");
+      router.push(`/play/${code}/game`);
+    };
+
     socket.on("SESSION_STATE", handleSessionState);
     socket.on("ITEM_STARTED", handleItemStarted);
     socket.on("ERROR", handleError);
@@ -199,6 +213,8 @@ export default function LobbyPage() {
     socket.on("PLAYER_LEFT", handlePlayerLeft);
     socket.on(WSMessageType.PLAYER_KICKED, handlePlayerKicked);
     socket.on(WSMessageType.DEVICE_RECOGNIZED, handleDeviceRecognized);
+    socket.on(WSMessageType.SWAN_CHASE_STARTED, handleSwanChaseStarted);
+    socket.on(WSMessageType.SWAN_RACE_STARTED, handleSwanRaceStarted);
 
     console.log("[Lobby] Event listeners registered successfully");
 
@@ -212,6 +228,8 @@ export default function LobbyPage() {
       socket.off("PLAYER_LEFT", handlePlayerLeft);
       socket.off(WSMessageType.PLAYER_KICKED, handlePlayerKicked);
       socket.off(WSMessageType.DEVICE_RECOGNIZED, handleDeviceRecognized);
+      socket.off(WSMessageType.SWAN_CHASE_STARTED, handleSwanChaseStarted);
+      socket.off(WSMessageType.SWAN_RACE_STARTED, handleSwanRaceStarted);
     };
   }, [socket, code, router]);
 

@@ -444,12 +444,12 @@ export function clearInputRateLimit(playerId: string): void {
  */
 export const startSwanChaseCommandSchema = z.object({
   sessionCode: z.string(),
-  mode: z.enum(["CLASSIC", "ROUNDS", "KING_OF_LAKE", "SWAN_SWARM"]).optional(),
-  duration: z.number().int().min(60).max(300).optional(), // 1-5 minutes
+  mode: z.enum(["CLASSIC", "ROUNDS", "KING_OF_LAKE", "SWAN_SWARM", "RACE"]).optional(),
+  duration: z.number().int().min(30).max(300).optional(), // 30s-5 minutes (RACE can be shorter)
   teamAssignments: z.array(z.object({
     playerId: z.string(),
     team: z.enum(["BLUE", "WHITE"]),
-  })).optional(), // Auto-assign if not provided, ignored for KING_OF_LAKE & SWAN_SWARM
+  })).optional(), // Auto-assign if not provided, ignored for KING_OF_LAKE, SWAN_SWARM & RACE
 });
 
 export type StartSwanChaseCommand = z.infer<typeof startSwanChaseCommandSchema>;
@@ -477,21 +477,55 @@ export type SwanChaseInputCommand = z.infer<typeof swanChaseInputCommandSchema>;
  * Game state update (server → all clients)
  */
 export const swanChaseStateEventSchema = z.object({
+  mode: z.enum(["CLASSIC", "ROUNDS", "KING_OF_LAKE", "SWAN_SWARM", "RACE"]),
   sessionCode: z.string(),
+  round: z.union([z.literal(1), z.literal(2)]).optional(),
+  status: z.enum(["COUNTDOWN", "ACTIVE", "ENDED"]),
+  startTime: z.number(),
+  timeRemaining: z.number(),
+  settings: z.any(), // SwanChaseSettings - complex nested object
   players: z.array(z.object({
     id: z.string(),
     name: z.string(),
-    team: z.enum(["BLUE", "WHITE"]),
+    avatar: z.string().nullable().optional(),
+    team: z.enum(["BLUE", "WHITE", "SOLO", "COOP", "AI"]),
     type: z.enum(["BOAT", "SWAN"]),
     position: z.object({ x: z.number(), y: z.number() }),
     velocity: z.object({ x: z.number(), y: z.number() }),
     rotation: z.number(),
-    status: z.enum(["ACTIVE", "TAGGED", "SAFE", "HUNTING", "DASHING"]),
+    status: z.enum(["ACTIVE", "TAGGED", "SAFE", "HUNTING", "DASHING", "KING", "ELIMINATED"]),
     score: z.number(),
     tagsCount: z.number().optional(),
+    abilities: z.object({
+      sprint: z.object({
+        charges: z.number(),
+        active: z.boolean(),
+        cooldownUntil: z.number(),
+      }),
+      dash: z.object({
+        charges: z.number(),
+        active: z.boolean(),
+        cooldownUntil: z.number(),
+      }).optional(),
+    }),
   })),
-  timeRemaining: z.number(),
-  winner: z.enum(["BLUE", "WHITE", "DRAW"]).nullable(),
+  // AI swans (SWAN_SWARM mode)
+  aiSwans: z.array(z.object({
+    id: z.string(),
+    position: z.object({ x: z.number(), y: z.number() }),
+    velocity: z.object({ x: z.number(), y: z.number() }),
+    rotation: z.number(),
+    targetPlayerId: z.string().optional(),
+  })).optional(),
+  // KING_OF_LAKE
+  currentKingId: z.string().nullable().optional(),
+  // SWAN_SWARM
+  currentWave: z.number().optional(),
+  playersAlive: z.number().optional(),
+  // Win tracking
+  winner: z.enum(["BLUE", "WHITE", "SOLO", "COOP", "AI", "DRAW"]).nullable(),
+  winnerId: z.string().nullable().optional(),
+  winConditionMet: z.boolean(),
 });
 
 export type SwanChaseStateEvent = z.infer<typeof swanChaseStateEventSchema>;
@@ -527,11 +561,13 @@ export type BoatSafeEvent = z.infer<typeof boatSafeEventSchema>;
  */
 export const swanChaseEndedEventSchema = z.object({
   sessionCode: z.string(),
-  winner: z.enum(["BLUE", "WHITE", "DRAW"]),
+  mode: z.enum(["CLASSIC", "ROUNDS", "KING_OF_LAKE", "SWAN_SWARM", "RACE"]).optional(),
+  winner: z.enum(["BLUE", "WHITE", "SOLO", "COOP", "AI", "DRAW"]).nullable(),
+  winnerId: z.string().nullable().optional(), // Individual winner (KING_OF_LAKE, RACE)
   finalScores: z.array(z.object({
     playerId: z.string(),
     playerName: z.string(),
-    team: z.enum(["BLUE", "WHITE"]),
+    team: z.enum(["BLUE", "WHITE", "SOLO", "COOP", "AI"]),
     score: z.number(),
     status: z.string(),
   })),
@@ -539,6 +575,8 @@ export const swanChaseEndedEventSchema = z.object({
     duration: z.number(),
     totalTags: z.number(),
     boatsInSafeZone: z.number(),
+    currentWave: z.number().optional(),
+    playersAlive: z.number().optional(),
   }),
 });
 

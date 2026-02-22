@@ -13,6 +13,7 @@ import { BoatControls } from "@/components/player/BoatControls";
 import { SwanControls } from "@/components/player/SwanControls";
 import { KingOfLakeControls } from "@/components/player/KingOfLakeControls";
 import { SwarmControls } from "@/components/player/SwarmControls";
+import { RaceControls } from "@/components/player/RaceControls";
 import { Leaderboard } from "@/components/player/Leaderboard";
 
 interface LeaderboardEntry {
@@ -146,8 +147,23 @@ export default function GamePage() {
     });
 
     // Listen for Swan Chase state updates
+    let stateCount = 0;
     socket.on(WSMessageType.SWAN_CHASE_STATE, (state: SwanChaseGameState) => {
+      stateCount++;
+      if (stateCount <= 3 || stateCount % 30 === 0) {
+        console.log(`[Swan Chase] STATE #${stateCount}: status=${state.status}, players=${state.players.length}, playerPositions=${state.players.map(p => `${p.name}:(${p.position.x.toFixed(0)},${p.position.y.toFixed(0)})v(${p.velocity.x.toFixed(1)},${p.velocity.y.toFixed(1)})`).join(', ')}`);
+      }
       setSwanChaseState(state);
+    });
+
+    // Listen for Swan Chase ended
+    socket.on(WSMessageType.SWAN_CHASE_ENDED, (data: any) => {
+      console.log("[Player] Swan Chase ended:", data);
+      // Keep showing for a few seconds so players see the result, then clean up
+      setTimeout(() => {
+        setShowSwanChase(false);
+        setSwanChaseState(null);
+      }, 5000);
     });
 
     // Listen for item started (new question)
@@ -462,6 +478,7 @@ export default function GamePage() {
       socket.off("SWAN_RACE_STARTED");
       socket.off(WSMessageType.SWAN_CHASE_STARTED);
       socket.off(WSMessageType.SWAN_CHASE_STATE);
+      socket.off(WSMessageType.SWAN_CHASE_ENDED);
       socket.off("ITEM_STARTED");
       socket.off("ITEM_LOCKED");
       socket.off("SESSION_PAUSED");
@@ -537,8 +554,12 @@ export default function GamePage() {
 
   // Swan Chase handlers
   const handleSwanChaseMove = (angle: number, speed: number) => {
-    if (!socket || !showSwanChase) return;
+    if (!socket || !showSwanChase) {
+      console.log(`[Swan Chase] handleSwanChaseMove BLOCKED: socket=${!!socket}, showSwanChase=${showSwanChase}`);
+      return;
+    }
 
+    console.log(`[Swan Chase] BOAT_MOVE emit: angle=${angle.toFixed(1)}, speed=${speed.toFixed(2)}, playerId=${playerId}`);
     socket.emit(WSMessageType.BOAT_MOVE, {
       sessionCode: code.toUpperCase(),
       playerId,
@@ -557,8 +578,12 @@ export default function GamePage() {
   };
 
   const handleSwanChaseSwanMove = (angle: number, speed: number) => {
-    if (!socket || !showSwanChase) return;
+    if (!socket || !showSwanChase) {
+      console.log(`[Swan Chase] handleSwanChaseSwanMove BLOCKED: socket=${!!socket}, showSwanChase=${showSwanChase}`);
+      return;
+    }
 
+    console.log(`[Swan Chase] SWAN_MOVE emit: angle=${angle.toFixed(1)}, speed=${speed.toFixed(2)}, playerId=${playerId}`);
     socket.emit(WSMessageType.SWAN_MOVE, {
       sessionCode: code.toUpperCase(),
       playerId,
@@ -571,6 +596,25 @@ export default function GamePage() {
     if (!socket || !showSwanChase) return;
 
     socket.emit(WSMessageType.SWAN_DASH, {
+      sessionCode: code.toUpperCase(),
+      playerId,
+    });
+  };
+
+  const handleRaceStroke = (duration: number) => {
+    if (!socket || !showSwanChase) return;
+
+    socket.emit(WSMessageType.GAME_INPUT, {
+      sessionCode: code.toUpperCase(),
+      playerId,
+      input: { action: "STROKE", duration, timestamp: Date.now() },
+    });
+  };
+
+  const handleRaceSprint = () => {
+    if (!socket || !showSwanChase) return;
+
+    socket.emit(WSMessageType.BOAT_SPRINT, {
       sessionCode: code.toUpperCase(),
       playerId,
     });
@@ -622,6 +666,8 @@ export default function GamePage() {
     const myPlayer = swanChaseState?.players.find((p) => p.id === playerId);
     const gameMode = swanChaseState?.mode;
 
+    console.log(`[Swan Chase] Rendering controls: gameMode=${gameMode}, myPlayer=${myPlayer?.id}, type=${myPlayer?.type}, status=${myPlayer?.status}, swanChaseState=${!!swanChaseState}, playerId=${playerId}`);
+
     // KING_OF_LAKE: Everyone gets both sprint and dash
     if (gameMode === "KING_OF_LAKE") {
       return (
@@ -661,6 +707,28 @@ export default function GamePage() {
             gameState={swanChaseState}
             onMove={handleSwanChaseMove}
             onSprint={handleSwanChaseSprint}
+            socket={socket}
+          />
+        </div>
+      );
+    }
+
+    // RACE: Paddling race mode
+    if ((gameMode as string) === "RACE") {
+      return (
+        <div className="flex-1 flex flex-col">
+          <Leaderboard
+            sessionCode={code.toUpperCase()}
+            visible={showScoreboard}
+            entries={scoreboardData}
+            currentPlayerId={playerId}
+          />
+          <RaceControls
+            sessionCode={code.toUpperCase()}
+            playerId={playerId}
+            gameState={swanChaseState}
+            onStroke={handleRaceStroke}
+            onSprint={handleRaceSprint}
             socket={socket}
           />
         </div>

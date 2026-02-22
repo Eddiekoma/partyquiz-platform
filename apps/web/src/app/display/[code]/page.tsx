@@ -368,6 +368,16 @@ export default function DisplayPage() {
       setDisplayState("minigame");
     };
 
+    // Listen for swan chase ended
+    const handleSwanChaseEnded = (data: any) => {
+      console.log("[Display] SWAN_CHASE_ENDED:", data);
+      // Stay on minigame display briefly so users see the end overlay, then return to lobby
+      setTimeout(() => {
+        setMinigameType(null);
+        setDisplayState("lobby");
+      }, 8000);
+    };
+
     // Listen for session pause/resume/end
     const handleSessionPaused = () => {
       setDisplayState("paused");
@@ -434,6 +444,7 @@ export default function DisplayPage() {
     socket.on("HIDE_SCOREBOARD", handleHideScoreboard);
     socket.on(WSMessageType.SWAN_RACE_STARTED, handleSwanRaceStarted);
     socket.on(WSMessageType.SWAN_CHASE_STARTED, handleSwanChaseStarted);
+    socket.on(WSMessageType.SWAN_CHASE_ENDED, handleSwanChaseEnded);
     socket.on(WSMessageType.SESSION_PAUSED, handleSessionPaused);
     socket.on(WSMessageType.SESSION_RESUMED, handleSessionResumed);
     socket.on(WSMessageType.SESSION_ENDED, handleSessionEnded);
@@ -459,6 +470,7 @@ export default function DisplayPage() {
       socket.off("HIDE_SCOREBOARD", handleHideScoreboard);
       socket.off(WSMessageType.SWAN_RACE_STARTED, handleSwanRaceStarted);
       socket.off(WSMessageType.SWAN_CHASE_STARTED, handleSwanChaseStarted);
+      socket.off(WSMessageType.SWAN_CHASE_ENDED, handleSwanChaseEnded);
       socket.off(WSMessageType.SESSION_PAUSED, handleSessionPaused);
       socket.off(WSMessageType.SESSION_RESUMED, handleSessionResumed);
       socket.off(WSMessageType.SESSION_ENDED, handleSessionEnded);
@@ -1059,13 +1071,13 @@ export default function DisplayPage() {
         {/* MINIGAME STATE - Swan Race */}
         {displayState === "minigame" && minigameType === "SWAN_RACE" && (
           <div className="w-full max-w-6xl mx-auto">
-            <SwanRaceDisplay sessionCode={code} />
+            <SwanRaceDisplay sessionCode={code} socket={socket} />
           </div>
         )}
 
         {/* MINIGAME STATE - Swan Chase */}
         {displayState === "minigame" && minigameType === "SWAN_CHASE" && (
-          <SwanChaseDisplay sessionCode={code} />
+          <SwanChaseDisplay sessionCode={code} socket={socket} />
         )}
 
         {/* PAUSED STATE */}
